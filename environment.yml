@@ -1,0 +1,28 @@
+# Conda environment for the noise-pollution project.
+#
+# Provenance:
+#   - Hand-assembled on 2026-09-09 from the third-party imports found in src/
+#     (macOS / darwin, project developed against Python 3.12). It is NOT a
+#     `conda list --explicit` dump of any specific machine.
+#   - NOT yet verified against a test suite (the project has no tests yet).
+#   - NOT a byte-exact record of any HPC/production environment. Before trusting
+#     it for a cluster run, reconcile it against that environment's own
+#     `conda list --explicit` output.
+#
+# environment.yml is the single dependency source of truth. Add packages here,
+# not to pyproject.toml or a requirements.txt.
+
+name: noise-pollution
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11
+  - pandas
+  - geopandas
+  - shapely
+  - pyogrio
+  - matplotlib
+  - pyarrow          # timetable preprocess writes .parquet
+  - pip
+  - pip:
+      - -e .

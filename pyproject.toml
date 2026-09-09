@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "noise-pollution"
+version = "0.1.0"
+requires-python = ">=3.11"
+description = "Noise pollution research project: rail-traffic data pipeline and analysis."
+
+# Dependencies are NOT listed here. environment.yml (conda) is the single
+# dependency source of truth. See docs/design/00-overview.md.
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src", "src.*"]

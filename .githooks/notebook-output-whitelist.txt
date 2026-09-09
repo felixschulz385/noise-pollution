@@ -1,0 +1,3 @@
+# Notebooks under src/experiments/ allowed to keep committed cell outputs,
+# one repo-relative path per line. Use only when the rendered output IS the
+# deliverable (e.g. a poster/visualization notebook).

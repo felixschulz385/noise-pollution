@@ -1,0 +1,28 @@
+# Data (regenerate via the pipeline; never commit bulk data)
+/data
+scratch_nobackup/
+
+# Logs
+/log
+*.log
+
+# Secrets and local-only config
+**/secrets
+*.local.yaml
+.env.local
+
+# Editor / agent artifacts
+.vscode/
+.codex
+.claude/
+.DS_Store
+
+# Python build artifacts
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+.venv/
+
+# Regeneratable analysis output (see docs/ from research-project-template)
+/output/analysis/

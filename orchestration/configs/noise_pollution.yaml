@@ -1,0 +1,9 @@
+# Unified project configuration.
+#
+# PLACEHOLDER. Today the pipeline reads its settings from argparse defaults in
+# src/cli/data/commands.py, not from this file. When the source-registry work
+# lands (see docs/design/00-overview.md), every source and handler should read
+# its defaults from here via `--config`, and per-flag defaults become overrides
+# only.
+
+data_root: data

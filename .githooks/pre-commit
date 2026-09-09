@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Block committed cell outputs in exploratory notebooks under src/experiments/.
+set -euo pipefail
+repo_root="$(git rev-parse --show-toplevel)"
+exec "$repo_root/.githooks/check-notebook-outputs.py"
