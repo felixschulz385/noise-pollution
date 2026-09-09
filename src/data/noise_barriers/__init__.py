@@ -1,0 +1,1 @@
+"""Noise barrier data pipeline."""
