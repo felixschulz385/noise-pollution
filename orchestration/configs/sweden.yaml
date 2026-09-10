@@ -1,0 +1,11 @@
+# Sweden region configuration.
+#
+# PLACEHOLDER. Today the pipeline reads its settings from argparse defaults in
+# src/regions/sweden/cli.py, not from this file. When the per-region
+# source-registry work lands (see docs/design/00-overview.md and
+# docs/design/01-multi-region-layout.md), every source and handler should read
+# its defaults from here via `--config`, and per-flag defaults become overrides
+# only.
+
+region: sweden
+data_root: data/sweden

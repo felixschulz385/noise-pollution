@@ -1,8 +1,11 @@
 # Noise pollution
 
-Research project on rail-traffic noise pollution in Sweden. Assembles rail
-network geometry, station locations, timetable / train-announcement records,
-and noise-barrier data from Trafikverket into an analysis-ready dataset.
+Research project on traffic-noise pollution across geographical regions. Each
+region is a self-contained pipeline; shared machinery lives in `src/core/`. The
+first region, **Sweden**, assembles rail network geometry, station locations,
+timetable / train-announcement records, and noise-barrier data from Trafikverket
+into an analysis-ready dataset. See
+[`docs/design/01-multi-region-layout.md`](docs/design/01-multi-region-layout.md).
 
 ## Quick start
 
@@ -13,25 +16,26 @@ pip install -e .
 ./.githooks/install.sh          # opt-in git hooks (notebook-output check)
 ```
 
-Example commands:
+Example commands (region-scoped: `python -m src.cli <region> …`):
 
 ```bash
-python -m src.cli data stations fetch
-python -m src.cli data stations preprocess
-python -m src.cli data network preprocess
+python -m src.cli sweden data stations fetch
+python -m src.cli sweden data stations preprocess
+python -m src.cli sweden data network preprocess
 ```
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/cli/` | CLI package — entry point is `python -m src.cli` |
-| `src/data/` | Per-domain data pipeline (`fetch` / `preprocess` / `assemble`) |
-| `src/experiments/` | Exploratory notebooks — unmaintained, not covered by tests |
-| `orchestration/` | Configuration files and HPC/Slurm scripts |
-| `data/` | Raw + processed pipeline data (gitignored; regenerate via the pipeline) |
+| `src/cli/` | `python -m src.cli` entry-point shim |
+| `src/core/` | Region-agnostic framework: CLI plumbing, path layout, shared utilities |
+| `src/regions/<region>/` | One self-contained region: `sources/`, `analysis/`, its CLI subtree |
+| `src/experiments/<region>/` | Exploratory notebooks — unmaintained, not covered by tests |
+| `orchestration/configs/<region>.yaml` | Per-region configuration; plus HPC/Slurm scripts |
+| `data/<region>/` | Raw + processed pipeline data (gitignored; regenerate via the pipeline) |
 | `output/` | Deliverables — figures, documents, tables, presentations |
-| `docs/` | Design decision log + per-source reference docs |
+| `docs/` | Design decision log + per-region reference docs |
 
 See [`docs/design/00-overview.md`](docs/design/00-overview.md) for architecture
 and the structural conventions this repo follows

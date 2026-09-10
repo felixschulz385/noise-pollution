@@ -1,6 +1,6 @@
-"""Command-line interface for the noise-pollution project.
+"""`python -m src.cli` shim.
 
-Entry point: ``python -m src.cli``. Parser construction and dispatch live in
-``main.py`` and the per-domain modules under ``src/cli/<domain>/``; ``__main__``
-is only the ``python -m`` shim.
+The CLI framework lives in ``src/core/cli/``; each region's subtree lives in
+``src/regions/<region>/cli.py``. This package is only the ``python -m`` entry
+point. See docs/design/01-multi-region-layout.md.
 """

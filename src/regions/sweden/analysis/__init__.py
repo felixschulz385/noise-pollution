@@ -1,0 +1,1 @@
+"""Sweden-only analysis pipeline."""

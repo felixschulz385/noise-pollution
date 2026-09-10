@@ -1,0 +1,7 @@
+# Florida region configuration.
+#
+# PLACEHOLDER. No Florida sources are wired up yet. Mirror sweden.yaml's shape
+# as sources are added. See docs/design/01-multi-region-layout.md.
+
+region: florida
+data_root: data/florida

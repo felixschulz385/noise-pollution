@@ -1,0 +1,20 @@
+# Ownership boundaries for the multi-region layout.
+# See docs/design/01-multi-region-layout.md.
+#
+# Shared framework — changes reviewed by every region owner:
+/src/core/            @felixschulz385
+/tests/core/          @felixschulz385
+
+# Per-region worlds — owned by that region's maintainer:
+/src/regions/sweden/  @felixschulz385
+/tests/regions/sweden/ @felixschulz385
+/data/sweden/         @felixschulz385
+/orchestration/configs/sweden.yaml @felixschulz385
+/docs/data/sweden/    @felixschulz385
+
+# Florida: add the region owner's GitHub handle here and to the /src/core/
+# lines above once they join.
+# /src/regions/florida/  @florida-owner
+# /tests/regions/florida/ @florida-owner
+# /orchestration/configs/florida.yaml @florida-owner
+# /docs/data/florida/    @florida-owner
