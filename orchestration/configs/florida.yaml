@@ -1,7 +1,18 @@
 # Florida region configuration.
 #
-# PLACEHOLDER. No Florida sources are wired up yet. Mirror sweden.yaml's shape
-# as sources are added. See docs/design/01-multi-region-layout.md.
+# PLACEHOLDER. Today the pipeline reads its settings from argparse defaults in
+# src/regions/florida/cli.py and src/regions/florida/sources/, not from this
+# file. When the per-region source-registry work lands (see
+# docs/design/00-overview.md and docs/design/01-multi-region-layout.md), every
+# source should read its defaults from here via `--config`, and per-flag
+# defaults become overrides only.
+#
+# Sources wired up so far:
+#   - noise_barriers: FDOT inventory via FGDL (list-versions, fetch)
+#   - assessments:    FLDOE annual school results (list-years, fetch — manual
+#                     download; www.fldoe.org blocks scripted clients)
+#   - master_file:    FLDOE MSID school directory (fetch — real download from the
+#                     eds.fldoe.org ColdFusion app)
 
 region: florida
 data_root: data/florida
