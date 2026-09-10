@@ -24,6 +24,7 @@ dependencies:
   - matplotlib
   - contextily       # web-tile basemaps for the exploratory notebooks
   - pyarrow          # timetable preprocess writes .parquet
+  - xlrd>=2.0.1      # read the legacy .xls FLDOE assessment workbooks
   - pip
   - pip:
       - -e .

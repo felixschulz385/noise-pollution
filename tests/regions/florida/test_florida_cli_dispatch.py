@@ -8,11 +8,16 @@ from src.regions.florida.sources.assessments.shared import (
     RESULTS_PAGES,
     validate_year,
 )
-from src.regions.florida.sources.master_file.shared import (
-    DATASETS,
-    DEFAULT_DATASET,
-    dataset_filename,
-    dataset_url,
+from src.regions.florida.sources.schools.shared import (
+    DEFAULT_SUBSOURCES,
+    MSID_DATASETS,
+    MSID_DEFAULT_DATASET,
+    SUBSOURCES,
+    api_url,
+    msid_dataset_filename,
+    msid_dataset_url,
+    parse_year_range,
+    resolve_subsources,
 )
 from src.regions.florida.sources.noise_barriers.fetch import _find_gdb_prefix
 from src.regions.florida.sources.noise_barriers.shared import (
@@ -29,12 +34,17 @@ from src.regions.florida.sources.noise_barriers.shared import (
         ["florida", "data", "noise-barriers", "list-versions"],
         ["florida", "data", "noise-barriers", "fetch"],
         ["florida", "data", "noise-barriers", "fetch", "--version", "apr23", "--keep-zip", "--no-metadata"],
+        ["florida", "data", "noise-barriers", "preprocess"],
+        ["florida", "data", "noise-barriers", "preprocess", "--version", "apr23"],
         ["florida", "data", "assessments", "list-years"],
         ["florida", "data", "assessments", "fetch"],
         ["florida", "data", "assessments", "fetch", "--year", "2024", "--from-file", "a.xlsx"],
-        ["florida", "data", "master-file", "fetch"],
-        ["florida", "data", "master-file", "fetch", "--dataset", "all_schools", "--dataset", "active_schools"],
-        ["florida", "data", "master-file", "fetch", "--from-file", "msid.xlsx"],
+        ["florida", "data", "assessments", "preprocess"],
+        ["florida", "data", "assessments", "preprocess", "--year", "2024", "--year", "2025"],
+        ["florida", "data", "schools", "fetch"],
+        ["florida", "data", "schools", "fetch", "--subsource", "msid", "--subsource", "edge"],
+        ["florida", "data", "schools", "fetch", "--subsource", "all", "--years", "2000:2010", "--refresh"],
+        ["florida", "data", "schools", "fetch", "--msid-dataset", "all_schools", "--from-file", "msid.tsv"],
     ],
 )
 def test_known_commands_resolve_to_a_handler(argv):
@@ -42,23 +52,51 @@ def test_known_commands_resolve_to_a_handler(argv):
     assert callable(args.func)
 
 
-def test_master_file_dataset_registry():
-    assert DEFAULT_DATASET == "all_schools" and DEFAULT_DATASET in DATASETS
-    assert dataset_url("all_schools") == (
+def test_schools_msid_dataset_registry():
+    assert MSID_DEFAULT_DATASET == "all_schools" and MSID_DEFAULT_DATASET in MSID_DATASETS
+    assert msid_dataset_url("all_schools") == (
         "https://eds.fldoe.org/EDS/MasterSchoolID/Downloads/All_schools.cfm"
     )
-    assert dataset_filename("all_schools") == "MSID_all_schools.tsv"
+    assert msid_dataset_filename("all_schools") == "MSID_all_schools.tsv"
     with pytest.raises(ValueError):
-        dataset_url("nope")
+        msid_dataset_url("nope")
 
 
-def test_master_file_dataset_flag_accumulates_and_is_constrained():
+def test_schools_subsource_resolution():
+    assert resolve_subsources(None) == list(DEFAULT_SUBSOURCES)
+    assert resolve_subsources([]) == []
+    assert resolve_subsources(["all"]) == list(SUBSOURCES)
+    # order always follows SUBSOURCES, not the argument order
+    assert resolve_subsources(["ccd_directory", "msid"]) == ["msid", "ccd_directory"]
+    with pytest.raises(ValueError):
+        resolve_subsources(["bogus"])
+
+
+def test_schools_year_range_parsing():
+    assert parse_year_range("1990:2026") == (1990, 2026)
+    assert parse_year_range("2000-2010") == (2000, 2010)
+    assert parse_year_range((1995, 1995)) == (1995, 1995)
+    with pytest.raises(ValueError):
+        parse_year_range("2026:1990")
+    with pytest.raises(ValueError):
+        parse_year_range("not-a-range")
+
+
+def test_schools_api_url_shape():
+    url = api_url("ccd_directory", 2015)
+    assert url.startswith("https://educationdata.urban.org/api/v1/schools/ccd/directory/2015/?")
+    assert "fips=12" in url
+
+
+def test_schools_fetch_flags_accumulate_and_are_constrained():
     args = build_parser().parse_args(
-        ["florida", "data", "master-file", "fetch", "--dataset", "all_schools", "--dataset", "verification"]
+        ["florida", "data", "schools", "fetch",
+         "--subsource", "msid", "--subsource", "ccd_enrollment", "--years", "1995:2005"]
     )
-    assert args.dataset == ["all_schools", "verification"]
+    assert args.subsource == ["msid", "ccd_enrollment"]
+    assert args.years == "1995:2005"
     with pytest.raises(SystemExit):
-        build_parser().parse_args(["florida", "data", "master-file", "fetch", "--dataset", "bogus"])
+        build_parser().parse_args(["florida", "data", "schools", "fetch", "--subsource", "bogus"])
 
 
 def test_assessments_fetch_flags_accumulate():
@@ -82,6 +120,11 @@ def test_assessments_registry_and_year_validation():
 
 def test_fetch_defaults_to_notebook_release():
     args = build_parser().parse_args(["florida", "data", "noise-barriers", "fetch"])
+    assert args.version == DEFAULT_VERSION == "jul26"
+
+
+def test_preprocess_defaults_to_notebook_release():
+    args = build_parser().parse_args(["florida", "data", "noise-barriers", "preprocess"])
     assert args.version == DEFAULT_VERSION == "jul26"
 
 

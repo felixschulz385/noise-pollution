@@ -8,12 +8,15 @@ is in place.
 
 | Domain | Steps implemented | Prerequisites | Module |
 |---|---|---|---|
-| `noise_barriers` | `list-versions`, `fetch` (`preprocess` not written yet) | — | `src/regions/florida/sources/noise_barriers/` |
-| `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2015–2026**, 231 files; `preprocess` TBD in notebook) | `master_file` crosswalk | `src/regions/florida/sources/assessments/` |
-| `master_file` | `fetch` (real download from the FLDOE EDS app; `preprocess` TBD in notebook) | — | `src/regions/florida/sources/master_file/` |
-| `schools` | none yet — NCES EDGE geocode, manual download (`data/florida/schools/`); **may be unnecessary**, see `master_file` | — | _not created_ |
+| `noise_barriers` | `list-versions`, `fetch`, `preprocess` (clean one FGDL release → tidy GeoParquet barrier layer) | — | `src/regions/florida/sources/noise_barriers/` |
+| `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2015–2026**, 231 files), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/regions/florida/sources/assessments/` |
+| `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` designed, not written — see [`schools/README.md`](schools/README.md). Spine keyed on `msid`; absorbs the former `master_file` source and the planned `school_panel` (covariates.md Cluster A). `preprocess` stages: 1a spine + 1b Cluster-A covariates → cross-section + panel; 2 school↔barrier↔RCI treatment matching. Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`). | `noise_barriers` (stage 2) | `src/regions/florida/sources/schools/` |
 
 On-disk output lands under `data/florida/<domain>/{raw,processed,assembled}/`.
+
+**Control variables for the main analysis** (traffic, road-works, school panel,
+staff, air co-pollution, neighbourhood, shocks) and the source modules that would
+supply them are catalogued in [`covariates.md`](covariates.md).
 
 ## `noise_barriers`
 
@@ -29,24 +32,59 @@ no authentication.
 - Releases are irregular (~annual); `list-versions` scrapes the archive index.
   `fetch` defaults to **`jul26`**, the release the exploratory notebook
   (`src/experiments/florida/barriers.ipynb`) is built against.
-- CRS EPSG:3087 (Florida GDL Albers, metres); `jul26` has ~1 880
-  `MultiLineString-M` features across ~63 columns (the schema drifts between
+- CRS EPSG:3087 (Florida GDL Albers, metres); `jul26` has 1 883
+  `MultiLineString-M` features across 63 columns (the schema drifts between
   releases — e.g. `jul26` dropped `TBR` / `BEGIN_POST` and added `PERIMETER
   WALL` as a `TYPE`). The zip's internal layout also varies (`.gdb` at the root
-  in `apr23`, one folder down in `jul26`); `fetch` handles both. See the
-  notebook for the field dictionary and cleaning rules a future `preprocess`
-  step will crystallize.
+  in `apr23`, one folder down in `jul26`); `fetch` handles both. The field
+  dictionary is in the exploratory notebook.
 
 ```bash
 python -m src.cli florida data noise-barriers list-versions
 python -m src.cli florida data noise-barriers fetch                 # -> data/florida/noise_barriers/raw/noise_barriers_jul26.gdb
 python -m src.cli florida data noise-barriers fetch --version apr23 --keep-zip
+python -m src.cli florida data noise-barriers preprocess            # -> data/florida/noise_barriers/processed/barriers.parquet (+ barriers.json)
 ```
 
-**TODO (needs live data):** row/feature counts, date coverage and on-disk sizes
-once a full run completes; `preprocess` (translate + clean to GeoParquet).
+### `preprocess` — clean one release to a tidy barrier layer
 
-## `assessments` — `fetch` only; `preprocess` deferred to the notebook
+`preprocess` reads one local `noise_barriers_<version>.gdb` from `raw/` and
+writes, into `processed/`:
+
+- **`barriers.parquet`** — GeoParquet, **EPSG:3087** (metres preserved, so the
+  downstream distance / buffer / network join needs no reprojection). One row
+  per wall segment (`gcid` is 1:1 with rows), columns:
+  `gcid, category, type, flag, is_programmed, built_year, fdot_distr,
+  fed_route, fed_county, fed_nac, fed_anr, ben_rcptrs, tot_rcptrs, fed_materl,
+  fhwa_sub_notes, height_m, length_m, seg_len_m, geometry`. Only columns
+  present in the given release are emitted (schema-drift tolerant).
+- **`barriers.json`** — provenance sidecar: release tag, source `.gdb`, FGDL
+  title / publication date, row counts by category, duplicates dropped,
+  `built_year` coverage, and the column list.
+
+Cleaning rules (crystallized from `src/experiments/florida/barriers.ipynb`):
+
+1. **Physically-present walls only.** `TYPE ∈ {CONSTRUCTED BARRIERS, REPLACED
+   BARRIERS}` → `category = "fdot_barrier"`; `TYPE ∈ {PRIVATE WALL, PERIMETER
+   WALL}` → `category = "other_wall"` (non-FDOT screening, kept in the same
+   file as potential noise-shielding confounders). `RECOMMENDED` / `PLANNED` /
+   `REMOVED` are dropped.
+2. **Deduplicate** on exact geometry (WKB).
+3. **`built_year`** from `FED_YRCON`, kept only inside the fixed window
+   **1990–2026** (the `9999` / `0` sentinels and any out-of-range value →
+   `NA`). `built_year` is the intended treatment-timing input for the event
+   study; dating the `NA` rows is left to the downstream step. Timing comes
+   from **one snapshot's construction year**, not from diffing successive FGDL
+   releases (a possible later robustness check).
+4. **`is_programmed`** = `FLAG == "FNV"` — programmed / under-construction at
+   snapshot time. These rows are kept (flagged), not dropped.
+5. **Units:** `height_m`, `length_m` converted from feet; `seg_len_m` is the
+   geometry-true length (`SHAPE_Length`, already metres).
+
+The school ↔ barrier ↔ street-network merge that turns this into per-school
+barrier treatment timing lives in the `schools` source, not here.
+
+## `assessments` — `fetch` (manual) + `preprocess` (merge to a tidy panel)
 
 **Decision (2026-09):** the downstream barrier-construction **event study** will
 use the **FLDOE annual school-level assessment result files** as the achievement
@@ -168,25 +206,59 @@ Integrity checks run at import (all 231 pass):
   FSA-era workbooks still carry a stale OLE2 Title such as `2014 FCAT 2.0 State
   Report of School Results` / `2014 EOC Biology 1 …` that FLDOE never cleared
   when they reused the template.
-- **2015 has no scale-score scale of its own.** The sheets state *"2015 FSA
-  scores were reported to students as percentile scores."* Treat 2015 ELA/Math
-  as its own regime break, or keep only the statewide z-score for that year and
-  drop it from any raw-scale-score robustness series.
+- **2015 retrofitted FSA is on the 2016+ scale.** The sheets carry the note
+  *"2015 FSA scores were reported to students as percentile scores"* (achievement
+  levels were set Jan 2016 and applied retroactively), but the retrofitted files
+  still report scale scores, and `assessments.ipynb` finds the 2015→2016
+  school-level means within **1.9 scale points** at every ELA/Math grade — the
+  same size as ordinary year-to-year drift. Pool 2015 into the FSA regime; the
+  `retrofitted_2015` flag is kept in the processed table for robustness checks.
 - **2025 file host changed** to `https://www.fldoe.org/file/5668/…` from the
   older `…/core/fileparse.php/5668/urlt/…` pattern. Cosmetic — the payloads are
   the same `.xls` format. Recorded per file in `SOURCE_MANIFEST.tsv`.
-- Every file is the legacy **`.xls` (OLE2)** format, so `preprocess` will need
-  `xlrd >= 2.0.1` (`pandas.read_excel(..., engine="xlrd")`). It is **not** in
-  `environment.yml` yet — add it when the parsing step lands. `fetch` itself
-  never opens the workbooks, so the CLI does not need it.
+- Every file is the legacy **`.xls` (OLE2)** format — reading needs
+  `xlrd >= 2.0.1` (now in `environment.yml`). `fetch` itself never opens the
+  workbooks, so the CLI does not need it.
+- Two on-disk layouts: *wide-standard* (ELA/Math grade files, all EOC files,
+  Science 2024–26) and *science-legacy* (Science 2015–23 — `Grade` column first,
+  `1..5` columns before the "% level 3+" column, trailing content-area columns,
+  and a "Number of Points Possible" row under the header). The parser detects the
+  header row and maps columns by name rather than position.
 
-### `preprocess` — deferred
+### `preprocess` — merge the raw workbooks to one tidy table
 
-Parsing / harmonisation is **not implemented**; it is being worked out in
-`src/experiments/florida/`. When settled it should produce a tidy
-school × year × grade × subject Parquet with the within grade × subject × year
-z-score outcome and a stable join key (`NCESSCH`, via the `master_file` /
-`schools` crosswalk described above), then move into a `preprocess` step here.
+```bash
+python -m src.cli florida data assessments preprocess           # -> data/florida/assessments/processed/assessments.parquet (+ assessments.json)
+python -m src.cli florida data assessments preprocess --year 2024 --year 2025
+```
+
+`preprocess` parses every `raw/<year>/*.xls` (both layouts, header found by
+name) and writes, into `processed/`:
+
+- **`assessments.parquet`** — one row per school per subject × grade × year,
+  **indexed on `(msid, grade, subject, year)`**. Columns: `subject_label`,
+  `regime` (`FSA` / `FAST` · `FSA` / `B.E.S.T.` · `NGSSS Science` · `NGSSS EOC`),
+  `retrofitted_2015`, `district_number` / `district_name` / `school_number` /
+  `school_name`, `is_state_total`, `suppressed`, `n_students`,
+  `mean_scale_score`, `pct_level3_plus`, `pct_l1..pct_l5`, `source_file`, and the
+  primary outcome **`z_mss` / `z_mss_w`** — the school mean scale score
+  standardised within each `year × subject × grade` cell (unweighted /
+  `n_students`-weighted), which differences the regime scale breaks out.
+  Nullable dtypes, so suppression / state-total `NaN`s round-trip. One
+  `STATE TOTALS` row per file is kept and flagged (`msid == "000000"`),
+  excluded from the z-score moments.
+- **`assessments.json`** — provenance + validation sidecar: years, file count,
+  row / school counts, rows by subject, suppressed share, and the
+  achievement-level consistency checks (`L1..L5` sum, `L3+L4+L5 ==
+  pct_level3_plus`).
+
+Current run: **231 files → 371k rows, ~4.4k distinct schools**, suppressed share
+≈ 0.10, all consistency checks pass. `src/experiments/florida/assessments.ipynb`
+imports this same parser and investigates the merged frame (regime breaks,
+panel shape, the 2015-scale check, the z-score's continuity) — it writes
+nothing. The join key is `msid` = FLDOE District + School number; the
+`msid → NCESSCH` crosswalk, coordinates and the open/close + regular-school
+panel filter belong to `schools` + `master_file`.
 
 ## `master_file` — `fetch` works; `preprocess` deferred to the notebook
 

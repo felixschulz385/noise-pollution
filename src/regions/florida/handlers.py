@@ -29,6 +29,14 @@ def command_noise_barriers_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_noise_barriers_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.noise_barriers.preprocess import run_barrier_preprocess
+
+    result = run_barrier_preprocess(version=args.version)
+    print_json({"domain": "noise_barriers", "stage": "preprocess", **result})
+    return 0
+
+
 def command_assessments_list_years(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.assessments.fetch import list_years
 
@@ -48,13 +56,25 @@ def command_assessments_fetch(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_master_file_fetch(args: argparse.Namespace) -> int:
-    from src.regions.florida.sources.master_file.fetch import fetch_master_file
+def command_assessments_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.assessments.preprocess import run_assessment_preprocess
 
-    result = fetch_master_file(
-        datasets=args.dataset,
+    result = run_assessment_preprocess(years=args.year)
+    print_json({"domain": "assessments", "stage": "preprocess", **result})
+    return 0
+
+
+def command_schools_fetch(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.schools.fetch import fetch_schools
+
+    result = fetch_schools(
+        subsources=args.subsource,
+        years=args.years,
+        via=args.via,
+        msid_datasets=args.msid_dataset,
+        edge_vintage=args.edge_vintage,
         from_files=args.from_file,
-        file_url=args.file_url,
+        refresh=args.refresh,
     )
-    print_json({"domain": "master_file", "stage": "fetch", **result})
+    print_json({"domain": "schools", "stage": "fetch", **result})
     return 0

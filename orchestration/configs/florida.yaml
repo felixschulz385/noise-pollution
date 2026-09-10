@@ -8,11 +8,12 @@
 # defaults become overrides only.
 #
 # Sources wired up so far:
-#   - noise_barriers: FDOT inventory via FGDL (list-versions, fetch)
+#   - noise_barriers: FDOT inventory via FGDL (list-versions, fetch, preprocess)
 #   - assessments:    FLDOE annual school results (list-years, fetch — manual
-#                     download; www.fldoe.org blocks scripted clients)
-#   - master_file:    FLDOE MSID school directory (fetch — real download from the
-#                     eds.fldoe.org ColdFusion app)
+#                     download; www.fldoe.org blocks scripted clients — preprocess)
+#   - schools:        school spine (fetch) — MSID (eds.fldoe.org ColdFusion app,
+#                     absorbs the former master_file source) + NCES EDGE geocode
+#                     + Urban Institute Education Data API (CCD / CRDC / EDFacts)
 
 region: florida
 data_root: data/florida

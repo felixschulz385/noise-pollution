@@ -2,11 +2,14 @@
 ``handlers.py``.
 
 Command shape mirrors Sweden's (source-then-verb). Wired up so far:
-``noise_barriers`` (`fetch`, `list-versions`), ``master_file`` (`fetch` —
-real download from the FLDOE EDS app), ``assessments`` (`fetch`, `list-years` —
-manual-download orchestrator; www.fldoe.org blocks scripted clients). No
-``preprocess`` anywhere yet; the FLDOE parsing steps are being worked out in
-`src/experiments/florida/`.
+``noise_barriers`` (`fetch`, `list-versions`, `preprocess` — clean one local
+FGDL release to a tidy GeoParquet barrier layer), ``assessments`` (`fetch`,
+`list-years` — manual-download orchestrator, www.fldoe.org blocks scripted
+clients — and `preprocess`, merging the raw workbooks into one tidy school x
+grade x subject x year table), ``schools`` (`fetch` — the school spine:
+MSID + NCES EDGE + Urban Institute Education Data API subsources; absorbs the
+former ``master_file`` source). ``schools`` `preprocess` is being worked out in
+`src/experiments/florida/schools.ipynb`.
 """
 from __future__ import annotations
 
@@ -24,7 +27,7 @@ def register(regions: argparse._SubParsersAction) -> None:
 
     _register_noise_barriers(data_domains)
     _register_assessments(data_domains)
-    _register_master_file(data_domains)
+    _register_schools(data_domains)
 
 
 def _register_noise_barriers(domains: argparse._SubParsersAction) -> None:
@@ -55,6 +58,17 @@ def _register_noise_barriers(domains: argparse._SubParsersAction) -> None:
         "--no-metadata", action="store_true", help="Skip downloading the companion FGDL metadata XML."
     )
     nb_fetch.set_defaults(func=h.command_noise_barriers_fetch)
+
+    nb_pre = cmd.add_parser(
+        "preprocess",
+        help="Clean one local FGDL release into a tidy GeoParquet barrier layer (EPSG:3087)",
+    )
+    nb_pre.add_argument(
+        "--version",
+        default=DEFAULT_VERSION,
+        help=f"FGDL release tag to read from raw/ (default: {DEFAULT_VERSION}).",
+    )
+    nb_pre.set_defaults(func=h.command_noise_barriers_preprocess)
 
 
 def _register_assessments(domains: argparse._SubParsersAction) -> None:
@@ -87,28 +101,66 @@ def _register_assessments(domains: argparse._SubParsersAction) -> None:
     )
     a_fetch.set_defaults(func=h.command_assessments_fetch)
 
-
-def _register_master_file(domains: argparse._SubParsersAction) -> None:
-    from src.regions.florida.sources.master_file.shared import DATASETS, DEFAULT_DATASET
-
-    master_file = domains.add_parser(
-        "master-file",
-        help="FLDOE Master School ID (MSID) file",
+    a_pre = cmd.add_parser(
+        "preprocess",
+        help="Merge raw/<year>/ workbooks into one tidy school x grade x subject x year table",
     )
-    cmd = master_file.add_subparsers(dest="stage", required=True)
+    a_pre.add_argument(
+        "--year", type=int, action="append",
+        help="Spring administration year to include (repeatable). Default: every year in raw/.",
+    )
+    a_pre.set_defaults(func=h.command_assessments_preprocess)
 
-    m_fetch = cmd.add_parser(
-        "fetch", help="Download an MSID export from the FLDOE EDS app into raw/"
+
+def _register_schools(domains: argparse._SubParsersAction) -> None:
+    from src.regions.florida.sources.schools.shared import (
+        API_YEARS_DEFAULT,
+        DEFAULT_SUBSOURCES,
+        EDGE_DEFAULT_VINTAGE,
+        MSID_DATASETS,
+        MSID_DEFAULT_DATASET,
+        SUBSOURCES,
     )
-    m_fetch.add_argument(
-        "--dataset", action="append", choices=sorted(DATASETS),
-        help=f"MSID export to download (repeatable). Default: {DEFAULT_DATASET}.",
+
+    schools = domains.add_parser(
+        "schools",
+        help="School spine: MSID + NCES EDGE + Urban Institute Education Data API",
     )
-    m_fetch.add_argument(
+    cmd = schools.add_subparsers(dest="stage", required=True)
+
+    default_years = f"{API_YEARS_DEFAULT[0]}:{API_YEARS_DEFAULT[1]}"
+    s_fetch = cmd.add_parser(
+        "fetch", help="Download the school-spine subsources into raw/"
+    )
+    s_fetch.add_argument(
+        "--subsource", action="append", choices=[*SUBSOURCES, "all"],
+        help=f"Subsource to fetch (repeatable; 'all' selects every one). "
+             f"Default: {', '.join(DEFAULT_SUBSOURCES)}.",
+    )
+    s_fetch.add_argument(
+        "--years", default=default_years,
+        help=f"Year range LO:HI for the Urban API subsources (default: {default_years}).",
+    )
+    s_fetch.add_argument(
+        "--via", choices=["auto", "api", "csv"], default="auto",
+        help="Route for the CCD/CRDC/EDFacts subsources: 'csv' = static flat files "
+             "(survive API outages), 'api' = paginated REST, 'auto' = csv then REST "
+             "for the gaps (default: auto).",
+    )
+    s_fetch.add_argument(
+        "--msid-dataset", action="append", choices=sorted(MSID_DATASETS),
+        help=f"MSID export(s) for the 'msid' subsource (repeatable). Default: {MSID_DEFAULT_DATASET}.",
+    )
+    s_fetch.add_argument(
+        "--edge-vintage", default=EDGE_DEFAULT_VINTAGE,
+        help=f"NCES EDGE geocode vintage, e.g. 2425 for SY2024-25 (default: {EDGE_DEFAULT_VINTAGE}).",
+    )
+    s_fetch.add_argument(
         "--from-file", action="append",
-        help="Path to an MSID export you downloaded by hand; copied into raw/ instead of downloading.",
+        help="Path to a file you downloaded by hand (MSID .tsv or EDGE .zip); copied into raw/.",
     )
-    m_fetch.add_argument(
-        "--file-url", help="Arbitrary URL to GET instead of the EDS endpoints (best effort)."
+    s_fetch.add_argument(
+        "--refresh", action="store_true",
+        help="Re-download Urban API years / the EDGE zip already cached in raw/.",
     )
-    m_fetch.set_defaults(func=h.command_master_file_fetch)
+    s_fetch.set_defaults(func=h.command_schools_fetch)

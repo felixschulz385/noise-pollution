@@ -35,6 +35,22 @@ def noise_barrier_paths(root: Path | None = None) -> dict[str, Path]:
     return domain_dirs(DOMAIN, root)
 
 
+# `preprocess` collapses every FGDL release into these two version-agnostic
+# artifacts (the release tag is recorded inside the sidecar, not in the name).
+PROCESSED_BARRIERS_FILENAME = "barriers.parquet"
+PROCESSED_METADATA_FILENAME = "barriers.json"
+
+
+def processed_barriers_path(root: Path | None = None) -> Path:
+    """The tidy GeoParquet barrier layer written by ``preprocess``."""
+    return noise_barrier_paths(root)["processed"] / PROCESSED_BARRIERS_FILENAME
+
+
+def processed_metadata_path(root: Path | None = None) -> Path:
+    """The JSON provenance sidecar written next to the barrier layer."""
+    return noise_barrier_paths(root)["processed"] / PROCESSED_METADATA_FILENAME
+
+
 def validate_version(version: str) -> str:
     """Normalise and check an FGDL version tag such as ``apr23``."""
     normalized = version.strip().lower()

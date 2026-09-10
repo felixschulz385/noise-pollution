@@ -1,6 +1,6 @@
 """Minimal stdlib HTTP download helper shared by Florida sources.
 
-Kept separate from any one domain so `assessments` and `master_file` can both
+Kept separate from any one domain so `assessments` and `schools` can both
 use it without importing each other.
 """
 from __future__ import annotations

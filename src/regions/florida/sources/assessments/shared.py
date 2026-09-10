@@ -40,6 +40,22 @@ def assessments_paths(root: Path | None = None) -> dict[str, Path]:
     return domain_dirs(DOMAIN, root)
 
 
+# `preprocess` collapses every raw workbook into one tidy table (indexed on
+# school x grade x subject x year) plus a JSON provenance sidecar.
+PROCESSED_ASSESSMENTS_FILENAME = "assessments.parquet"
+PROCESSED_METADATA_FILENAME = "assessments.json"
+
+
+def processed_assessments_path(root: Path | None = None) -> Path:
+    """The tidy merged assessment table written by ``preprocess``."""
+    return assessments_paths(root)["processed"] / PROCESSED_ASSESSMENTS_FILENAME
+
+
+def processed_metadata_path(root: Path | None = None) -> Path:
+    """The JSON provenance sidecar written next to the assessment table."""
+    return assessments_paths(root)["processed"] / PROCESSED_METADATA_FILENAME
+
+
 def validate_year(year: int | str) -> int:
     text = str(year).strip()
     if not _YEAR_RE.match(text):
