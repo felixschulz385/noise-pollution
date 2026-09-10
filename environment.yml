@@ -22,6 +22,7 @@ dependencies:
   - shapely
   - pyogrio
   - matplotlib
+  - contextily       # web-tile basemaps for the exploratory notebooks
   - pyarrow          # timetable preprocess writes .parquet
   - pip
   - pip:

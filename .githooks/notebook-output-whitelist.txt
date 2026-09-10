@@ -1,3 +1,7 @@
 # Notebooks under src/experiments/ allowed to keep committed cell outputs,
 # one repo-relative path per line. Use only when the rendered output IS the
 # deliverable (e.g. a poster/visualization notebook).
+#
+# barriers.ipynb: the basemap example maps are the point of the notebook; it
+# reads only public FGDL / NCES data, no confidential content.
+src/experiments/florida/barriers.ipynb
