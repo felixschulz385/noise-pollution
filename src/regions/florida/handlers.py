@@ -122,6 +122,10 @@ def command_schools_preprocess(args: argparse.Namespace) -> int:
 def command_schools_assemble(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.schools.assemble import run_schools_assemble
 
-    result = run_schools_assemble(max_dist=args.max_dist)
+    result = run_schools_assemble(
+        max_dist=args.max_dist,
+        corridor_budget_m=args.corridor_budget,
+        corridor_buffer_m=args.corridor_buffer,
+    )
     print_json({"domain": "schools", "stage": "assemble", **result})
     return 0

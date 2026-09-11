@@ -236,4 +236,12 @@ def _register_schools(domains: argparse._SubParsersAction) -> None:
         "--max-dist", type=float, default=1000.0,
         help="Candidate (msid, gcid) pair cutoff in metres (default: 1000).",
     )
+    s_asm.add_argument(
+        "--corridor-budget", type=float, default=800.0,
+        help="Network-distance budget (metres) for the road_network corridor test, algorithms 3-5 (default: 800).",
+    )
+    s_asm.add_argument(
+        "--corridor-buffer", type=float, default=600.0,
+        help="Corridor buffer width in metres around the flood-filled centerline (default: 600).",
+    )
     s_asm.set_defaults(func=h.command_schools_assemble)

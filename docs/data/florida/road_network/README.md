@@ -1,16 +1,16 @@
 # Florida — `road_network` source: requirements for implementation
 
-**Status: `fetch` + `preprocess` implemented; algorithms 3–5 validated in a
-notebook, not yet promoted to pipeline code.** `list-versions`, `fetch` and
-`preprocess` work end to end against the live FGDL archive and produce
-`road_network.parquet` (see [`fetch` — what's implemented](#fetch--whats-implemented)
-below). The `schools`-side algorithms 3–5 are prototyped and validated in
-`src/experiments/florida/schools.ipynb` §7 — after a corridor-based redesign
-(§7.4, replacing an initial `ROADWAY`-id-equality attempt that only recovered
-~20-35% of the point-only baseline), recovery reaches 99.1% (algorithms 3/4)
-and 83.2% (+ algorithm 5's same-side test) — but this is **still not wired
-into `schools/assemble.py`** as real pipeline code (see [Open
-questions](#open-questions--resolved--remaining), item 7). This page is a
+**Status: implemented, all stages.** `fetch` and `preprocess` work end to
+end against the live FGDL archive and produce `road_network.parquet` (see
+[`fetch` — what's implemented](#fetch--whats-implemented) below). The
+`schools`-side algorithms 3–5 (`road_gated` / `same_segment` / `same_side`)
+are real pipeline code too: `road_network/linear_ref.py` (the nearest-road
+match, linear referencing, and a network-distance-bounded corridor test —
+validated first in `src/experiments/florida/schools.ipynb` §7, see [Open
+questions](#open-questions--resolved--remaining) item 7 for the design
+writeup) and `schools/assemble.py`'s `match_barriers_road`, run as part of
+`florida data schools assemble`. Real run: **99.1%** of the point-only
+baseline gets a same-route match, **82.3%** a same-side match. This page is a
 self-contained implementation brief — read it plus the three files linked in
 [Read first](#read-first) and you have everything needed to build the rest of
 the source without further context from this conversation.
@@ -346,11 +346,16 @@ naming conventions already used (`noise_barriers`' `gcid`/`fed_route`/
    `ROADWAY`-id design: assuming RCI's segmentation is regular enough for a
    count/length proxy to stand in for true distance, when its tail
    (57 km segments; `ROADWAY` ids as fine as one per short urban block) is
-   wide enough to break that assumption. This design (arterial-only
-   candidate network, network-distance-bounded corridor, `budget=800 m,
-   buffer=600 m` as a starting default) is ready to move into
-   `road_network/preprocess.py` (the adjacency graph + corridor helper) and
-   `schools/assemble.py` (`match_barriers_road`) as real pipeline code.
+   wide enough to break that assumption. **Implemented** (2026-09-11) as real
+   pipeline code: `road_network/linear_ref.py` (the arterial-subset filter,
+   nearest-road match, linear referencing, adjacency graph, and corridor
+   flood-fill — not `preprocess.py`, since these are matching-algorithm
+   helpers consumed by `schools`, not roadway-layer cleaning) and
+   `schools/assemble.py`'s `match_barriers_road`, run via
+   `florida data schools assemble`. Real run: 99.1% same-route / 82.3%
+   same-side recovery of the point-only baseline, `budget=800 m,
+   buffer=600 m` defaults (both exposed as `--corridor-budget`/
+   `--corridor-buffer` CLI flags).
 
 ## Definition of done
 
@@ -359,22 +364,25 @@ naming conventions already used (`noise_barriers`' `gcid`/`fed_route`/
   sidecar.~~ **done** (2026-09-11) — `preprocess.py` tidies the shapefile
   (column rename, `MultiLineString` flattening, `year` sentinel → `NA`), unit
   tests in `tests/regions/florida/test_road_network_preprocess.py`.
-- Unit tests (synthetic geometry, no network — mirror
-  `tests/regions/florida/test_noise_barriers_preprocess.py`'s style) for the
-  linear-referencing projection, the signed-side derivation, and the
-  corridor flood-fill (`corridor_geometry` — including the two bugs found
-  and fixed in Open Question 7: per-segment budget checking, seed-segment
-  trimming) — prototyped and validated in `schools.ipynb` §7.2/§7.4, not yet
-  promoted to a tested module.
-- `schools/assemble.py`'s algorithms 3–5 (minimum) are implemented against
+- ~~Unit tests (synthetic geometry, no network) for the linear-referencing
+  projection, the signed-side derivation, and the corridor flood-fill.~~
+  **done** (2026-09-11) — `tests/regions/florida/test_road_network_linear_ref.py`
+  (nearest-road matching, milepost/side projection, adjacency-graph
+  construction, and the corridor flood-fill including regression coverage
+  for the two bugs found in Open Question 7: budget-per-segment, seed
+  trimming, and not crossing a gap).
+- ~~`schools/assemble.py`'s algorithms 3–5 (minimum) are implemented against
   this source, `PENDING_ROAD_COLUMNS` actually populated, and the ≥95%
-  match-rate check above passes on the real fetched barriers. **Design
-  validated, not yet implemented as pipeline code**: the corridor-based
-  redesign (Open Question 7) recovers 99.1% (algorithms 3/4) and 83.2%
-  (+ algorithm 5) of the point-only baseline in `schools.ipynb` §7.4 —
-  what remains is moving the adjacency graph + `corridor_geometry` helper
-  into `road_network/` and wiring `match_barriers_road` into
-  `schools/assemble.py`, not further design work.
+  match-rate check above passes on the real fetched barriers.~~ **done**
+  (2026-09-11) — `road_network/linear_ref.py` (the geometry helpers) +
+  `schools/assemble.py`'s `match_barriers_road`, run via
+  `florida data schools assemble`. Real run against the fetched data:
+  **99.1%** same-route, **82.3%** same-side recovery of the point-only
+  baseline (`schools_treatment.parquet`'s `road_id`/`same_route`/
+  `school_side`/`wall_side` are populated for all 2,173 pairs — 0 nulls).
+  `tests/regions/florida/test_schools_assemble.py` covers
+  `match_barriers_road` (same-side / opposite-side / out-of-corridor-reach,
+  and that `other_wall` rows get matched too).
 - `docs/data/florida/schools/README.md`'s "Stage 2" section and
   `PENDING_ROAD_COLUMNS`/algorithm-ladder references are updated to say
   "implemented," and this page's Status line is updated too.

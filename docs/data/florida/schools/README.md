@@ -412,7 +412,8 @@ identity + geometry (static) plus:
 | `timing_unknown` | bool | `fdot_barrier` with no `built_year` (~2.7%) |
 | `within_100m … within_1000m` | bool | algorithm 1 `euclid_nearest` buffer flags |
 | `is_nearest_fdot` | bool | closest `fdot_barrier` for this school |
-| `road_id` / `same_route` / `school_side` / `wall_side` / `shielded_frac` | — | **placeholder (`NA`)** until `road_network` (algorithms 3–6). ⚠️ `school_side`/`wall_side` will **not** be compass directions — pairwise-only, see the warning below |
+| `road_id` / `same_route` / `school_side` / `wall_side` | — | algorithms 3–5, implemented (`match_barriers_road`). ⚠️ `school_side`/`wall_side` are **not** compass directions — pairwise-only, see the warning below |
+| `shielded_frac` | — | **placeholder (`NA`)** — algorithm 6, stretch goal, not implemented |
 
 **Rollup grain** (same file or a `schools_treatment_rollup.parquet`) — one row
 per `msid`: `ever_near_wall_{500,1000}m`, `first_treat_year`, `n_walls_500m`,
@@ -475,16 +476,19 @@ covariate-definition changes don't re-run the spine or stage 2.
    `enr_total > 0`; `pct_swd` / `frpl_n/enrollment` in [0, 1]; `enrollment` vs
    assessment `n_students` sanity.
 
-### Stage 2 → `schools_treatment.parquet` (REQUIRES `noise_barriers`; `road_network` for algorithms 3–6)
+### Stage 2 → `schools_treatment.parquet` (REQUIRES `noise_barriers` + `road_network`)
 
 **Pair grain** (one row per `(msid, gcid)` within 1 000 m) **plus a per-school
 rollup** (`ever_near_wall_*`, `first_treat_year`, `n_walls_500m`,
 `wall_len_500m`, `nearest_fdot_dist_m`, …) written in the same run — see
-[Output schema](#output-schema-target-for-preprocesspy). v1 fills algorithms
-1–2; the `road_id` / `same_route` / `school_side` / `wall_side` /
-`shielded_frac` columns are present but `NA` until `road_network` exists.
+[Output schema](#output-schema-target-for-preprocesspy). Algorithms 1–5 are
+implemented (`match_barriers_point` + `match_barriers_road`); `road_id` /
+`same_route` / `school_side` / `wall_side` are populated for every pair
+(99.1% get a `same_route` match, 82.3% a `same_side` match, against the
+point-only baseline). Only `shielded_frac` (algorithm 6, stretch goal) stays
+a documented `NA` placeholder.
 
-**Matching algorithms — increasing rigour** (v1 = 1–2; 3–6 staged on `road_network`):
+**Matching algorithms — increasing rigour** (1–5 implemented; 6 a stretch goal):
 
 | # | Name | Definition | Needs |
 |---|---|---|---|
@@ -650,10 +654,16 @@ healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`
   budget; (b) leaving the seed segment un-trimmed let another reach 24 km.
   Full writeup and the resolved algorithm-4 design note in
   [`road_network/README.md`](../road_network/README.md), Open Question 7.
-  **Still needed:** move this from notebook prototype into
-  `road_network/preprocess.py` (adjacency graph + `corridor_geometry`) and
-  `schools/assemble.py` (`match_barriers_road`) as real, tested pipeline
-  code — the design is validated, only the promotion is outstanding.
+  ~~Still needed: move this from notebook prototype into pipeline code.~~
+  **Done** (2026-09-11): `road_network/linear_ref.py` (arterial-subset
+  filter, nearest-road match, linear referencing, adjacency graph, corridor
+  flood-fill) + `schools/assemble.py`'s `match_barriers_road`, wired into
+  `florida data schools assemble` (`--corridor-budget`/`--corridor-buffer`
+  flags, defaults 800 m/600 m) with unit tests in
+  `test_road_network_linear_ref.py` / `test_schools_assemble.py`. Real run:
+  99.1% same-route / 82.3% same-side recovery, `road_id`/`same_route`/
+  `school_side`/`wall_side` populated for all 2,173 pairs (including
+  `other_wall` rows, not just `fdot_barrier`).
 - `DataSource` base class — deferred; `preprocess` is hand-wired like the others.
 
 ---

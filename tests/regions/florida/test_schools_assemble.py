@@ -5,7 +5,11 @@ import pandas as pd
 import pytest
 from shapely.geometry import LineString, Point
 
-from src.regions.florida.sources.schools.assemble import PENDING_ROAD_COLUMNS, match_barriers_point
+from src.regions.florida.sources.schools.assemble import (
+    PENDING_ROAD_COLUMNS,
+    match_barriers_point,
+    match_barriers_road,
+)
 
 CRS = "EPSG:3087"
 
@@ -22,6 +26,17 @@ def _barriers(rows):
     return gpd.GeoDataFrame(
         [{"gcid": g, "category": cat, "built_year": by, "seg_len_m": 10.0,
           "geometry": LineString([(x0, y), (x1, y)])} for g, cat, by, x0, x1, y in rows],
+        geometry="geometry", crs=CRS,
+    )
+
+
+def _road_network(rows):
+    # rows: (roadway_id, x0, x1, y)
+    return gpd.GeoDataFrame(
+        [{"roadway_id": rid, "segmentid": i, "begin_post": 0.0,
+          "end_post": abs(x1 - x0) / 1609.344, "funclass": "URBAN: Principal Arterial - Other",
+          "geometry": LineString([(x0, y), (x1, y)])}
+         for i, (rid, x0, x1, y) in enumerate(rows)],
         geometry="geometry", crs=CRS,
     )
 
@@ -91,3 +106,48 @@ def test_crs_mismatch_raises():
     barriers = _barriers([("a", "fdot_barrier", 2010, -5, 5, 5)])
     with pytest.raises(ValueError, match="CRS mismatch"):
         match_barriers_point(schools, barriers)
+
+
+def test_match_barriers_road_fills_pending_columns():
+    # A wall just north (y=5) of a 2 km road; one school north (same side),
+    # one south (opposite side), one far down the road (out of corridor
+    # reach at the small budget/buffer used here).
+    schools = _schools([
+        ("same_side", "N1", 500, 30),
+        ("opp_side", "N2", 500, -30),
+        ("far", "N3", 1500, 30),
+    ])
+    barriers = _barriers([("w1", "fdot_barrier", 2010, 495, 505, 5)])
+    road_network = _road_network([("r1", 0, 2000, 0)])
+
+    pair, _ = match_barriers_point(schools, barriers, max_dist=1500)
+    assert set(pair["msid"]) == {"same_side", "opp_side", "far"}
+
+    out = match_barriers_road(pair, schools, barriers, road_network, budget_m=200.0, buffer_m=50.0)
+    out = out.set_index("msid")
+
+    assert out.loc["same_side", "road_id"] == "r1"
+    assert out.loc["same_side", "same_route"] == True  # noqa: E712
+    assert out.loc["same_side", "school_side"] == out.loc["same_side", "wall_side"]
+
+    assert out.loc["opp_side", "same_route"] == True  # noqa: E712
+    assert out.loc["opp_side", "school_side"] == -out.loc["opp_side", "wall_side"]
+
+    assert out.loc["far", "same_route"] == False  # noqa: E712
+    assert pd.isna(out.loc["far", "school_side"])
+    assert pd.isna(out.loc["far", "wall_side"])
+    # road_id / wall_side still populate even when the school is out of reach
+    # -- only the school-dependent columns go NA.
+    assert out.loc["far", "road_id"] == "r1"
+
+
+def test_match_barriers_road_covers_other_wall_category_too():
+    schools = _schools([("s", "N1", 500, 30)])
+    barriers = _barriers([("priv", "other_wall", None, 495, 505, 5)])
+    road_network = _road_network([("r1", 0, 2000, 0)])
+
+    pair, _ = match_barriers_point(schools, barriers, max_dist=1500)
+    out = match_barriers_road(pair, schools, barriers, road_network, budget_m=200.0, buffer_m=50.0)
+
+    assert out.iloc[0]["road_id"] == "r1"
+    assert out.iloc[0]["same_route"] == True  # noqa: E712

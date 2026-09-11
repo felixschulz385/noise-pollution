@@ -54,6 +54,7 @@ from src.regions.florida.sources.road_network.shared import (
         ["florida", "data", "schools", "preprocess", "--panel-years", "1995:2020", "--edge-vintage", "2324"],
         ["florida", "data", "schools", "assemble"],
         ["florida", "data", "schools", "assemble", "--max-dist", "500"],
+        ["florida", "data", "schools", "assemble", "--corridor-budget", "500", "--corridor-buffer", "400"],
         ["florida", "data", "road-network", "list-versions"],
         ["florida", "data", "road-network", "fetch"],
         ["florida", "data", "road-network", "fetch", "--version", "apr23", "--keep-zip", "--no-metadata"],
