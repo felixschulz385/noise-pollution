@@ -12,6 +12,7 @@ is in place.
 | `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2015–2026**, 231 files), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/regions/florida/sources/assessments/` |
 | `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/regions/florida/sources/schools/` |
 | `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and will underpin the planned `traffic` / `road_projects` sources. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, `road_projects`) | `src/regions/florida/sources/road_network/` |
+| `panel` | `assemble` (join `assessments` + `schools` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates + all three barrier-treatment-timing definitions, but the six other planned covariate modules (`traffic`, `road_projects`, `staff`, `shocks`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)) don't exist yet, `road_projects`/`traffic` most notably since they're what the design doc treats as central to the identification strategy. | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
 
 On-disk output lands under `data/florida/<domain>/{raw,processed,assembled}/`.
 
@@ -142,6 +143,45 @@ implemented in `road_network/linear_ref.py` + `schools/assemble.py`'s
 `src/experiments/florida/schools.ipynb` §7), recovering 99.1%/82.3% of the
 point-only baseline on the real fetched data. See the `road_network`
 README's Open Question 7 for the full design writeup.
+
+## `panel` — the final event-study join (`assemble` only)
+
+Joins `assessments` (outcome) + `schools` (spine identity, Cluster A
+covariates, barrier-treatment timing) into one analysis-ready table. No
+`fetch`/`preprocess` — purely a local join of already-processed artifacts,
+kept as its own module (not folded into `schools/assemble.py`) for the same
+isolation reason `schools`' own stages are split: editing an outcome-panel
+filter should never re-run the geospatial barrier match.
+
+```bash
+python -m src.cli florida data panel assemble   # -> data/florida/panel/assembled/event_study_panel.parquet (+ .json)
+```
+
+- **Grain**: one row per `(msid, grade, subject, year)` — the `assessments`
+  grain. Every join is a **left join anchored on `assessments`**: a school
+  with no covariate row or no nearby wall keeps its outcome row, with the
+  covariate columns `NA` or the treatment columns `ever_treated_* = False`
+  (a real value, not a missing one) — no outcome row is ever silently
+  dropped.
+- **Treatment timing is three parallel columns, not one.** `schools
+  assemble` computes three matching-rigour tiers side by side
+  (`_point`/`_same_route`/`_same_side`, algorithms 1–2 / 4 / 5) rather than
+  collapsing to a single "the" treatment definition — `first_treat_year_*`,
+  `ever_treated_*`, `timing_unknown_*` for each, plus `event_time_* = year -
+  first_treat_year_*` computed here. The analysis layer picks a baseline
+  (recommended: `_same_side`, the most rigorous) and the other two as
+  robustness checks.
+- **Real run**: 370,891 rows, 4,419 distinct schools, years 2015–2026.
+  `ever_treated` schools: 455 (`_point`) → 262 (`_same_route`) → 198
+  (`_same_side`) — each tier a strict refinement of the last.
+- **Known gap:** this is a **first-pass panel** — see the domain table above
+  and [`covariates.md`](covariates.md) for the six covariate modules
+  (`traffic`, `road_projects`, `staff`, `shocks`, `air_quality`,
+  `neighbourhood`) it doesn't yet carry. Treat it as sufficient for a
+  first-pass / robustness-limited specification, not the paper's baseline
+  spec, until at least `road_projects` (the module `covariates.md` flags as
+  central to the identification strategy — FDOT tends to build barriers
+  alongside road-widening projects) exists.
 
 ## `assessments` — `fetch` (manual) + `preprocess` (merge to a tidy panel)
 

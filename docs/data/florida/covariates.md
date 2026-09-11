@@ -203,13 +203,21 @@ needed). Ordered roughly by priority for the main analysis.
 
 | Module | Produces | Cluster | Prereq | Access method |
 |---|---|---|---|---|
-| `schools` | `msid` ↔ `NCESSCH` ↔ lat/lon crosswalk; regular-school flags; open/close panel; **Cluster A covariates** (was `school_panel`); stage-2 barrier treatment matching | `noise_barriers` (stage 2) | absorbs `master_file` (MSID); crosswalk **embedded in MSID** (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`), no CCD `ST_SCHID` matching for the primary path. CCD/CRDC/EDFacts via Urban Institute Education Data API. Full design: [`schools/README.md`](schools/README.md) |
-| `traffic` | AADT + Truck AADT segment panel, joined to schools by buffer | C | `schools` | FDOT Open Data Hub ArcGIS REST + `FTI.mdb` download — public, no auth |
-| `road_projects` | Work-Program construction/widening/PD&E projects with dates, roadway-linked | D | `noise_barriers` | FDOT Open Data Hub (`Work Program Current`, `Current Active Construction Projects`) + FM database; possible manual pull for pre-2010 |
+| `schools` **(implemented)** | `msid` ↔ `NCESSCH` ↔ lat/lon crosswalk; regular-school flags; open/close panel; **Cluster A covariates** (was `school_panel`); stage-2 barrier treatment matching, algorithms 1–5 | `noise_barriers` (stage 2), `road_network` (algorithms 3–5) | absorbs `master_file` (MSID); crosswalk **embedded in MSID** (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`), no CCD `ST_SCHID` matching for the primary path. CCD/CRDC/EDFacts via Urban Institute Education Data API. Full design: [`schools/README.md`](schools/README.md) |
+| `road_network` **(implemented)** | Roadway centerlines + linear referencing; nearest-road / side-of-centerline / corridor-match helpers consumed by `schools` stage 2 | — (feeds `schools`, `traffic`, `road_projects`) | FGDL `rciroads` — public, no auth. Full design: [`road_network/README.md`](road_network/README.md) |
+| `panel` **(implemented, first-pass)** | Final `msid × grade × subject × year` join of `assessments` + `schools` — **not** yet a covariate module itself, just the assembly point the other modules below would feed into once built | `assessments`, `schools` | pure local join, no fetch. See [`README.md`](README.md#panel--the-final-event-study-join-assemble-only) |
+| `traffic` | AADT + Truck AADT segment panel, joined to schools by buffer | C | `schools`, `road_network` | FDOT Open Data Hub ArcGIS REST + `FTI.mdb` download — public, no auth |
+| `road_projects` | Work-Program construction/widening/PD&E projects with dates, roadway-linked | D | `noise_barriers`, `road_network` | FDOT Open Data Hub (`Work Program Current`, `Current Active Construction Projects`) + FM database; possible manual pull for pre-2010 |
 | `staff` | Teacher experience / degree / out-of-field / turnover / salary; per-pupil spend | B | `schools` | FLDOE Staff SIS + Teacher Salary Data (per-year XLSX); CCD fiscal via Urban API |
 | `shocks` | Hurricane declarations (county×year), class-size compliance, school grades | G | — | OpenFEMA API (no auth); FLDOE per-year Excel |
 | `air_quality` | Tract/1-km PM2.5, O3, NO2 daily+annual, matched to school buffers | E | `schools` | EPA FAQSD + Requia SEDAC/Dataverse downloads; EPA AQS files |
 | `neighbourhood` | Tract ACS/decennial SES + Zillow ZHVI, matched to school tracts/ZIPs | F | `schools` | Census API + Zillow public CSV |
+
+**`panel` is a join point, not a covariate cluster of its own** — it exists
+so `traffic`/`road_projects`/`staff`/`shocks`/`air_quality`/`neighbourhood`
+each have one place to land their columns once built (a left join onto
+`event_study_panel.parquet` by `msid`, or `msid`+`year` for time-varying
+ones), rather than each needing its own final-join logic.
 
 **Region-agnostic candidates.** The CCD/CRDC/EDFacts pull inside `schools`,
 `staff` (via CCD), `shocks` (OpenFEMA), `air_quality`, and `neighbourhood` all

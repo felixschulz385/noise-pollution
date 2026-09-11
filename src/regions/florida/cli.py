@@ -9,11 +9,14 @@ clients — and `preprocess`, merging the raw workbooks into one tidy school x
 grade x subject x year table), ``schools`` (`fetch` — the school spine:
 MSID + NCES EDGE + Urban Institute Education Data API subsources; absorbs the
 former ``master_file`` source; `preprocess` — spine + operation panel + Cluster-A
-covariates; `assemble` — the school <-> noise-barrier point-only match, REQUIRES
-`noise-barriers preprocess`), ``road-network`` (`list-versions`, `fetch`,
-`preprocess` — FDOT RCI-derived roadway centerlines from FGDL, same archive
-naming/index scheme as `noise-barriers` but a zipped Shapefile, not a
-Geodatabase; `preprocess` cleans one release into a tidy GeoParquet layer).
+covariates; `assemble` — the school <-> barrier match, algorithms 1-5, REQUIRES
+`noise-barriers preprocess` + `road-network preprocess`), ``road-network``
+(`list-versions`, `fetch`, `preprocess` — FDOT RCI-derived roadway centerlines
+from FGDL, same archive naming/index scheme as `noise-barriers` but a zipped
+Shapefile, not a Geodatabase; `preprocess` cleans one release into a tidy
+GeoParquet layer), ``panel`` (`assemble` — the final event-study panel,
+joining `assessments` + `schools` into one msid x grade x subject x year
+table; no `fetch`/`preprocess` of its own, REQUIRES both upstream).
 """
 from __future__ import annotations
 
@@ -33,6 +36,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_assessments(data_domains)
     _register_schools(data_domains)
     _register_road_network(data_domains)
+    _register_panel(data_domains)
 
 
 def _register_noise_barriers(domains: argparse._SubParsersAction) -> None:
@@ -245,3 +249,18 @@ def _register_schools(domains: argparse._SubParsersAction) -> None:
         help="Corridor buffer width in metres around the flood-filled centerline (default: 600).",
     )
     s_asm.set_defaults(func=h.command_schools_assemble)
+
+
+def _register_panel(domains: argparse._SubParsersAction) -> None:
+    panel = domains.add_parser(
+        "panel",
+        help="Final event-study panel: joins assessments + schools (spine, covariates, barrier match)",
+    )
+    cmd = panel.add_subparsers(dest="stage", required=True)
+
+    p_asm = cmd.add_parser(
+        "assemble",
+        help="Join assessments + schools into one msid x grade x subject x year panel "
+             "(REQUIRES assessments preprocess, schools preprocess + assemble)",
+    )
+    p_asm.set_defaults(func=h.command_panel_assemble)

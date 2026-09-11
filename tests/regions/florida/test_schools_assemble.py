@@ -7,6 +7,7 @@ from shapely.geometry import LineString, Point
 
 from src.regions.florida.sources.schools.assemble import (
     PENDING_ROAD_COLUMNS,
+    add_road_treatment_definitions,
     match_barriers_point,
     match_barriers_road,
 )
@@ -97,8 +98,9 @@ def test_rollup_buffer_counts_and_first_treat_year():
     assert row["n_walls_500m"] == 2
     assert row["n_walls_1000m"] == 3
     assert row["ever_near_wall_500m"] == True   # noqa: E712
-    assert row["first_treat_year"] == 2008
-    assert row["any_timing_unknown"] == False   # noqa: E712
+    assert row["first_treat_year_point"] == 2008
+    assert row["ever_treated_point"] == True    # noqa: E712
+    assert row["timing_unknown_point"] == False   # noqa: E712
 
 
 def test_crs_mismatch_raises():
@@ -139,6 +141,39 @@ def test_match_barriers_road_fills_pending_columns():
     # road_id / wall_side still populate even when the school is out of reach
     # -- only the school-dependent columns go NA.
     assert out.loc["far", "road_id"] == "r1"
+
+
+def test_add_road_treatment_definitions_three_tiers_diverge():
+    # Same setup: point-only treats all three as "near an fdot wall"; the
+    # same_route tier drops "far" (outside corridor reach); the same_side
+    # tier further drops "opp_side" (opposite carriageway) -- three
+    # definitions kept side by side, not collapsed to one.
+    schools = _schools([
+        ("same_side", "N1", 500, 30),
+        ("opp_side", "N2", 500, -30),
+        ("far", "N3", 1500, 30),
+    ])
+    barriers = _barriers([("w1", "fdot_barrier", 2010, 495, 505, 5)])
+    road_network = _road_network([("r1", 0, 2000, 0)])
+
+    pair, rollup = match_barriers_point(schools, barriers, max_dist=1500)
+    pair = match_barriers_road(pair, schools, barriers, road_network, budget_m=200.0, buffer_m=50.0)
+    rollup = add_road_treatment_definitions(pair, rollup).set_index("msid")
+
+    assert rollup.loc["same_side", "ever_treated_point"] == True   # noqa: E712
+    assert rollup.loc["opp_side", "ever_treated_point"] == True    # noqa: E712
+    assert rollup.loc["far", "ever_treated_point"] == True         # noqa: E712
+
+    assert rollup.loc["same_side", "ever_treated_same_route"] == True   # noqa: E712
+    assert rollup.loc["opp_side", "ever_treated_same_route"] == True    # noqa: E712
+    assert rollup.loc["far", "ever_treated_same_route"] == False        # noqa: E712
+
+    assert rollup.loc["same_side", "ever_treated_same_side"] == True    # noqa: E712
+    assert rollup.loc["opp_side", "ever_treated_same_side"] == False    # noqa: E712
+    assert rollup.loc["far", "ever_treated_same_side"] == False         # noqa: E712
+
+    assert rollup.loc["same_side", "first_treat_year_same_side"] == 2010
+    assert pd.isna(rollup.loc["opp_side", "first_treat_year_same_side"])
 
 
 def test_match_barriers_road_covers_other_wall_category_too():

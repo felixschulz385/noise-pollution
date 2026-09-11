@@ -129,14 +129,43 @@ def match_barriers_point(
     for col in PENDING_ROAD_COLUMNS:
         pair[col] = pd.NA
 
-    first_treat = (
-        pair.loc[pair["category"].eq("fdot_barrier")]
-        .groupby("msid")["treat_year"].min().rename("first_treat_year")
-    )
-    rollup = rollup.merge(first_treat, on="msid", how="left")
-    undated_msid = set(pair.loc[pair["timing_unknown"], "msid"])
-    rollup["any_timing_unknown"] = rollup["msid"].isin(undated_msid)
+    # Treatment-timing tier 1 of 3 (``_point``, algorithms 1-2). Tiers 2-3
+    # (``_same_route`` / ``_same_side``, algorithms 4-5) are added by
+    # `add_road_treatment_definitions` once `match_barriers_road` has run —
+    # all three are kept side by side, never collapsed to one "the"
+    # definition, so the analysis layer picks a baseline + robustness checks
+    # downstream instead of the matching code deciding for it.
+    fdot_pairs = pair[pair["category"].eq("fdot_barrier")]
+    first_treat_point = fdot_pairs.groupby("msid")["treat_year"].min().rename("first_treat_year_point")
+    rollup = rollup.merge(first_treat_point, on="msid", how="left")
+    rollup["ever_treated_point"] = rollup["msid"].isin(set(fdot_pairs["msid"]))
+    undated_point_msid = set(fdot_pairs.loc[fdot_pairs["timing_unknown"], "msid"])
+    rollup["timing_unknown_point"] = rollup["msid"].isin(undated_point_msid)
     return pair, rollup
+
+
+def add_road_treatment_definitions(pair: pd.DataFrame, rollup: pd.DataFrame) -> pd.DataFrame:
+    """Adds the ``_same_route`` (algorithm 4) and ``_same_side`` (algorithm 5)
+    treatment-timing tiers to ``rollup``, alongside the ``_point`` tier
+    :func:`match_barriers_point` already computed. Must run after
+    :func:`match_barriers_road` has populated ``same_route`` /
+    ``school_side`` / ``wall_side`` on ``pair`` — each tier gates the same
+    ``groupby("msid")["treat_year"].min()`` computation on progressively
+    stricter matching criteria, same pattern as the ``_point`` tier.
+    """
+    fdot = pair[pair["category"].eq("fdot_barrier")].copy()
+    same_route = fdot["same_route"].fillna(False).astype(bool)
+    same_side = same_route & (fdot["school_side"] == fdot["wall_side"]).fillna(False)
+
+    out = rollup.copy()
+    for name, gate in (("same_route", same_route), ("same_side", same_side)):
+        qualifying = fdot[gate]
+        first_year = qualifying.groupby("msid")["treat_year"].min()
+        out[f"first_treat_year_{name}"] = out["msid"].map(first_year)
+        out[f"ever_treated_{name}"] = out["msid"].isin(set(qualifying["msid"]))
+        undated_msid = set(qualifying.loc[qualifying["timing_unknown"], "msid"])
+        out[f"timing_unknown_{name}"] = out["msid"].isin(undated_msid)
+    return out
 
 
 def match_barriers_road(
@@ -245,12 +274,11 @@ def run_schools_assemble(
     road_network = load_road_network(root)
     pair, rollup = match_barriers_point(placed, barriers, max_dist, buffers)
     pair = match_barriers_road(pair, placed, barriers, road_network, corridor_budget_m, corridor_buffer_m)
+    rollup = add_road_treatment_definitions(pair, rollup)
 
     if not rollup["msid"].is_unique:
         raise ValueError("schools_treatment_rollup must be one row per msid")
     fdot_pairs = pair[pair["category"].eq("fdot_barrier")]
-    same_route_pairs = pair[pair["same_route"] == True]  # noqa: E712 (nullable boolean, != is not safe)
-    same_side_pairs = same_route_pairs[same_route_pairs["school_side"] == same_route_pairs["wall_side"]]
 
     report: dict[str, object] = {
         "generated_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
@@ -267,11 +295,10 @@ def run_schools_assemble(
         "schools_within_500m": int((rollup["nearest_fdot_dist_m"] <= 500).sum()),
         "schools_within_1000m": int((rollup["nearest_fdot_dist_m"] <= 1000).sum()),
         "undated_fdot_pair_share": float(fdot_pairs["timing_unknown"].mean()) if len(fdot_pairs) else None,
-        "pairs_same_route": int(len(same_route_pairs)),
-        "pairs_same_side": int(len(same_side_pairs)),
-        "schools_same_side_of_an_fdot_wall": int(
-            same_side_pairs.loc[same_side_pairs["category"].eq("fdot_barrier"), "msid"].nunique()
-        ),
+        "ever_treated_by_definition": {
+            name: int(rollup[f"ever_treated_{name}"].sum())
+            for name in ("point", "same_route", "same_side")
+        },
     }
     saved = save_treatment(pair, rollup, root)
     report["saved"] = saved

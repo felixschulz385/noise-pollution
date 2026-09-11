@@ -60,6 +60,7 @@ from src.regions.florida.sources.road_network.shared import (
         ["florida", "data", "road-network", "fetch", "--version", "apr23", "--keep-zip", "--no-metadata"],
         ["florida", "data", "road-network", "preprocess"],
         ["florida", "data", "road-network", "preprocess", "--version", "apr23"],
+        ["florida", "data", "panel", "assemble"],
     ],
 )
 def test_known_commands_resolve_to_a_handler(argv):

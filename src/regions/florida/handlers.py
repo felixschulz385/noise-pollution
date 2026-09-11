@@ -129,3 +129,11 @@ def command_schools_assemble(args: argparse.Namespace) -> int:
     )
     print_json({"domain": "schools", "stage": "assemble", **result})
     return 0
+
+
+def command_panel_assemble(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.panel.assemble import run_panel_assemble
+
+    result = run_panel_assemble()
+    print_json({"domain": "panel", "stage": "assemble", **result})
+    return 0
