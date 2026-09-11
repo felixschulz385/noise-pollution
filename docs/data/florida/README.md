@@ -135,11 +135,12 @@ into `processed/`:
   shapefile, FGDL title/publication date, row/roadway counts, count of
   flattened `MultiLineString`s, `year` coverage, and the column list.
 
-The `schools`-side matching algorithms 3–5 that consume this layer are still
-a notebook prototype (`src/experiments/florida/schools.ipynb` §7), not wired
-into `schools/assemble.py` yet — see the `road_network` README's "Open
-questions" for why (the naive same-`ROADWAY`-id matching under-recovers the
-point-only baseline and needs a corridor-based redesign first).
+The `schools`-side matching algorithms 3–5 that consume this layer are
+validated in a notebook prototype (`src/experiments/florida/schools.ipynb`
+§7 — a network-distance-bounded corridor test, not `ROADWAY`-id equality,
+recovers 99.1%/83.2% of the point-only baseline) but not yet wired into
+`schools/assemble.py` as pipeline code — see the `road_network` README's
+Open Question 7.
 
 ## `assessments` — `fetch` (manual) + `preprocess` (merge to a tidy panel)
 

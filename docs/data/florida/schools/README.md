@@ -604,7 +604,7 @@ healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`
 - NCESSCH stability across years → static vs per-year crosswalk (only matters if
   multi-year EDGE is added).
 - ~~`noise_barriers` raw roadbed/side/`RID` field for algorithm 5~~ **found**
-  (2026-09-11, `src/experiments/florida/schools.ipynb` §7.6): the raw GDB
+  (2026-09-11, `src/experiments/florida/schools.ipynb` §7.7): the raw GDB
   *does* carry one — `BLOC_SIDE` (compass `EAST`/`WEST`/`NORTH`/`SOUTH`,
   populated for 100% of present walls), plus `BLOC_BND` (orientation to
   traffic direction) and `BLOC_ONRTE` (mount type: shoulder/ground/median/
@@ -622,29 +622,38 @@ healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`
   (confirmed FGDL `rciroads_<version>.zip` source, schema; `rciroads` itself
   still has no side/carriageway field, only `noise_barriers` does).
 - ~~`FED_YRCON` semantics for `REPLACED` rows~~ **resolved** (2026-09-11,
-  `schools.ipynb` §7.5): FGDL's own field definition is unambiguous —
+  `schools.ipynb` §7.6): FGDL's own field definition is unambiguous —
   *"Year of Original Noise Barrier Construction."* The 10 `REPLACED BARRIERS`
   rows carry plausible pre-2010 years, consistent with "original." No code
   change needed; `treat_year = built_year` (original year, incl. `REPLACED`)
   was already correct.
-- **New (2026-09-11, `schools.ipynb` §7.3): the naive `same_segment` design
-  (exact `ROADWAY`-string equality between independently nearest-matched
-  wall and school) badly under-recovers the algorithm 1/2 baseline** — only
-  ~20% of `ever_near_wall_500m` schools get a same-`ROADWAY` same-side match
-  even at a generous `D=1.0` mi tolerance, rising to ~35% when the candidate
-  network is restricted to arterial-class roads (still not enough). Most of
-  the shortfall is schools with *no* same-`ROADWAY` candidate at all, not a
-  tolerance problem: `ROADWAY` is a fine RCI linear-referencing segmentation
-  (18,373 distinct ids statewide, ~2.2 segments/id) closer to a "control
-  section" than a continuous route, so a wall and a school on the visibly
-  same physical highway can land on two different `ROADWAY` ids. **Do not
-  implement algorithm 4 as literal `ROADWAY`-string equality** — the next
-  design attempt should test spatial/corridor adjacency of the matched
-  segments instead (e.g. buffer the wall's segment ± its immediate milepost
-  neighbors, test whether the school's matched segment falls inside), with
-  the candidate network pre-restricted to arterial classes. Re-run the
-  sensitivity sweep in `schools.ipynb` §7.3 against that redesign before
-  picking a final `D`/`P`.
+- ~~The naive `same_segment` design (exact `ROADWAY`-string equality between
+  independently nearest-matched wall and school) badly under-recovers the
+  algorithm 1/2 baseline~~ **resolved** (2026-09-11, `schools.ipynb`
+  §7.3-7.4): confirmed the diagnosis — only ~20% of `ever_near_wall_500m`
+  schools got a same-`ROADWAY` same-side match even at a generous `D=1.0` mi
+  tolerance (`ROADWAY` is a fine RCI segmentation, 18,373 ids statewide,
+  ~2.2 segments/id, closer to a "control section" than a continuous route)
+  — and fixed it: redesigned `same_segment` as a **network-distance-bounded
+  corridor test**. From the wall's point, flood-fill outward along the
+  arterial-only network's actual connectivity (shared segment endpoints),
+  consuming true path distance up to a budget, buffer into a corridor
+  polygon, test whether the school falls inside — no `ROADWAY` identity
+  involved. **Recovery: 99.1%** (algorithms 3/4 alone, `budget=800 m,
+  buffer=600 m`) and **83.2%** (+ algorithm 5's same-side test; the ~17-point
+  drop is schools on the opposite carriageway, the false positives algorithm
+  5 exists to remove). Two bugs found and fixed along the way, both from the
+  same root cause — assuming RCI's segmentation is regular enough for a
+  count/length proxy to stand in for true distance, when some segments run
+  30-57 km unbroken: (a) checking the distance budget once per BFS hop-layer
+  instead of per segment let one corridor overshoot to 10.5 km on a 3.2 km
+  budget; (b) leaving the seed segment un-trimmed let another reach 24 km.
+  Full writeup and the resolved algorithm-4 design note in
+  [`road_network/README.md`](../road_network/README.md), Open Question 7.
+  **Still needed:** move this from notebook prototype into
+  `road_network/preprocess.py` (adjacency graph + `corridor_geometry`) and
+  `schools/assemble.py` (`match_barriers_road`) as real, tested pipeline
+  code — the design is validated, only the promotion is outstanding.
 - `DataSource` base class — deferred; `preprocess` is hand-wired like the others.
 
 ---

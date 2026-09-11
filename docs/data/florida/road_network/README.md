@@ -1,14 +1,16 @@
 # Florida — `road_network` source: requirements for implementation
 
-**Status: `fetch` + `preprocess` implemented.** `list-versions`, `fetch` and
+**Status: `fetch` + `preprocess` implemented; algorithms 3–5 validated in a
+notebook, not yet promoted to pipeline code.** `list-versions`, `fetch` and
 `preprocess` work end to end against the live FGDL archive and produce
 `road_network.parquet` (see [`fetch` — what's implemented](#fetch--whats-implemented)
-below). The `schools`-side algorithms 3–5 are prototyped in
-`src/experiments/florida/schools.ipynb` §7 but **not wired into
-`schools/assemble.py`** — the sensitivity check there found the naive
-same-`ROADWAY`-id matching under-recovers the point-only baseline (~20-35% vs
-~100%), so a corridor-based redesign is needed first (see [Open
-questions](#open-questions--resolved--remaining), items 5-6). This page is a
+below). The `schools`-side algorithms 3–5 are prototyped and validated in
+`src/experiments/florida/schools.ipynb` §7 — after a corridor-based redesign
+(§7.4, replacing an initial `ROADWAY`-id-equality attempt that only recovered
+~20-35% of the point-only baseline), recovery reaches 99.1% (algorithms 3/4)
+and 83.2% (+ algorithm 5's same-side test) — but this is **still not wired
+into `schools/assemble.py`** as real pipeline code (see [Open
+questions](#open-questions--resolved--remaining), item 7). This page is a
 self-contained implementation brief — read it plus the three files linked in
 [Read first](#read-first) and you have everything needed to build the rest of
 the source without further context from this conversation.
@@ -173,7 +175,7 @@ side" when the signs agree.
 > test does). Comparing `school_side`/`wall_side` across different schools,
 > different roadways, or against any absolute notion of "left"/"right" or
 > "north"/"south" is a bug, not a simplification. **Note also:** `schools.ipynb`
-> §7.6 found that `noise_barriers` raw actually carries a real compass-value
+> §7.7 found that `noise_barriers` raw actually carries a real compass-value
 > side field for the wall (`BLOC_SIDE`), currently dropped by
 > `noise_barriers/preprocess.py` — use it as ground truth for the wall side
 > rather than trusting this geometric derivation unchecked; schools still
@@ -314,25 +316,41 @@ naming conventions already used (`noise_barriers`' `gcid`/`fed_route`/
 6. **RESOLVED — validated against real data.** **95.6%** of the 1,245
    `fdot_barrier` rows in `barriers.parquet` get a `road_network` match
    within 50 m (`schools.ipynb` §7.1) — passes the ≥95% target.
-7. **NEW, blocking — `same_segment`'s `ROADWAY`-id equality test is too
-   strict; needs a corridor-based redesign.** Found via the sensitivity
-   check in `schools.ipynb` §7.3: matching wall and school independently to
-   their nearest `road_network` segment and then requiring
-   `ROADWAY_wall == ROADWAY_school` recovers only ~20% of the algorithm 1/2
-   baseline population (`ever_near_wall_500m`) even at a generous `D=1.0` mi
-   tolerance — rising to ~35% when the candidate network is restricted to
-   arterial classes, still not enough. Root cause: `ROADWAY` is a fine RCI
-   linear-referencing segmentation (18,373 distinct ids statewide, ~2.2
-   segments/id) closer to a "control section" than a continuous route, so a
-   wall and a school on the visibly same physical highway can land on two
-   different `ROADWAY` ids. **Do not implement algorithm 4 as literal
-   `ROADWAY`-string equality.** Next attempt: test spatial/corridor adjacency
-   of the matched segments instead (e.g. buffer the wall's segment ± its
-   immediate milepost-adjacent neighbors, test whether the school's matched
-   segment falls inside), with the candidate network pre-restricted to
-   arterial classes (also a free win on its own, matching `noise_barriers`'
-   documented state-highway coverage bias). Re-run the `schools.ipynb` §7.3
-   sensitivity sweep against that redesign before picking a final `D`/`P`.
+7. **RESOLVED — `same_segment` redesigned as a network-distance-bounded
+   corridor test, not `ROADWAY`-id equality.** (`schools.ipynb` §7.4,
+   2026-09-11.) The original diagnosis held: matching wall and school
+   independently to their nearest `road_network` segment and requiring
+   `ROADWAY_wall == ROADWAY_school` recovers only ~20-35% of the algorithm
+   1/2 baseline (`ever_near_wall_500m`) because `ROADWAY` is a fine RCI
+   linear-referencing segmentation (18,373 ids statewide, ~2.2 segments/id)
+   closer to a "control section" than a continuous route. The fix: from the
+   wall's point, flood-fill outward along the arterial-only network's
+   **actual connectivity** (segments sharing an endpoint), consuming true
+   path distance up to a budget (not segment count or `ROADWAY` identity),
+   buffer the result into a corridor polygon, and test whether the school
+   falls inside. **Recovery jumps to 93-99%** across a small
+   `budget`/`buffer` grid (`budget=800 m, buffer=600 m` → 99.1%; adding the
+   same-side test on top → 83.2%, the ~17-point drop being schools on the
+   *opposite* carriageway — exactly the false positives algorithm 5 is
+   supposed to remove, not a bug).
+
+   **Two bugs surfaced building this, both worth remembering:** (a)
+   checking the distance budget once per BFS hop-*layer* instead of per
+   segment let a single hop overshoot massively on FDOT's median-852 m (but
+   up to 57 km!) unsegmented stretches — one wall's corridor reached 10.5 km
+   on a 3.2 km budget; (b) the seed segment itself must be trimmed
+   (`shapely.ops.substring`) to the portion near the wall's point, not
+   unioned in whole — skipping this let one wall's corridor reach 24 km,
+   because its nearest segment *was* one of those long unsegmented
+   stretches. Both are the same failure mode that broke the original
+   `ROADWAY`-id design: assuming RCI's segmentation is regular enough for a
+   count/length proxy to stand in for true distance, when its tail
+   (57 km segments; `ROADWAY` ids as fine as one per short urban block) is
+   wide enough to break that assumption. This design (arterial-only
+   candidate network, network-distance-bounded corridor, `budget=800 m,
+   buffer=600 m` as a starting default) is ready to move into
+   `road_network/preprocess.py` (the adjacency graph + corridor helper) and
+   `schools/assemble.py` (`match_barriers_road`) as real pipeline code.
 
 ## Definition of done
 
@@ -343,18 +361,20 @@ naming conventions already used (`noise_barriers`' `gcid`/`fed_route`/
   tests in `tests/regions/florida/test_road_network_preprocess.py`.
 - Unit tests (synthetic geometry, no network — mirror
   `tests/regions/florida/test_noise_barriers_preprocess.py`'s style) for the
-  linear-referencing projection and the signed-side derivation — prototyped
-  and validated in `schools.ipynb` §7.2 (not yet promoted to a tested module;
-  blocked on the corridor-based redesign below, so writing permanent unit
-  tests against the current same-`ROADWAY`-id design would just need
-  rewriting).
+  linear-referencing projection, the signed-side derivation, and the
+  corridor flood-fill (`corridor_geometry` — including the two bugs found
+  and fixed in Open Question 7: per-segment budget checking, seed-segment
+  trimming) — prototyped and validated in `schools.ipynb` §7.2/§7.4, not yet
+  promoted to a tested module.
 - `schools/assemble.py`'s algorithms 3–5 (minimum) are implemented against
   this source, `PENDING_ROAD_COLUMNS` actually populated, and the ≥95%
-  match-rate check above passes on the real fetched barriers. **Blocked**:
-  the naive same-`ROADWAY`-id `same_segment` test only recovers ~20-35% of
-  the algorithm 1/2 baseline (`schools.ipynb` §7.3) — needs the
-  corridor-based redesign in Open Question 7 before this is real pipeline
-  code.
+  match-rate check above passes on the real fetched barriers. **Design
+  validated, not yet implemented as pipeline code**: the corridor-based
+  redesign (Open Question 7) recovers 99.1% (algorithms 3/4) and 83.2%
+  (+ algorithm 5) of the point-only baseline in `schools.ipynb` §7.4 —
+  what remains is moving the adjacency graph + `corridor_geometry` helper
+  into `road_network/` and wiring `match_barriers_road` into
+  `schools/assemble.py`, not further design work.
 - `docs/data/florida/schools/README.md`'s "Stage 2" section and
   `PENDING_ROAD_COLUMNS`/algorithm-ladder references are updated to say
   "implemented," and this page's Status line is updated too.
