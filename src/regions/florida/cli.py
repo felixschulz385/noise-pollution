@@ -10,7 +10,10 @@ grade x subject x year table), ``schools`` (`fetch` — the school spine:
 MSID + NCES EDGE + Urban Institute Education Data API subsources; absorbs the
 former ``master_file`` source; `preprocess` — spine + operation panel + Cluster-A
 covariates; `assemble` — the school <-> noise-barrier point-only match, REQUIRES
-`noise-barriers preprocess`).
+`noise-barriers preprocess`), ``road-network`` (`list-versions`, `fetch`,
+`preprocess` — FDOT RCI-derived roadway centerlines from FGDL, same archive
+naming/index scheme as `noise-barriers` but a zipped Shapefile, not a
+Geodatabase; `preprocess` cleans one release into a tidy GeoParquet layer).
 """
 from __future__ import annotations
 
@@ -29,6 +32,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_noise_barriers(data_domains)
     _register_assessments(data_domains)
     _register_schools(data_domains)
+    _register_road_network(data_domains)
 
 
 def _register_noise_barriers(domains: argparse._SubParsersAction) -> None:
@@ -70,6 +74,47 @@ def _register_noise_barriers(domains: argparse._SubParsersAction) -> None:
         help=f"FGDL release tag to read from raw/ (default: {DEFAULT_VERSION}).",
     )
     nb_pre.set_defaults(func=h.command_noise_barriers_preprocess)
+
+
+def _register_road_network(domains: argparse._SubParsersAction) -> None:
+    from src.regions.florida.sources.road_network.shared import DEFAULT_VERSION
+
+    road_network = domains.add_parser(
+        "road-network", help="FDOT RCI-derived roadway centerlines (FGDL) download pipeline"
+    )
+    cmd = road_network.add_subparsers(dest="stage", required=True)
+
+    rn_versions = cmd.add_parser(
+        "list-versions", help="List road-network dataset versions available from the FGDL archive"
+    )
+    rn_versions.set_defaults(func=h.command_road_network_list_versions)
+
+    rn_fetch = cmd.add_parser(
+        "fetch", help="Download one FGDL rciroads release and extract its geodatabase into raw/"
+    )
+    rn_fetch.add_argument(
+        "--version",
+        default=DEFAULT_VERSION,
+        help=f"FGDL release tag such as 'jul26' (default: {DEFAULT_VERSION}).",
+    )
+    rn_fetch.add_argument(
+        "--keep-zip", action="store_true", help="Keep the downloaded .zip after extraction."
+    )
+    rn_fetch.add_argument(
+        "--no-metadata", action="store_true", help="Skip downloading the companion FGDL metadata XML."
+    )
+    rn_fetch.set_defaults(func=h.command_road_network_fetch)
+
+    rn_pre = cmd.add_parser(
+        "preprocess",
+        help="Clean one local rciroads release into a tidy GeoParquet roadway-segment layer (EPSG:3087)",
+    )
+    rn_pre.add_argument(
+        "--version",
+        default=DEFAULT_VERSION,
+        help=f"FGDL release tag to read from raw/ (default: {DEFAULT_VERSION}).",
+    )
+    rn_pre.set_defaults(func=h.command_road_network_preprocess)
 
 
 def _register_assessments(domains: argparse._SubParsersAction) -> None:

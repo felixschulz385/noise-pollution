@@ -10,7 +10,8 @@ is in place.
 |---|---|---|---|
 | `noise_barriers` | `list-versions`, `fetch`, `preprocess` (clean one FGDL release → tidy GeoParquet barrier layer) | — | `src/regions/florida/sources/noise_barriers/` |
 | `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2015–2026**, 231 files), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/regions/florida/sources/assessments/` |
-| `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` designed, not written — see [`schools/README.md`](schools/README.md). Spine keyed on `msid`; absorbs the former `master_file` source and the planned `school_panel` (covariates.md Cluster A). `preprocess` stages: 1a spine + 1b Cluster-A covariates → cross-section + panel; 2 school↔barrier↔RCI treatment matching. Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`). | `noise_barriers` (stage 2) | `src/regions/florida/sources/schools/` |
+| `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier point-only match → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s matching algorithms 3–6 (road-network-dependent) are placeholder columns pending `road_network`. | `noise_barriers` (`assemble`) | `src/regions/florida/sources/schools/` |
+| `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented; the `schools assemble` matching-algorithm extension (3–5) is still a notebook prototype, not wired into the pipeline, see [`road_network/README.md`](road_network/README.md). Unlocks `schools assemble`'s matching algorithms 3–6 (side-of-road treatment assignment) and will underpin the planned `traffic` / `road_projects` sources. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, `road_projects`) | `src/regions/florida/sources/road_network/` |
 
 On-disk output lands under `data/florida/<domain>/{raw,processed,assembled}/`.
 
@@ -55,9 +56,14 @@ writes, into `processed/`:
   downstream distance / buffer / network join needs no reprojection). One row
   per wall segment (`gcid` is 1:1 with rows), columns:
   `gcid, category, type, flag, is_programmed, built_year, fdot_distr,
-  fed_route, fed_county, fed_nac, fed_anr, ben_rcptrs, tot_rcptrs, fed_materl,
-  fhwa_sub_notes, height_m, length_m, seg_len_m, geometry`. Only columns
-  present in the given release are emitted (schema-drift tolerant).
+  fed_route, fed_county, bloc_side, bloc_bnd, bloc_onrte, fed_nac, fed_anr,
+  ben_rcptrs, tot_rcptrs, fed_materl, fhwa_sub_notes, height_m, length_m,
+  seg_len_m, geometry`. `bloc_side`/`bloc_bnd`/`bloc_onrte` (compass side,
+  traffic-direction orientation, mount type — found 2026-09-11 while
+  investigating `road_network`'s side-of-road question, see
+  [`schools/README.md`](schools/README.md)) are the wall's own side-of-road
+  attribute, a ground-truth input for `schools assemble`'s algorithm 5.
+  Only columns present in the given release are emitted (schema-drift tolerant).
 - **`barriers.json`** — provenance sidecar: release tag, source `.gdb`, FGDL
   title / publication date, row counts by category, duplicates dropped,
   `built_year` coverage, and the column list.
@@ -83,6 +89,57 @@ Cleaning rules (crystallized from `src/experiments/florida/barriers.ipynb`):
 
 The school ↔ barrier ↔ street-network merge that turns this into per-school
 barrier treatment timing lives in the `schools` source, not here.
+
+## `road_network` — `fetch` + `preprocess` implemented
+
+FDOT RCI-derived roadway centerlines, published through the same **FGDL**
+archive as `noise_barriers` (same publisher, same versioned-archive index and
+naming scheme) but as a zipped **Esri Shapefile**, not a zipped Geodatabase —
+confirmed by fetching, see [`road_network/README.md`](road_network/README.md#fetch--whats-implemented)
+for the full brief.
+
+- Archive index: <https://fgdl.org/zips/geospatial_data/archive/>
+  (`rciroads_<mon><yy>.zip`, e.g. `rciroads_jul26.zip`)
+- Metadata: `https://fgdl.org/zips/metadata/xml/rciroads_<mon><yy>.xml`
+- **57 releases**, `jun04` → `jul26`; `fetch` defaults to **`jul26`**,
+  version-matched to the `noise_barriers` snapshot already fetched.
+- CRS EPSG:3087 (Florida GDL Albers, metres, same as `noise_barriers`);
+  `jul26` has 40,357 `LineString`/`MultiLineString` features across 16
+  columns (`ROADWAY, BEGIN_POST, END_POST, YEAR_, AADT, FUNCLASSCO, FUNCLASS,
+  LANE_CNT, SEGMENTID, DESCRIPT, FGDLAQDATE, RTLENGTH, RCILENGTH, ARCLENGTH,
+  AUTOID, SHAPE_LEN` + geometry).
+
+```bash
+python -m src.cli florida data road-network list-versions
+python -m src.cli florida data road-network fetch                 # -> data/florida/road_network/raw/rciroads_jul26/rciroads_jul26.shp
+python -m src.cli florida data road-network fetch --version apr23 --keep-zip
+python -m src.cli florida data road-network preprocess            # -> data/florida/road_network/processed/road_network.parquet (+ road_network.json)
+```
+
+### `preprocess` — clean one release to a tidy roadway-segment layer
+
+`preprocess` reads one local `rciroads_<version>.shp` from `raw/` and writes,
+into `processed/`:
+
+- **`road_network.parquet`** — GeoParquet, **EPSG:3087**. One row per
+  roadway segment (40,357 for `jul26`), columns: `roadway_id, segmentid,
+  begin_post, end_post, year, funclassco, funclass, lane_cnt, aadt,
+  rtlength_m, rcilength_m, arclength_m, shape_len_m, autoid, fgdlaqdate,
+  geometry`. No row filtering (unlike `noise_barriers`, there is no
+  analogous "not really built" status); `DESCRIPT` is dropped (confirmed to
+  duplicate `funclass` exactly, not a route name); every `MultiLineString`
+  (37 of 40,357 — non-contiguous multi-part geometries) is flattened to a
+  plain `LineString` so downstream linear-referencing code never has to
+  handle it; `year`'s `0` sentinel (~16% of rows) becomes `NA`.
+- **`road_network.json`** — provenance sidecar: release tag, source
+  shapefile, FGDL title/publication date, row/roadway counts, count of
+  flattened `MultiLineString`s, `year` coverage, and the column list.
+
+The `schools`-side matching algorithms 3–5 that consume this layer are still
+a notebook prototype (`src/experiments/florida/schools.ipynb` §7), not wired
+into `schools/assemble.py` yet — see the `road_network` README's "Open
+questions" for why (the naive same-`ROADWAY`-id matching under-recovers the
+point-only baseline and needs a corridor-based redesign first).
 
 ## `assessments` — `fetch` (manual) + `preprocess` (merge to a tidy panel)
 

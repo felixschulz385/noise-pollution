@@ -25,6 +25,9 @@ BASE_COLS = dict(
     FDOT_DISTR="6",
     FED_ROUTE="SR9",
     FED_COUNTY="Miami-Dade",
+    BLOC_SIDE="EAST",
+    BLOC_BND="NORTH",
+    BLOC_ONRTE="SHOULDER MOUNTED",
     FED_NAC="B",
     FED_ANR=7.0,
     BEN_RCPTRS=10,
@@ -116,3 +119,25 @@ def test_tolerates_missing_optional_columns():
     # seg_len_m is recomputed from geometry when SHAPE_Length is absent.
     assert out.iloc[0]["seg_len_m"] == pytest.approx(10.0)
     assert list(out.columns)[-1] == "geometry"
+
+
+def test_bloc_side_columns_carried_through():
+    gdf = _raw([
+        _row("a", "CONSTRUCTED BARRIERS", LineString([(0, 0), (10, 0)]),
+             BLOC_SIDE="WEST", BLOC_BND="SOUTH", BLOC_ONRTE="GROUND MOUNTED"),
+    ])
+    out = preprocess_barriers(gdf).iloc[0]
+    assert out["bloc_side"] == "WEST"
+    assert out["bloc_bnd"] == "SOUTH"
+    assert out["bloc_onrte"] == "GROUND MOUNTED"
+
+
+def test_tolerates_missing_bloc_columns():
+    gdf = _raw([
+        _row("a", "CONSTRUCTED BARRIERS", LineString([(0, 0), (10, 0)])),
+    ]).drop(columns=["BLOC_SIDE", "BLOC_BND", "BLOC_ONRTE"])
+
+    out = preprocess_barriers(gdf)
+    assert "bloc_side" not in out.columns
+    assert "bloc_bnd" not in out.columns
+    assert "bloc_onrte" not in out.columns

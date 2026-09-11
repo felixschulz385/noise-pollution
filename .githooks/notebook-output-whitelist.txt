@@ -5,3 +5,22 @@
 # barriers.ipynb: the basemap example maps are the point of the notebook; it
 # reads only public FGDL / NCES data, no confidential content.
 src/experiments/florida/barriers.ipynb
+#
+# assessments.ipynb: a descriptive pass over the FLDOE assessment panel — the
+# tables and plots are the deliverable (it writes no file); reads only the
+# public FLDOE result workbooks, no confidential content.
+src/experiments/florida/assessments.ipynb
+#
+# schools.ipynb: prototype of the `schools preprocess` step — spine, crosswalk,
+# coordinates, operation panel and point-only barrier matching, with the
+# validation tables/figures as the deliverable; reads only public FLDOE MSID /
+# NCES EDGE / FDOT data, no confidential content.
+src/experiments/florida/schools.ipynb
+#
+# road_network.ipynb: investigates the `rciroads` fetch output (descriptives,
+# data-quality checks) and prototypes the nearest-road / linear-referencing /
+# side-of-centerline logic for schools/assemble.py's matching algorithms 3-5,
+# ahead of road_network/preprocess.py existing; the validation tables/figures
+# (incl. the >=95% match-rate acceptance check) are the deliverable; reads
+# only public FGDL / FLDOE MSID data, no confidential content.
+src/experiments/florida/road_network.ipynb

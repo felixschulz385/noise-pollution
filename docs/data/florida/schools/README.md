@@ -1,8 +1,21 @@
 # Florida — `schools` source (design & findings)
 
-Status: **design** (2026-09-10). Nothing implemented yet. This page is the
-step-1 findings dump; implementation follows in the order fetch → notebook →
-preprocess.
+Status (2026-09-11): **`fetch`, `preprocess` (stages 1a+1b) and `assemble`
+(stage 2) all implemented and passing** against the real fetched data (95 tests
+green in the `311` conda env). `python -m src.cli florida data schools
+preprocess` writes `school_cross_section.parquet` / `school_year_panel.parquet`;
+`... schools assemble` writes `schools_treatment.parquet` +
+`schools_treatment_rollup.parquet` (REQUIRES `noise-barriers preprocess`).
+`src/experiments/florida/schools.ipynb` now **imports**
+`schools/{preprocess,assemble}.py` (the way `assessments.ipynb` imports its
+parser) and is investigation-only — the pipeline logic lives in the module,
+with unit tests in `tests/regions/florida/test_schools_{preprocess,assemble}.py`.
+The FLDOE MSID code tables (`schools/msid_codes.py`, from
+`0101172-msid.pdf`, Appendix A/B) replaced every provisional decode. Build
+order: fetch → notebook (prototype) → preprocess/assemble (**done**).
+
+Still open, non-blocking (see [Open questions / TODO](#open-questions--todo)):
+the `road_network` source for matching algorithms 3–6.
 
 ## Purpose
 
@@ -46,16 +59,26 @@ layer).
 | `master_file` | **Removed**; its MSID fetch becomes the `msid` subsource of `schools`. |
 | `school_panel` (covariates.md Cluster A) | **Merged into `schools`** — same key / API / grain / year span. Produced by `preprocess` stage 1b into `school_year_panel.parquet`. `school_panel` drops out of covariates.md as a separate module. |
 | MSID issues | **One current issue** for now. Caveat documented: no per-year status history. |
-| Urban API endpoints | `ccd/directory` + `ccd/enrollment` **run by default**; `crdc` + `edfacts` are subsources too but **off by default** for the first pass (biennial / different structure — add once CCD works). `fetch --subsource` selectable. |
-| Year span | **1990–2026** where available (CCD directory reaches back to the late 1980s; assessment outcomes currently only 2015+). |
-| Panel time index | **Assessment "spring year"** (e.g. 2015 = 2014–15 school year). CCD/Urban `year` = fall of that school year, so `spring_year − 1`. |
-| Attribute disagreement | **Set `NA`** (applies to `in_operation` and to conflicting attributes). |
+| Urban API endpoints & routes | `ccd_directory` → **`--via csv`** (one 1 GB all-years file). `ccd_enrollment` (`/grade-99/race/`), `crdc` (`/disability/sex/`), `edfacts` (`/grade-99/`) → **`--via api` with `?fips=12`** (their CSV flat files are 0.5–1 GB *per year*). `ccd_directory` + `ccd_enrollment` default; `crdc` + `edfacts` opt-in. |
+| MSID vs CCD attribute conflict | Where a non-`in_operation` attribute (name, status, grade span) disagrees between MSID and CCD → **`NA`** + a `*_conflict` flag. |
+| Year span | **1990–2026**. CCD directory/enrollment reach 1986+; CRDC is 6 biennial years (2011–2021); EDFacts 2009–2020; assessment outcomes 2015+. |
+| Panel time index | **Assessment "spring year"** (2015 = the 2014–15 school year). Urban `year` conventions: **CCD directory + CCD enrollment** = fall of the school year → `spring_year = year + 1`. **CRDC** `year` = fall of the collection year → `+ 1` (**confirmed** against the Urban CRDC codebook — `year` is defined there as "Academic year (fall semester)", the same convention as CCD). **EDFacts** `year` **is** the spring year → no offset. |
+| CRDC 2021 raw-pull duplicates | `crdc_2021.parquet` had **50,592 fully-duplicate rows** (63% of the file — every `disability ∈ {1,2}` row doubled, `disability == 99` clean; likely an overlapping page from `_get_all_pages` on that year's unusually large pull), which silently **doubled `pct_swd` for spring year 2022** (median 0.14 → 0.29, 3.6% of rows > 1). `_load_year_parquets` now drops exact-duplicate rows for every CCD/CRDC/EDFacts source — harmless everywhere else, since no other file has any. |
+| Coordinate disagreement | When MSID and EDGE lat/lon are both present, **EDGE wins** (address-geocoded); keep `geom_disagree_m` and flag > 250 m for QA. Coordinate ladder: EDGE → MSID → (geocode, later) → none. |
+| Geocoding the ~240 unplaced active schools | **Deferred** — `preprocess` leaves a `geocode_pending` flag and a placeholder; `PHYSICAL_ADDRESS` geocoding (Census batch → Nominatim) is a follow-up. |
+| MSID code tables | **Resolved** — the FLDOE *MSID Application Guidelines* PDF (`0101172-msid.pdf`, at the repo root) Appendix A (record layout, per-item domain values) + Appendix B (113 grade codes) are transcribed into **`src/regions/florida/sources/schools/msid_codes.py`**: `ACTIVITY_CODE`, `SCHOOL_TYPE`, `CHARTER_STATUS`, `FUNC_SETTING`, `SERV_TYPE` (note **`B` = Alternative Education**, not "basic"), `MAGNET_STATUS`, `TITLE_I_STATUS`, `ACC_TYPE`, `REGION_CODE`, and `GRADE_CODE_COMBINATION` + `grade_code_span()` / `grade_code_serves_tested()`. |
+| Grade span | From MSID `GRADE_CODE` via Appendix B (`grade_code_span`) — resolves for ~85% of rows (the rest are codes `00` / `99` = unassigned, mostly closed/future). `ccd/directory.lowest/highest_grade_offered` is the fallback. `serves_tested_grades` = the code's explicit grade set intersects 3–10. |
+| Flags | `is_regular` = `serv_type == 'k12_general'` only; `is_alternative` = `'alternative_education'`; `is_charter` = `charter_kind != 'not_charter'`; `is_magnet` = magnet school-wide/program; `is_virtual` = `func_setting == 'virtual'`. Raw codes carried alongside. Flags are advisory — the analysis layer picks the estimation sample. |
+| `ncessch` collision dedup (36 cases) | For the `msid → ncessch` map keep the row; for the reverse `ncessch → msid` used in the CCD join, **prefer `ACTIVITY_CODE == 'A'`, then the latest `DATE_OPENED`**. Carry `ncessch_shared` when >1 `msid` maps to the same id. |
+| CCD/CRDC/EDFacts sentinels | Urban's **`−1` (missing) / `−2` (not applicable) / `−3` (suppressed)** → map the value to `NA`, and carry one companion column per covariate, `<col>_missing ∈ {ok, missing, na, suppressed}`. |
+| `in_operation` rule | **Month-aware:** `open_spring = year(DATE_OPENED) + (month ≥ 7)`, `close_spring = year(DATE_CLOSED) + (month ≥ 7)`; operating ⇔ `open_spring ≤ Y ≤ close_spring`. Null open ⇒ −∞, null close ⇒ +∞. Carry `in_operation_src ∈ {dates, dates+tested, conflict}`. On a 2015+ conflict where the school appears in `assessments.parquet` but the dates say not-open/closed → **set `in_operation = True`** (a school that tested students was open), `src = conflict`. Pre-2015: date-derived only. |
 | Per-year coordinates | Only if the notebook detects material relocations; otherwise one static point in the cross-section. |
 | School universe | **Keep all MSID rows, add flags** (no filtering). |
 | Virtual / district-wide schools | Kept, flagged `no_physical_location`. |
 | Output CRS | **EPSG:3087** (matches `barriers.parquet`; no reprojection downstream). |
-| Stage-2 road model | **FDOT RCI roadway network** (aligns with barrier `fed_route` linear referencing), not OSM. |
-| Stage-2 grain | One row per `(msid, gcid)`; a treatment-status column per matching algorithm. |
+| Stage-2 road model | **FDOT RCI roadway network** — built as its **own source** (`road_network`, or the first step of `traffic`), reused by `traffic` / `road_projects`. `schools` stage 2 declares `REQUIRES {noise_barriers, road_network}`. Full implementation brief (source URLs, confirmed schema, the consumer contract): [`docs/data/florida/road_network/README.md`](../road_network/README.md). |
+| Stage-2 grain | One row per `(msid, gcid)` candidate pair, a status column per matching algorithm; **plus** a per-school rollup (`ever_near_wall`, first `treat_year`, `n_walls_500m`, `wall_len_500m`, …). |
+| Stage-2 algorithms v1 | `euclid_nearest` + `buffer_dose` only. `road_gated` / `same_segment` / `same_side` / `shielded_arc` land as **placeholders** (columns present, `NA`) until `road_network` exists. |
 | `built_year` unknown | `treat_year = NA`, `timing_unknown = True`. |
 | `REPLACED` walls | Use the **original** construction year (`built_year` as carried from `FED_YRCON`). |
 | Non-FDOT `other_wall` | `treat_year = NA`; carried as a shielding covariate, never as treatment. |
@@ -108,7 +131,8 @@ offline-reproducible.
 |---|---|---|---|
 | `ccd_directory` | `schools/ccd/directory` | name, status, charter/magnet, **Title I**, locale, grade span, lat/lon, `state_leaid`/`state_school_id` (crosswalk QA) | yes |
 | `ccd_enrollment` | `schools/ccd/enrollment` (+ `race`/`sex`/`grade` disaggregations) | annual membership; race shares; **pupil–teacher ratio** (teacher FTE ÷ membership) | yes |
-| `crdc` | `schools/crdc/enrollment`, `.../directory` | **%ELL, %SWD (IDEA), %gifted**, discipline (later) — **biennial** (2000, 2004, 2006, 2009-10, 2011-12, … 2020-21), some items sampled | **no — first pass** |
+| `crdc` | `schools/crdc/enrollment/{year}/disability/sex` | **%SWD (IDEA)**, discipline (later) — **biennial** (2011, 2013, 2015, 2017, 2020, 2021), some items sampled | **no — first pass** |
+| `crdc_lep` | `schools/crdc/enrollment/{year}/lep/sex` | **%ELL** — same biennial years/shape as `crdc`, implemented alongside it | **no — first pass** |
 | `edfacts` | `schools/edfacts/...` | LEP / IDEA subgroup counts, proficiency (robustness cross-check) — its own subgroup structure | **no — first pass** |
 
 **Annual grain confirmed** for CCD (one base record per school-year). `crdc` /
@@ -152,20 +176,25 @@ for "Carolyn Beatrice Parker Elementary". ~9.4% of rows carry the `0` sentinel
 3. No NCES linkage — row kept in the spine, `ncessch = NA`, excluded from any
    NCES-covariate join downstream.
 
-**Verification plan (notebook, step 3) — "how to check all crosswalk requirements":**
+**Verification — `src/experiments/florida/schools.ipynb` (step 3).** The
+non-Urban sections (spine, crosswalk, coordinates, flags, operation panel,
+point-only barrier matching) run against the fetched data; stage-1b covariates
+are a guarded cell that runs when CCD data lands. Preliminary numbers from the
+build (base-interpreter dry run of the pandas-only cells):
 
-- Compose `ncessch` as above; tabulate the `0`-sentinel / NA rate by
-  `ACTIVITY_CODE` and by `DATE_OPENED` decade.
-- Pull CCD directory FL for 1990 / 2000 / 2010 / 2015 / 2023; measure overlap of
-  the composed IDs with CCD `ncessch`; inspect unmatched (type, era).
-- **NCESSCH stability:** for schools in ≥2 EDGE/CCD years, does `ncessch` ever
-  change for a fixed `msid`? (decides static vs per-year crosswalk).
-- **Collisions:** duplicate composed `ncessch` within MSID (a few `FEDERAL_SCHL_NO`
-  values repeat — check district disambiguation); duplicate `msid`.
-- **Coordinates:** haversine(MSID, CCD) for matched rows; flag > 250 m; count
-  MSID `0.0` nulls that EDGE fills.
-- **Against `assessments.parquet`:** every assessment `msid` present in the
-  spine; dump the residual list.
+- `0`-sentinel `ncessch`: **9.4%** overall — 0.5% of active, 22.6% of closed,
+  90.1% of future schools.
+- Composed `ncessch` matches an EDGE 2024–25 id for **66%** of all spine rows,
+  **86%** of active schools (closed/future rows are expected to miss).
+- **Collisions:** 36 composed `ncessch` land on >1 `msid` (~0.6% — the notebook
+  prints them with district/open-close context to classify); `msid` itself is
+  unique.
+- **vs `assessments.parquet`:** 22 of 4 419 tested `msid` are absent from
+  `all_schools`, all in state-district `78` — check whether they live in a
+  different MSID export.
+- Still needs a healthy Urban API / unthrottled link: CCD `ncessch` overlap by
+  year, NCESSCH stability across years (static vs per-year crosswalk),
+  MSID↔CCD coordinate distances.
 
 ---
 
@@ -284,14 +313,15 @@ would be the first source to need it).
   - Per-year HTTP 404 / empty → `years_unavailable` (not an error); other
     failures → `errors`, year skipped. Result carries `route` (`csv` / `api` /
     `csv+api`).
-- **Status of live verification.** `msid` + `edge` verified working. The API
-  subsources are **unverified end-to-end**: there is **no official Python
-  client** (only the R `educationdata` package), Urban's entire `/api/v1/` (data
-  *and* metadata) was returning **HTTP 502 for hours** during step 2 — which also
-  breaks the R client — and the ~1 GB CSV flat file was truncated by this
-  sandbox's egress limits. Both routes will work from an unthrottled machine.
-  The **real `ccd/directory` schema was captured** from the CSV header: 52
-  columns incl. `ncessch`, `latitude`/`longitude`, `enrollment`, `teachers_fte`,
+- **Status of live verification.** `msid` + `edge` verified. **`ccd_directory`
+  via `--via csv` verified end-to-end** in the `311` env (the full 1 GB
+  `schools_ccd_directory.csv` downloaded, filtered to FL, split to per-year
+  parquet — `route: csv`, no errors). The REST route and the
+  `ccd_enrollment` / `crdc` / `edfacts` CSV filenames still need a healthy
+  `/api/v1/` (it 502s for hours at a time; there is **no official Python
+  client**, only the R `educationdata` package, which the same outage breaks).
+  The `ccd/directory` schema is 52 columns incl. `ncessch`,
+  `latitude`/`longitude`, `enrollment`, `teachers_fte`,
   `free_lunch`/`reduced_price_lunch`/`free_or_reduced_price_lunch`,
   `title_i_status`, `charter`, `magnet`, `virtual`, `lowest_grade_offered`/
   `highest_grade_offered`, `seasch`, `county_code`, `cbsa`,
@@ -314,50 +344,147 @@ adjustable) — minutes to tens of minutes, cached per year. Narrow with
 
 ---
 
-## `preprocess` design (steps 3–4)
+## Output schema (target for `preprocess.py`)
+
+Column dictionary the notebook prototype settled on. Types: `str`, `Int`
+(nullable), `float`, `bool` (nullable `boolean`), `cat`, `date`, `geom`.
+
+### `processed/school_cross_section.parquet` — one row per `msid`
+
+| column | type | source | notes |
+|---|---|---|---|
+| `msid` | str(6) | MSID `DISTRICT.zfill(2)+SCHOOL.zfill(4)` | primary key; unique |
+| `ncessch` | str(12) | `FEDERAL_DIST_NO.zfill(7)+FEDERAL_SCHL_NO.zfill(5)` | `NA` when either part is `"0"` (~9.4%) |
+| `ncessch_shared` | bool | derived | >1 `msid` composes this `ncessch` (36 cases) |
+| `name` | str | MSID `SCHOOL_NAME_LONG` | |
+| `district` / `school` | str | MSID | zero-padded parts of `msid` |
+| `district_name` | str | MSID `DISTRICT_NAME` | |
+| `geometry` | geom(Point, EPSG:3087) | coord ladder | may be empty when `geom_source == "none"` |
+| `geom_source` | cat | derived | `edge` \| `msid` \| `geocode` \| `none` |
+| `geom_disagree_m` | float | derived | EDGE↔MSID haversine where both exist |
+| `geocode_pending` | bool | derived | active school, no coordinate — geocode later |
+| `date_opened` / `date_closed` | date | MSID | null = predates tracking / still open |
+| `activity_code` | cat | MSID `ACTIVITY_CODE` | `A` active / `C` closed / `F` future |
+| `type_code` | str | MSID `TYPE` | raw (code table TODO) |
+| `func_setting` | str | MSID `SCHL_FUNC_SETTING` | raw |
+| `serv_type` | str | MSID `PRIMARY_SERV_TYPE` | raw |
+| `charter_stat` / `magnet_stat` | str | MSID | raw |
+| `grade_code` | str | MSID `GRADE_CODE` | raw |
+| `grade_code_unreliable` | bool | derived | MSID parse disagrees with CCD grade span |
+| `grade_low` / `grade_high` | Int | **CCD `lowest/highest_grade_offered`**, MSID fallback | −1/PK → 0 |
+| `is_regular` / `is_charter` / `is_magnet` / `is_virtual` | bool | derived (provisional) | advisory flags |
+| `no_physical_location` | bool | derived | virtual, or geometry from a district-office address |
+| `serves_tested_grades` | bool | derived | grade span overlaps 3–10 |
+| `in_assessments_ever` | bool | vs `assessments.parquet` | appears ≥1 year (non-state-total) |
+
+### `processed/school_year_panel.parquet` — one row per `(msid, year)`
+
+`year` = assessment **spring year**, 1990–2026. Carries the cross-section
+identity + geometry (static) plus:
+
+| column | type | source | notes |
+|---|---|---|---|
+| `in_operation` | bool | month-aware open/close rule | `True` on a 2015+ assessment-appearance conflict |
+| `in_operation_src` | cat | derived | `dates` \| `dates+tested` \| `conflict` |
+| `in_assessments` | bool | `assessments.parquet` | tested that year |
+| `enrollment` | Int | `ccd_directory` (`year+1`→spring) | `<0` → `NA` |
+| `frpl_n` | Int | `ccd_directory` `free_or_reduced_price_lunch` | `<0` → `NA`; **CEP caveat post-2015** |
+| `teachers_fte` | float | `ccd_directory` | `<0` → `NA` |
+| `pupil_teacher_ratio` | float | `enrollment / teachers_fte` | |
+| `title_i_status` / `ccd_charter` / `ccd_magnet` / `ccd_virtual` / `ccd_status` | cat | `ccd_directory` | |
+| `ccd_grade_low` / `ccd_grade_high` | Int | `ccd_directory` | feeds the cross-section grade span |
+| `pct_white … pct_multiracial`, `enr_total` | float / Int | `ccd_enrollment` `/race/` | share = race `k` / race `99` |
+| `pct_swd` | float | `crdc` `/disability/sex/` (biennial) | IDEA `sex=99` / total; plain left-join on `(ncessch, year)` — `NA` off a biennial wave, no forward-fill |
+| `pct_ell` | float | `crdc_lep` `/lep/sex/` (biennial) | same shape/join as `pct_swd`; `lep=1` `sex=99` / `lep=99` total |
+| `read_prof_midpt` / `math_prof_midpt` | float | `edfacts` (`year` = spring, no offset) | proficiency-band midpoint — robustness outcome, not a covariate |
+| `<col>_missing` | cat | derived | `ok` \| `missing` \| `na` \| `suppressed` — per sentinel-bearing covariate |
+
+### `assembled/schools_treatment.parquet`
+
+**Pair grain** — one row per `(msid, gcid)` within 1 000 m:
+
+| column | type | notes |
+|---|---|---|
+| `msid` / `ncessch` / `gcid` | str | keys |
+| `category` | cat | `fdot_barrier` \| `other_wall` |
+| `dist_m` | float | school point → wall geometry |
+| `built_year` / `treat_year` | Int | `treat_year = built_year` for `fdot_barrier` (original year, incl. `REPLACED`); `NA` for `other_wall` |
+| `timing_unknown` | bool | `fdot_barrier` with no `built_year` (~2.7%) |
+| `within_100m … within_1000m` | bool | algorithm 1 `euclid_nearest` buffer flags |
+| `is_nearest_fdot` | bool | closest `fdot_barrier` for this school |
+| `road_id` / `same_route` / `school_side` / `wall_side` / `shielded_frac` | — | **placeholder (`NA`)** until `road_network` (algorithms 3–6). ⚠️ `school_side`/`wall_side` will **not** be compass directions — pairwise-only, see the warning below |
+
+**Rollup grain** (same file or a `schools_treatment_rollup.parquet`) — one row
+per `msid`: `ever_near_wall_{500,1000}m`, `first_treat_year`, `n_walls_500m`,
+`wall_len_500m`, `nearest_fdot_dist_m`, `nearest_fdot_gcid`, `any_timing_unknown`.
+
+---
+
+## `preprocess` / `assemble` — implemented (steps 3–4)
+
+`src/regions/florida/sources/schools/preprocess.py` (stages 1a+1b) and
+`assemble.py` (stage 2) implement everything below. One deviation from the
+original design: the `ncessch → msid` dedup map is computed for diagnostics
+(`ncessch_shared` on the cross-section) but not applied to the covariate join —
+Cluster-A tables are unique on `(ncessch, year)`, so joining the full,
+un-deduplicated spine just fans the same covariate row into every `msid` that
+shares a federal id, which is the conservative behaviour.
 
 ### Stage 1a — spine → `school_cross_section.parquet` + panel skeleton
 
-1. Load MSID; build `msid`, compose `ncessch`, run the fallback ladder.
-2. Resolve the coordinate ladder → EPSG:3087 point + `geom_source`.
-3. Decode classification fields → flags.
-4. Cross-section = one row per `msid` (identity, ncessch, geometry, dates, flags,
-   static CCD attributes as of the latest CCD year).
-5. Panel skeleton = cross-section ⨯ years 1990–2026, add `in_operation` and the
-   year-varying CCD *directory* attributes (status, charter/magnet, Title I,
-   grade span, name). Keep `in_operation == NA` rows, flagged.
+1. Load MSID; build `msid`; compose `ncessch` (`NA` on the `"0"` sentinel);
+   build the `ncessch → msid` dedup map (prefer `A`, then latest `DATE_OPENED`)
+   and set `ncessch_shared`.
+2. Coordinate ladder **EDGE → MSID → none** (EDGE wins on disagreement);
+   `geom_source`, `geom_disagree_m`, `geocode_pending`; reproject to EPSG:3087.
+3. Decode classification fields → **raw codes + provisional flags** (mapping is
+   a documented TODO); grade span from **CCD** `lowest/highest_grade_offered`,
+   MSID `GRADE_CODE` as fallback + `grade_code_unreliable`.
+4. Cross-section = one row per `msid`.
+5. Panel skeleton = cross-section ⨯ 1990–2026; `in_operation` by the
+   **month-aware** rule; `in_operation_src`; 2015+ assessment-appearance
+   conflict → `in_operation = True`.
 6. **Validation** (mirror `assessments.ipynb`): no dup `msid`; no dup
-   `(msid, year)`; coords inside the FL bbox; crosswalk match-rate reported;
-   `in_operation` vs assessment-appearance agreement; `geom_source` breakdown;
-   every assessment `msid` present.
+   `(msid, year)`; coords inside the FL bbox; crosswalk match-rate reported
+   (target ≥ 85% of active); `in_operation` vs assessment-appearance crosstab;
+   `geom_source` breakdown; every assessment `msid` present **or** in the known
+   exception list (districts 78/80 = state colleges).
 
 ### Stage 1b — Cluster-A covariates → merged into `school_year_panel.parquet`
 
-Depends on 1a's panel skeleton + the `ccd_enrollment` (and, when enabled, `crdc`
-/ `edfacts`) raw pulls. Isolated from 1a so covariate-definition changes don't
-re-run the spine (or stage 2).
+Depends on 1a's panel skeleton + the `ccd_directory` / `ccd_enrollment`
+(and, when enabled, `crdc` / `edfacts`) raw pulls. Isolated from 1a so
+covariate-definition changes don't re-run the spine or stage 2.
 
-1. Tidy `ccd_enrollment` → total membership, race shares, teacher FTE,
-   pupil–teacher ratio; `%FRL` with `frpl_cep_flag`.
-2. When enabled: `crdc` → `%ELL`, `%SWD`, `%gifted` (biennial → forward-fill to
-   the next CRDC wave, flagged `crdc_year`); `edfacts` → LEP/IDEA counts,
-   proficiency cross-check.
-3. Left-join onto the panel skeleton on `(ncessch, year)`; carry suppression /
-   imputation flags; **lag nothing here** — lagging to t−1 is an analysis-layer
-   choice (see covariates.md).
-4. **Validation:** join rate onto the skeleton; race shares sum ≈ 1; `%FRL` and
-   `%SWD` in [0, 1]; membership vs assessment `n_students` sanity.
+1. **All Urban tables:** map `−1 / −2 / −3` → `NA` on the value, emit a
+   `<col>_missing` companion (`ok`/`missing`/`na`/`suppressed`).
+2. `ccd_directory` → enrollment, `frpl_n`, `teachers_fte`, `pupil_teacher_ratio`,
+   Title I / charter / magnet / virtual / status, grade span. `year + 1` →
+   spring year.
+3. `ccd_enrollment` `/race/` → `pct_<race>` = enrolment(race `k`) /
+   enrolment(race `99`); `enr_total`.
+4. `crdc` `/disability/sex/` → `pct_swd` = IDEA(`sex=99`) / total(`sex=99`).
+   `crdc_lep` `/lep/sex/` → `pct_ell` = LEP(`sex=99`) / total(`sex=99`), same
+   shape/dedup treatment. Both left-join on `(ncessch, year)` — `NA` off a
+   biennial wave, no forward-fill.
+5. `edfacts` → `read_prof_midpt` / `math_prof_midpt` (spring year, **no offset**)
+   — a robustness *outcome*, kept separate from the covariates.
+6. Left-join onto the panel skeleton on `(ncessch, year)`. **Lag nothing** —
+   t−1 lagging is an analysis-layer choice (covariates.md).
+7. **Validation:** per-source panel-year coverage; `pct_<race>` row-sum ≈ 1 where
+   `enr_total > 0`; `pct_swd` / `frpl_n/enrollment` in [0, 1]; `enrollment` vs
+   assessment `n_students` sanity.
 
-### Stage 2 → `schools_treatment.parquet` (REQUIRES `noise_barriers`)
+### Stage 2 → `schools_treatment.parquet` (REQUIRES `noise_barriers`; `road_network` for algorithms 3–6)
 
-One row per `(msid, gcid)` candidate pair (a school × a nearby wall), with a
-treatment column per matching algorithm plus shared geometry columns
-(`dist_m`, `road_id`, `same_route`, `school_side`, `wall_side`, `built_year`,
-`treat_year`, `timing_unknown`, `category`). Collapsing to a per-school
-treatment (ever-treated, first `treat_year`, dose) happens in the analysis layer
-after the join to `assessments.parquet`.
+**Pair grain** (one row per `(msid, gcid)` within 1 000 m) **plus a per-school
+rollup** (`ever_near_wall_*`, `first_treat_year`, `n_walls_500m`,
+`wall_len_500m`, `nearest_fdot_dist_m`, …) written in the same run — see
+[Output schema](#output-schema-target-for-preprocesspy). v1 fills algorithms
+1–2; the `road_id` / `same_route` / `school_side` / `wall_side` /
+`shielded_frac` columns are present but `NA` until `road_network` exists.
 
-**Matching algorithms — increasing rigour** (v1 = 1–3; 4–6 staged):
+**Matching algorithms — increasing rigour** (v1 = 1–2; 3–6 staged on `road_network`):
 
 | # | Name | Definition | Needs |
 |---|---|---|---|
@@ -375,11 +502,31 @@ a wall on the far carriageway can be just as close in straight-line distance
 (narrow highway, school near the ROW) yet give that school zero attenuation.
 Correct assignment therefore needs (a) which side/carriageway each wall is on,
 (b) which side of the road the school is on, (c) count only same-side walls, plus
-median walls for both. **Source:** check whether `noise_barriers` raw carries a
-roadbed / side / RCI `RID` field (`noise_barriers preprocess` currently keeps
-`fed_route` but not a side field — TODO). If absent, derive both from geometry:
-signed perpendicular offset of the wall and of the school point relative to the
-RCI route centerline; equal sign ⇒ same side. This is algorithm 5.
+median walls for both. **Source:** `noise_barriers` raw *does* carry a side
+field — `BLOC_SIDE` (compass direction, 100% populated for present walls),
+found 2026-09-11 while resolving the `FED_YRCON` question below, currently
+dropped by `noise_barriers/preprocess.py` (not in `COLUMN_RENAMES`). That
+only covers the **wall's** side, though — schools have no equivalent
+attribute, so (b) still needs the geometric derivation: signed perpendicular
+offset of the school point relative to the RCI route centerline. `BLOC_SIDE`
+should be used as ground truth to validate that geometric method (and
+possibly to calibrate `D`/`P`) rather than trusting it unchecked. This is
+algorithm 5.
+
+> **⚠️ The geometric sign is pairwise-only, never a compass direction.**
+> Confirmed empirically once `road_network` was fetched (see
+> `src/experiments/florida/schools.ipynb` §7.2 and
+> [`road_network/README.md`](../road_network/README.md)'s matching warning):
+> `rciroads`' digitizing direction (which end of a `ROADWAY` is milepost 0)
+> is arbitrary per roadway, so a geometrically-derived `wall_side` splits
+> ~87%/13% statewide among matched walls rather than ~50/50 — there is no
+> absolute "left"/"right" to read off the sign. It is valid **only** when
+> comparing a wall's side to a school's side matched to the **same**
+> `ROADWAY` segment (algorithm 5's same-sign test). Whoever implements
+> `match_barriers_road` must carry this caveat into the
+> `schools_treatment.parquet` column docs/comments verbatim — the column
+> name alone invites misuse. (`BLOC_SIDE`, being an absolute compass value,
+> does not have this problem for the wall side specifically.)
 
 **Treatment-timing rules:**
 
@@ -421,11 +568,12 @@ geospatial stage 2.
 
 **Caveats recorded:**
 
-- `crdc` is **biennial** with some sampled items; `edfacts` has its own subgroup
-  structure. Both are **off by default** for the first implementation pass — wire
-  them, enable once CCD directory + enrollment work end to end.
-- CCD `%FRL` reporting is distorted by CEP after ~2015 — carry the raw count +
-  `frpl_cep_flag`, reconcile in 1b.
+- `crdc` is **biennial** (2011, 2013, 2015, 2017, 2020, 2021) with some sampled
+  items — forward-fill between waves, keep `pct_swd_src_year`. `edfacts` is
+  2009–2020, spring-year indexed, and is a robustness *outcome* not a covariate.
+  Both `--via api` (`?fips=12`); off the default `--subsource` set but pulled.
+- CCD `%FRL` reporting is distorted by CEP after ~2015 — carry the raw count
+  (`frpl_n`) + a `frpl_cep_flag`, reconcile in 1b.
 - The **fetch half** of the CCD/CRDC/EDFacts pull is a national dataset and may
   later move to a shared `src/core` sources area (as flagged in covariates.md for
   `staff` / `air_quality` / `neighbourhood` too). Merging now does not block that
@@ -436,25 +584,68 @@ geospatial stage 2.
 
 ## Open questions / TODO
 
-- MSID code dictionary for `TYPE`, `GRADE_CODE`, `SCHL_FUNC_SETTING`,
-  `PRIMARY_SERV_TYPE`, `CHARTER_SCHL_STAT` (FLDOE MSID appendix).
-- Urban data: `ccd/directory` schema is known (52 cols, see `API_SUBSOURCES`).
-  Still to confirm on a healthy API/machine — the `ccd/enrollment`, `crdc`,
-  `edfacts` CSV filenames (from `/api/v1/api-downloads/?endpoint_id=…`), their
-  column names, the REST-route disaggregation params, and the earliest FL year
-  with data. Do a full `--via csv` run once (the ~1 GB flat file was truncated
-  by the sandbox here) to confirm the split. Edit `API_SUBSOURCES` in
-  `schools/shared.py`, not the fetch loop.
-- `ccd_directory` vs `ccd_enrollment` overlap: directory already carries
-  enrollment/FRPL/FTE/Title I — decide in the notebook whether `ccd_enrollment`
-  is worth pulling at all beyond race/sex shares.
-- NCESSCH stability across years → static vs per-year crosswalk.
-- `noise_barriers` raw: is there a roadbed/side/`RID` field to lift into
-  `barriers.parquet` for algorithms 5–6?
-- `FED_YRCON` semantics for `REPLACED` rows.
-- FDOT RCI network: standalone fetch here, or wait for a `traffic` source and
-  share it?
-- `DataSource` base class now vs later.
+**Resolved** (see [Decisions locked](#decisions-locked-2026-09-10)): grade span →
+CCD; MSID type codes → raw + provisional flags; `ncessch` collision dedup; CCD
+sentinels → `NA` + `<col>_missing`; `in_operation` month-aware + conflict rule;
+coordinate disagreement → EDGE; geocoding deferred; RCI → own `road_network`
+source; stage-2 rollup + algorithm placeholders. Urban routes confirmed against a
+healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`.
+
+**Still open — not blocking `preprocess.py`:**
+
+- **FLDOE MSID code appendix** (`GRADE_CODE` Appendix B, `TYPE`,
+  `SCHL_FUNC_SETTING`, `PRIMARY_SERV_TYPE`, `CHARTER_SCHL_STAT`) — `www.fldoe.org`
+  blocks scripted fetches; ask `MSID@fldoe.org`. Until then flags are provisional
+  and grade span comes from CCD.
+- ~~`crdc_lep` subsource for `pct_ell`~~ **resolved** (2026-09-11): wired in
+  (endpoint 67, `/lep/sex/`), fetched 2011–2021, `tidy_crdc_lep` mirrors
+  `tidy_crdc_swd`'s dedup treatment.
+- ~~CRDC `year` → spring-year offset~~ **resolved**: `+1` confirmed against the Urban CRDC codebook. ~~`crdc_2021` raw-pull duplication~~ **resolved**: deduplicated in `_load_year_parquets`.
+- NCESSCH stability across years → static vs per-year crosswalk (only matters if
+  multi-year EDGE is added).
+- ~~`noise_barriers` raw roadbed/side/`RID` field for algorithm 5~~ **found**
+  (2026-09-11, `src/experiments/florida/schools.ipynb` §7.6): the raw GDB
+  *does* carry one — `BLOC_SIDE` (compass `EAST`/`WEST`/`NORTH`/`SOUTH`,
+  populated for 100% of present walls), plus `BLOC_BND` (orientation to
+  traffic direction) and `BLOC_ONRTE` (mount type: shoulder/ground/median/
+  structure). None of the three are in `noise_barriers/preprocess.py`'s
+  `COLUMN_RENAMES` yet — silently dropped, not absent from the source.
+  **This does not eliminate the need for algorithm 5's geometric derivation**
+  (schools have no equivalent attribute — only walls do), but it means the
+  wall side no longer needs to be *derived*, only the school side does, and
+  `BLOC_SIDE` can serve as ground truth to validate (or calibrate `D`/`P`
+  against) the geometric method instead of a manual visual audit. Add the
+  three columns to `noise_barriers/preprocess.py`'s `COLUMN_RENAMES`/
+  `OUTPUT_COLUMNS` before building `match_barriers_road`.
+  **`road_network` itself: full implementation brief at
+  [`docs/data/florida/road_network/README.md`](../road_network/README.md)**
+  (confirmed FGDL `rciroads_<version>.zip` source, schema; `rciroads` itself
+  still has no side/carriageway field, only `noise_barriers` does).
+- ~~`FED_YRCON` semantics for `REPLACED` rows~~ **resolved** (2026-09-11,
+  `schools.ipynb` §7.5): FGDL's own field definition is unambiguous —
+  *"Year of Original Noise Barrier Construction."* The 10 `REPLACED BARRIERS`
+  rows carry plausible pre-2010 years, consistent with "original." No code
+  change needed; `treat_year = built_year` (original year, incl. `REPLACED`)
+  was already correct.
+- **New (2026-09-11, `schools.ipynb` §7.3): the naive `same_segment` design
+  (exact `ROADWAY`-string equality between independently nearest-matched
+  wall and school) badly under-recovers the algorithm 1/2 baseline** — only
+  ~20% of `ever_near_wall_500m` schools get a same-`ROADWAY` same-side match
+  even at a generous `D=1.0` mi tolerance, rising to ~35% when the candidate
+  network is restricted to arterial-class roads (still not enough). Most of
+  the shortfall is schools with *no* same-`ROADWAY` candidate at all, not a
+  tolerance problem: `ROADWAY` is a fine RCI linear-referencing segmentation
+  (18,373 distinct ids statewide, ~2.2 segments/id) closer to a "control
+  section" than a continuous route, so a wall and a school on the visibly
+  same physical highway can land on two different `ROADWAY` ids. **Do not
+  implement algorithm 4 as literal `ROADWAY`-string equality** — the next
+  design attempt should test spatial/corridor adjacency of the matched
+  segments instead (e.g. buffer the wall's segment ± its immediate milepost
+  neighbors, test whether the school's matched segment falls inside), with
+  the candidate network pre-restricted to arterial classes. Re-run the
+  sensitivity sweep in `schools.ipynb` §7.3 against that redesign before
+  picking a final `D`/`P`.
+- `DataSource` base class — deferred; `preprocess` is hand-wired like the others.
 
 ---
 

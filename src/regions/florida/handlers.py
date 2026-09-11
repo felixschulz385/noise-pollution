@@ -37,6 +37,33 @@ def command_noise_barriers_preprocess(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_road_network_list_versions(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.road_network.fetch import list_versions
+
+    print_json({"domain": "road_network", "stage": "list-versions", **list_versions()})
+    return 0
+
+
+def command_road_network_fetch(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.road_network.fetch import fetch_road_network
+
+    result = fetch_road_network(
+        version=args.version,
+        keep_zip=args.keep_zip,
+        with_metadata=not args.no_metadata,
+    )
+    print_json({"domain": "road_network", "stage": "fetch", **result})
+    return 0
+
+
+def command_road_network_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.road_network.preprocess import run_road_network_preprocess
+
+    result = run_road_network_preprocess(version=args.version)
+    print_json({"domain": "road_network", "stage": "preprocess", **result})
+    return 0
+
+
 def command_assessments_list_years(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.assessments.fetch import list_years
 

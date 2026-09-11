@@ -26,6 +26,11 @@ from src.regions.florida.sources.noise_barriers.shared import (
     validate_version,
     version_sort_key,
 )
+from src.regions.florida.sources.road_network.fetch import _find_shapefile_members
+from src.regions.florida.sources.road_network.shared import (
+    DEFAULT_VERSION as ROAD_NETWORK_DEFAULT_VERSION,
+    dataset_stem as road_network_dataset_stem,
+)
 
 
 @pytest.mark.parametrize(
@@ -49,6 +54,11 @@ from src.regions.florida.sources.noise_barriers.shared import (
         ["florida", "data", "schools", "preprocess", "--panel-years", "1995:2020", "--edge-vintage", "2324"],
         ["florida", "data", "schools", "assemble"],
         ["florida", "data", "schools", "assemble", "--max-dist", "500"],
+        ["florida", "data", "road-network", "list-versions"],
+        ["florida", "data", "road-network", "fetch"],
+        ["florida", "data", "road-network", "fetch", "--version", "apr23", "--keep-zip", "--no-metadata"],
+        ["florida", "data", "road-network", "preprocess"],
+        ["florida", "data", "road-network", "preprocess", "--version", "apr23"],
     ],
 )
 def test_known_commands_resolve_to_a_handler(argv):
@@ -167,3 +177,40 @@ def test_find_gdb_prefix_handles_both_archive_layouts(members, expected):
 def test_find_gdb_prefix_errors_without_a_geodatabase():
     with pytest.raises(RuntimeError):
         _find_gdb_prefix(["readme.txt", "data/points.shp"])
+
+
+def test_road_network_fetch_defaults_to_the_noise_barriers_vintage():
+    args = build_parser().parse_args(["florida", "data", "road-network", "fetch"])
+    assert args.version == ROAD_NETWORK_DEFAULT_VERSION == "jul26"
+
+
+@pytest.mark.parametrize(
+    "members, stem, expected",
+    [
+        # flat archive root, confirmed layout for jul26 and jun04
+        (
+            ["rciroads_jul26.shp", "rciroads_jul26.dbf", "rciroads_jul26.shx", "rciroads_jul26.prj",
+             "rciroads_jul26.sbn", "rciroads_jul26.sbx", "rciroads_jul26.cpg", "rciroads_jul26.shp.xml"],
+            "rciroads_jul26",
+            ["rciroads_jul26.shp", "rciroads_jul26.dbf", "rciroads_jul26.shx", "rciroads_jul26.prj",
+             "rciroads_jul26.sbn", "rciroads_jul26.sbx", "rciroads_jul26.cpg", "rciroads_jul26.shp.xml"],
+        ),
+        # hypothetical one-folder-down nesting, ignored via basename matching
+        (
+            ["rciroads_apr23/rciroads_apr23.shp", "rciroads_apr23/rciroads_apr23.dbf"],
+            "rciroads_apr23",
+            ["rciroads_apr23/rciroads_apr23.shp", "rciroads_apr23/rciroads_apr23.dbf"],
+        ),
+    ],
+)
+def test_find_shapefile_members_matches_by_stem(members, stem, expected):
+    assert _find_shapefile_members(members, stem) == expected
+
+
+def test_find_shapefile_members_errors_without_a_match():
+    with pytest.raises(RuntimeError):
+        _find_shapefile_members(["readme.txt", "other_dataset_jul26.shp"], "rciroads_jul26")
+
+
+def test_road_network_dataset_stem():
+    assert road_network_dataset_stem("jul26") == "rciroads_jul26"
