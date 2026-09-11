@@ -45,6 +45,10 @@ from src.regions.florida.sources.noise_barriers.shared import (
         ["florida", "data", "schools", "fetch", "--subsource", "msid", "--subsource", "edge"],
         ["florida", "data", "schools", "fetch", "--subsource", "all", "--years", "2000:2010", "--refresh"],
         ["florida", "data", "schools", "fetch", "--msid-dataset", "all_schools", "--from-file", "msid.tsv"],
+        ["florida", "data", "schools", "preprocess"],
+        ["florida", "data", "schools", "preprocess", "--panel-years", "1995:2020", "--edge-vintage", "2324"],
+        ["florida", "data", "schools", "assemble"],
+        ["florida", "data", "schools", "assemble", "--max-dist", "500"],
     ],
 )
 def test_known_commands_resolve_to_a_handler(argv):

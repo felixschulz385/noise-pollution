@@ -8,8 +8,9 @@ FGDL release to a tidy GeoParquet barrier layer), ``assessments`` (`fetch`,
 clients — and `preprocess`, merging the raw workbooks into one tidy school x
 grade x subject x year table), ``schools`` (`fetch` — the school spine:
 MSID + NCES EDGE + Urban Institute Education Data API subsources; absorbs the
-former ``master_file`` source). ``schools`` `preprocess` is being worked out in
-`src/experiments/florida/schools.ipynb`.
+former ``master_file`` source; `preprocess` — spine + operation panel + Cluster-A
+covariates; `assemble` — the school <-> noise-barrier point-only match, REQUIRES
+`noise-barriers preprocess`).
 """
 from __future__ import annotations
 
@@ -164,3 +165,30 @@ def _register_schools(domains: argparse._SubParsersAction) -> None:
         help="Re-download Urban API years / the EDGE zip already cached in raw/.",
     )
     s_fetch.set_defaults(func=h.command_schools_fetch)
+
+    from src.regions.florida.sources.schools.shared import PANEL_YEARS_DEFAULT
+
+    default_panel = f"{PANEL_YEARS_DEFAULT[0]}:{PANEL_YEARS_DEFAULT[1]}"
+    s_pre = cmd.add_parser(
+        "preprocess",
+        help="Build the school spine + operation panel (stages 1a/1b) into processed/",
+    )
+    s_pre.add_argument(
+        "--panel-years", default=default_panel,
+        help=f"Panel year range LO:HI, spring years (default: {default_panel}).",
+    )
+    s_pre.add_argument(
+        "--edge-vintage", default=EDGE_DEFAULT_VINTAGE,
+        help=f"NCES EDGE geocode vintage to read from raw/ (default: {EDGE_DEFAULT_VINTAGE}).",
+    )
+    s_pre.set_defaults(func=h.command_schools_preprocess)
+
+    s_asm = cmd.add_parser(
+        "assemble",
+        help="School <-> barrier point-only match (stage 2, REQUIRES noise-barriers preprocess) into assembled/",
+    )
+    s_asm.add_argument(
+        "--max-dist", type=float, default=1000.0,
+        help="Candidate (msid, gcid) pair cutoff in metres (default: 1000).",
+    )
+    s_asm.set_defaults(func=h.command_schools_assemble)

@@ -78,3 +78,23 @@ def command_schools_fetch(args: argparse.Namespace) -> int:
     )
     print_json({"domain": "schools", "stage": "fetch", **result})
     return 0
+
+
+def command_schools_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.schools.preprocess import run_schools_preprocess
+    from src.regions.florida.sources.schools.shared import parse_year_range
+
+    result = run_schools_preprocess(
+        panel_years=parse_year_range(args.panel_years),
+        edge_vintage=args.edge_vintage,
+    )
+    print_json({"domain": "schools", "stage": "preprocess", **result})
+    return 0
+
+
+def command_schools_assemble(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.schools.assemble import run_schools_assemble
+
+    result = run_schools_assemble(max_dist=args.max_dist)
+    print_json({"domain": "schools", "stage": "assemble", **result})
+    return 0

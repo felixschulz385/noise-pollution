@@ -1,0 +1,93 @@
+"""`schools assemble` (stage 2, the point-only barrier match), exercised on
+synthetic school points + wall lines — no local data needed."""
+import geopandas as gpd
+import pandas as pd
+import pytest
+from shapely.geometry import LineString, Point
+
+from src.regions.florida.sources.schools.assemble import PENDING_ROAD_COLUMNS, match_barriers_point
+
+CRS = "EPSG:3087"
+
+
+def _schools(rows):
+    return gpd.GeoDataFrame(
+        [{"msid": m, "ncessch": n, "geometry": Point(x, y)} for m, n, x, y in rows],
+        geometry="geometry", crs=CRS,
+    )
+
+
+def _barriers(rows):
+    # rows: (gcid, category, built_year, x0, x1, y)
+    return gpd.GeoDataFrame(
+        [{"gcid": g, "category": cat, "built_year": by, "seg_len_m": 10.0,
+          "geometry": LineString([(x0, y), (x1, y)])} for g, cat, by, x0, x1, y in rows],
+        geometry="geometry", crs=CRS,
+    )
+
+
+def test_pairs_within_max_dist_and_placeholder_columns():
+    schools = _schools([("near", "N1", 0, 0), ("far", "N2", 10_000, 10_000)])
+    barriers = _barriers([("w1", "fdot_barrier", 2010, -50, 50, 50)])  # 50 m from "near"
+    pair, rollup = match_barriers_point(schools, barriers, max_dist=1000)
+
+    assert set(pair["msid"]) == {"near"}  # "far" has nothing within 1000 m
+    assert rollup.set_index("msid").loc["near", "nearest_fdot_dist_m"] == pytest.approx(50.0)
+    assert rollup.set_index("msid").loc["far", "nearest_fdot_dist_m"] > 1000
+    for col in PENDING_ROAD_COLUMNS:
+        assert col in pair.columns and pair[col].isna().all()
+
+
+def test_treat_year_rules():
+    schools = _schools([("s", "N1", 0, 0)])
+    barriers = _barriers([
+        ("fdot_dated", "fdot_barrier", 2005, -10, 10, 10),
+        ("fdot_undated", "fdot_barrier", None, -10, 10, 20),
+        ("other", "other_wall", 1999, -10, 10, 30),
+    ])
+    pair = match_barriers_point(schools, barriers, max_dist=1000)[0].set_index("gcid")
+
+    assert pair.loc["fdot_dated", "treat_year"] == 2005
+    assert pair.loc["fdot_dated", "timing_unknown"] == False  # noqa: E712
+    assert pd.isna(pair.loc["fdot_undated", "treat_year"])
+    assert pair.loc["fdot_undated", "timing_unknown"] == True  # noqa: E712
+    # other_wall is never treatment, regardless of its own date
+    assert pd.isna(pair.loc["other", "treat_year"])
+    assert pair.loc["other", "timing_unknown"] == False  # noqa: E712
+
+
+def test_is_nearest_fdot_flags_only_the_closest_fdot_wall():
+    schools = _schools([("s", "N1", 0, 0)])
+    barriers = _barriers([
+        ("close", "fdot_barrier", 2010, -5, 5, 5),
+        ("mid", "fdot_barrier", 2015, -5, 5, 50),
+        ("other_close", "other_wall", 2010, -5, 5, 1),  # closer, but not fdot
+    ])
+    pair = match_barriers_point(schools, barriers, max_dist=1000)[0].set_index("gcid")
+    assert pair.loc["close", "is_nearest_fdot"] == True   # noqa: E712
+    assert pair.loc["mid", "is_nearest_fdot"] == False     # noqa: E712
+    assert pair.loc["other_close", "is_nearest_fdot"] == False  # noqa: E712
+
+
+def test_rollup_buffer_counts_and_first_treat_year():
+    schools = _schools([("s", "N1", 0, 0)])
+    barriers = _barriers([
+        ("a", "fdot_barrier", 2012, -5, 5, 50),
+        ("b", "fdot_barrier", 2008, -5, 5, 400),
+        ("c", "fdot_barrier", 2018, -5, 5, 900),
+    ])
+    rollup = match_barriers_point(schools, barriers, max_dist=1000)[1].set_index("msid")
+    row = rollup.loc["s"]
+    assert row["n_walls_100m"] == 1
+    assert row["n_walls_500m"] == 2
+    assert row["n_walls_1000m"] == 3
+    assert row["ever_near_wall_500m"] == True   # noqa: E712
+    assert row["first_treat_year"] == 2008
+    assert row["any_timing_unknown"] == False   # noqa: E712
+
+
+def test_crs_mismatch_raises():
+    schools = _schools([("s", "N1", 0, 0)]).set_crs("EPSG:4326", allow_override=True)
+    barriers = _barriers([("a", "fdot_barrier", 2010, -5, 5, 5)])
+    with pytest.raises(ValueError, match="CRS mismatch"):
+        match_barriers_point(schools, barriers)

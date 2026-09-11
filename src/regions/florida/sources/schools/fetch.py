@@ -276,7 +276,7 @@ def _fetch_api_via_rest(
 
 
 def _fetch_api_via_csv(
-    subsource: str, years: list[int], *, root: Path | None
+    subsource: str, years: list[int], *, refresh: bool = False, root: Path | None
 ) -> tuple[list[int], list[int], dict[int, int], list[str]]:
     """Download the static flat file(s) to a local cache (with retry / resume),
     keep ``fips == 12`` rows in the wanted years, and split to one parquet per
@@ -352,7 +352,7 @@ def _fetch_api_subsource(
     routes: list[str] = []
 
     if needed and via in ("csv", "auto"):
-        w, _u, r, e = _fetch_api_via_csv(subsource, needed, root=root)
+        w, _u, r, e = _fetch_api_via_csv(subsource, needed, refresh=refresh, root=root)
         written.update(w)
         rows_by_year.update(r)
         errors += e

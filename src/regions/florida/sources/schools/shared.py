@@ -9,7 +9,8 @@ Subsources (``fetch --subsource``, repeatable; ``all`` selects every one):
                        lat/lon + precision flag), keyed on ``NCESSCH``.
 * ``ccd_directory``  — Urban Institute Education Data API, one row/school-year.
 * ``ccd_enrollment`` — same API: membership, race shares, teacher FTE.
-* ``crdc``           — same API: %ELL / %SWD / %gifted (biennial). Off by default.
+* ``crdc``           — same API: %SWD (disability/sex, biennial). Off by default.
+* ``crdc_lep``       — same API: %ELL (lep/sex, biennial). Off by default.
 * ``edfacts``        — same API: LEP / IDEA counts, proficiency. Off by default.
 
 Default set = ``msid, edge, ccd_directory, ccd_enrollment``.
@@ -39,6 +40,7 @@ SUBSOURCES: tuple[str, ...] = (
     "ccd_directory",
     "ccd_enrollment",
     "crdc",
+    "crdc_lep",
     "edfacts",
 )
 DEFAULT_SUBSOURCES: tuple[str, ...] = (
@@ -178,18 +180,43 @@ API_SUBSOURCES: dict[str, dict] = {
         "csv_class": "ccd",
         "csv_files": ["schools_ccd_directory.csv"],  # all years in one file
     },
+    # endpoint 26: /schools/ccd/enrollment/{year}/{grade}/race/ — grade-99 total,
+    # one row per school x race (sex not in this path). Gives race shares.
+    # Years 1986-2024. CSV flat file is ~30-50 MB/year (all states) -> csv_files
+    # stays None so `--via auto` uses the fips-filtered REST route instead.
     "ccd_enrollment": {
-        "path": "schools/ccd/enrollment/{year}/grade-99",
-        "params": {"fips": FL_FIPS, "race": 99, "sex": 99},
+        "path": "schools/ccd/enrollment/{year}/grade-99/race",
+        "params": {"fips": FL_FIPS},
         "csv_class": "ccd",
-        "csv_files": None,  # resolve from api-downloads (per-year/grade files)
+        "csv_files": None,
     },
+    # endpoint 65: /schools/crdc/enrollment/{year}/disability/sex/ — one row per
+    # school x disability x sex; `disability` 1/2 = IDEA / Section-504, 99 = total.
+    # Biennial (2011, 2013, 2015, 2017, 2020, 2021). The CSV is ~500 MB/year, so
+    # REST-only.
     "crdc": {
-        "path": "schools/crdc/enrollment/{year}",
-        "params": {"fips": FL_FIPS, "race": 99, "sex": 99, "disability": 99, "lep": 99},
+        "path": "schools/crdc/enrollment/{year}/disability/sex",
+        "params": {"fips": FL_FIPS},
         "csv_class": "crdc",
         "csv_files": None,
     },
+    # endpoint 67: /schools/crdc/enrollment/{year}/lep/sex/ — same shape as
+    # `crdc` above but disaggregated by `lep` (1 = limited-English-proficient,
+    # 99 = total) instead of `disability`; `disability` is fixed at 99 in this
+    # path. Same biennial years as `crdc` (2011, 2013, 2015, 2017, 2020, 2021),
+    # same datasource (CRDC, datasource_id 3) -> same "academic year (fall
+    # semester)" convention, so the +1-to-spring offset carries over unchanged.
+    # Confirmed live against the endpoint catalog (api-endpoints/?mode=R,
+    # endpoint_id 67) on 2026-09-11.
+    "crdc_lep": {
+        "path": "schools/crdc/enrollment/{year}/lep/sex",
+        "params": {"fips": FL_FIPS},
+        "csv_class": "crdc",
+        "csv_files": None,
+    },
+    # endpoint 76: /schools/edfacts/assessments/{year}/{grade}/ — grade-99 total,
+    # read_/math_test_pct_prof_low/high/midpt (EDFacts publishes a proficiency
+    # band). Years 2009-2018, 2020. One page per year. CSV ~0.5 GB/year -> REST.
     "edfacts": {
         "path": "schools/edfacts/assessments/{year}/grade-99",
         "params": {"fips": FL_FIPS},
@@ -237,6 +264,10 @@ PROCESSED_CROSS_SECTION_FILENAME = "school_cross_section.parquet"
 PROCESSED_PANEL_FILENAME = "school_year_panel.parquet"
 PROCESSED_METADATA_FILENAME = "schools.json"
 ASSEMBLED_TREATMENT_FILENAME = "schools_treatment.parquet"
+ASSEMBLED_ROLLUP_FILENAME = "schools_treatment_rollup.parquet"
+
+# panel year = assessment "spring year" (2015 = the 2014-15 school year).
+PANEL_YEARS_DEFAULT = (1990, 2026)
 
 
 def processed_cross_section_path(root: Path | None = None) -> Path:
@@ -253,6 +284,16 @@ def processed_metadata_path(root: Path | None = None) -> Path:
 
 def assembled_treatment_path(root: Path | None = None) -> Path:
     return schools_paths(root)["assembled"] / ASSEMBLED_TREATMENT_FILENAME
+
+
+def assembled_rollup_path(root: Path | None = None) -> Path:
+    return schools_paths(root)["assembled"] / ASSEMBLED_ROLLUP_FILENAME
+
+
+def edge_extract_dir(vintage: str, root: Path | None = None) -> Path:
+    """Where the nested EDGE zip (zip-inside-a-zip) is unpacked to. Cached,
+    reused unless the source zip is newer."""
+    return schools_paths(root)["raw"] / "_edge_extracted" / vintage
 
 
 # --------------------------------------------------------------------------- #
@@ -298,7 +339,7 @@ def scan_raw(root: Path | None = None) -> dict[str, object]:
         elif name.startswith("EDGE_GEOCODE"):
             found["edge"].append(name)  # type: ignore[union-attr]
         else:
-            match = re.match(r"(ccd_directory|ccd_enrollment|crdc|edfacts)_(\d{4})\.parquet$", name)
+            match = re.match(r"(ccd_directory|ccd_enrollment|crdc_lep|crdc|edfacts)_(\d{4})\.parquet$", name)
             if match:
                 found["api"].setdefault(match.group(1), []).append(int(match.group(2)))  # type: ignore[union-attr]
     for years in found["api"].values():  # type: ignore[union-attr]
