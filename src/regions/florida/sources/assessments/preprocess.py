@@ -20,8 +20,8 @@ This crystallizes ``src/experiments/florida/assessments.ipynb``. Design:
   ``suppressed`` flag is kept and those rows get ``NaN`` scores / z-scores.
 * **Primary outcome:** ``z_mss`` / ``z_mss_w`` — the school mean scale score
   standardised within each ``year x subject x grade`` cell (unweighted and
-  ``n_students``-weighted), which differences the FSA -> FAST / FSA -> B.E.S.T.
-  scale breaks out.
+  ``n_students``-weighted), which differences the FCAT 2.0 -> FSA, FSA -> FAST
+  and FSA -> B.E.S.T. scale breaks out.
 
 No geocoding, no ``NCESSCH`` crosswalk, no school-directory join — the key is the
 FLDOE District + School number (``msid``); turning it into coordinates and an
@@ -60,16 +60,23 @@ SUBJECT_LABEL = {
     "BIO1": "Biology 1 EOC", "CIVICS": "Civics EOC", "USHIST": "U.S. History EOC",
 }
 
-# The z-score is comparable only within a regime x subject x grade. FSA -> FAST
-# (ELA, Math) and FSA -> B.E.S.T. (Algebra 1, Geometry) rescale at 2023; the
-# NGSSS EOCs and Statewide Science were never rescaled.
+# The z-score is comparable only within a regime x subject x grade. FCAT 2.0 ->
+# FSA rescales at 2015; FSA -> FAST (ELA, Math) and FSA -> B.E.S.T. (Algebra 1,
+# Geometry) rescale again at 2023. The NGSSS EOCs (Biology 1, Civics, U.S.
+# History) and Statewide Science were never rescaled through the FCAT 2.0/FSA
+# boundary.
+FIRST_FSA_YEAR = 2015
 FIRST_MODERN_REGIME_YEAR = 2023
 
 
 def regime(year: int, subject: str) -> str:
     if subject in ("ELA", "MATH"):
+        if year < FIRST_FSA_YEAR:
+            return "FCAT 2.0"
         return "FSA" if year < FIRST_MODERN_REGIME_YEAR else "FAST"
     if subject in ("ALG1", "GEO"):
+        if year < FIRST_FSA_YEAR:
+            return "NGSSS EOC"
         return "FSA" if year < FIRST_MODERN_REGIME_YEAR else "B.E.S.T."
     if subject == "SCI":
         return "NGSSS Science"
@@ -95,7 +102,13 @@ def _norm_col(value) -> str | None:
     if "number of students" in s:
         return "n_students"
     if "mean" in s and "scale score" in s:
-        return "mean_scale_score"
+        # 2012-14 FCAT 2.0 ELA/Math report only "Mean Developmental Scale
+        # Score" (the within-grade score, despite the name) -- that's the
+        # usable column there. 2011 uniquely reports BOTH that column and a
+        # separate "... Scale Score (100-500)" (a one-year legacy-linking
+        # column back to old FCAT); when both exist, prefer the (100-500)
+        # one, tagged separately so `parse_sheet` can pick a winner.
+        return "mean_scale_score_dev" if "developmental" in s else "mean_scale_score"
     if "points earned" in s or "points possible" in s:
         return None
     if "percent" in s and ("level 3" in s or "levels 3" in s) and "content" not in s:
@@ -133,6 +146,11 @@ def parse_sheet(raw: pd.DataFrame, year: int, subject: str, grade: str,
             cols[name] = body.iloc[:, j]
     df = pd.DataFrame(cols)
 
+    if "mean_scale_score" not in df.columns and "mean_scale_score_dev" in df.columns:
+        df = df.rename(columns={"mean_scale_score_dev": "mean_scale_score"})
+    else:
+        df = df.drop(columns=["mean_scale_score_dev"], errors="ignore")
+
     df["district_number"] = df["district_number"].map(lambda v: _to_id(v, 2))
     df["school_number"] = df["school_number"].map(lambda v: _to_id(v, 4))
     for c in ("district_name", "school_name"):
@@ -143,6 +161,15 @@ def parse_sheet(raw: pd.DataFrame, year: int, subject: str, grade: str,
     df["msid"] = df["district_number"] + df["school_number"]
     df["is_state_total"] = (df["msid"].eq("000000")
                             | df["district_name"].str.upper().eq("STATE TOTALS"))
+
+    # FL2011_MATH_G07_school.xls (and maybe others) appends a second, partial
+    # pass over a handful of districts after the main body — a late-district
+    # resubmission FLDOE appended instead of replacing in place, not a parser
+    # artifact (confirmed: only districts near the end of the sheet repeat,
+    # each with different Number of Students / scores the second time). Keep
+    # the later row, which is the resubmission, same convention as
+    # `schools/preprocess.py`'s `drop_duplicates(..., keep="last")`.
+    df = df.drop_duplicates(subset="msid", keep="last")
 
     mss = df["mean_scale_score"].astype("string").str.strip().str.lower()
     df["suppressed"] = mss.isna() | mss.isin(SUPPRESSED_TOKENS)
@@ -184,7 +211,7 @@ def iter_raw_files(years: list[int] | None = None, root: Path | None = None):
 
 INDEX_COLS = ["msid", "grade", "subject", "year"]
 OUTPUT_COLS = [
-    "subject_label", "regime", "retrofitted_2015",
+    "subject_label", "regime", "retrofitted_2015", "fcat_equivalent_2011",
     "district_number", "district_name", "school_number", "school_name",
     "is_state_total", "suppressed",
     "n_students", "mean_scale_score", "pct_level3_plus",
@@ -227,6 +254,14 @@ def build_assessments_table(
     df["subject_label"] = df["subject"].map(SUBJECT_LABEL)
     df["regime"] = [regime(y, s) for y, s in zip(df["year"], df["subject"])]
     df["retrofitted_2015"] = (df["year"] == 2015) & df["subject"].isin(["ELA", "MATH", "ALG1", "GEO"])
+    # 2011 ELA/Math school reports carry only "FCAT Equivalent" scores -- a
+    # crosswalk onto the legacy (pre-2.0) FCAT scale for transition-year
+    # continuity, not FCAT 2.0's own native per-grade scale that 2012-14
+    # report directly as "Mean Developmental Scale Score". Flagged (not
+    # dropped) the same way as `retrofitted_2015`: the within-year z-score is
+    # unaffected, but raw `mean_scale_score` should not be trended against
+    # 2012-14 as if on the same scale.
+    df["fcat_equivalent_2011"] = (df["year"] == 2011) & df["subject"].isin(["ELA", "MATH"])
 
     cell = df["year"].astype(str) + "|" + df["subject"] + "|" + df["grade"]
     scored = df[~df["is_state_total"] & ~df["suppressed"]]
@@ -238,7 +273,7 @@ def build_assessments_table(
         df[c] = df[c].astype("Int64")
     for c in ("z_mss", "z_mss_w"):
         df[c] = df[c].astype("Float64")
-    for c in ("is_state_total", "suppressed", "retrofitted_2015"):
+    for c in ("is_state_total", "suppressed", "retrofitted_2015", "fcat_equivalent_2011"):
         df[c] = df[c].astype("boolean")
 
     out = (df.set_index(INDEX_COLS)[OUTPUT_COLS]

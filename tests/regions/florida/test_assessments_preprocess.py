@@ -76,6 +76,52 @@ def test_science_legacy_layout_column_order_is_mapped_by_name():
     assert out[out.msid == "010031"]["is_state_total"].iloc[0] == False  # noqa: E712
 
 
+FCAT_EQUIV_HEADER = ["Grade", "District Number", "District Name", "School Number",
+                     "School Name", "Number of Students",
+                     "Mean FCAT Equivalent Developmental Scale Score",
+                     "Mean FCAT Equivalent Scale Score (100-500)",
+                     "1", "2", "3", "4", "5", "Percentage in Achievement Levels 3 and Above"]
+
+
+def test_2011_dual_scale_score_columns_prefers_non_developmental():
+    # 2011 FCAT 2.0 ELA/Math uniquely carries both a Developmental Scale Score
+    # (vertical, ~1000-2000 range) and an "FCAT Equivalent (100-500)" column;
+    # the latter is the one comparable in magnitude to every other year.
+    data = [["FLORIDA COMPREHENSIVE ASSESSMENT TEST 2.0 (FCAT 2.0) 2011"] + [None] * 13,
+            FCAT_EQUIV_HEADER,
+            ["05", "01", "ALACHUA", "0031", "FINLEY ELEM", 92, 1830, 328, 21, 13, 20, 29, 17, 66]]
+    out = parse_sheet(pd.DataFrame(data), year=2011, subject="ELA", grade="05")
+    assert out.iloc[0]["mean_scale_score"] == 328   # the (100-500) column, not 1830
+
+
+def test_2012_single_developmental_column_is_still_the_usable_score():
+    # 2012-14 report ONLY "Mean Developmental Scale Score" (no (100-500)
+    # sibling) -- despite the name, that lone column is the real score there.
+    header = ["Grade", "District Number", "District Name", "School Number",
+              "School Name", "Number of Students", "Mean Developmental Scale Score",
+              "1", "2", "3", "4", "5", "Percentage in Achievement Levels 3 and Above"]
+    data = [["FCAT 2.0 2012"] + [None] * 12,
+            header,
+            ["05", "01", "ALACHUA", "0031", "FINLEY ELEM", 92, 219, 21, 13, 20, 29, 17, 66]]
+    out = parse_sheet(pd.DataFrame(data), year=2012, subject="ELA", grade="05")
+    assert out.iloc[0]["mean_scale_score"] == 219
+
+
+def test_appended_late_district_resubmission_keeps_the_later_row():
+    # FL2011_MATH_G07_school.xls appends a second, partial pass over a tail
+    # of districts after the main body -- a late resubmission, not identical
+    # duplicate rows. The later (corrected) row should win.
+    out = parse_sheet(_wide_sheet([
+        ["59", "SEMINOLE", "0541", "TUSKAWILLA MIDDLE SCHOOL", "05", 357, 1830, 64, 16, 20, 33, 23, 8],
+        ["01", "ALACHUA", "0031", "FINLEY ELEM", "05", 92, 328, 66, 21, 13, 20, 29, 17],
+        ["59", "SEMINOLE", "0541", "TUSKAWILLA MIDDLE SCHOOL", "05", 329, 1715, 59, 25, 16, 25, 24, 9],
+    ]), year=2011, subject="MATH", grade="05")
+
+    assert len(out) == 2   # the stale first pass for 590541 is dropped
+    tusk = out[out.msid == "590541"].iloc[0]
+    assert tusk["n_students"] == 329 and tusk["mean_scale_score"] == 1715
+
+
 def test_to_id_zero_pads_strings_and_numeric_cells():
     assert _to_id("1", 2) == "01" and _to_id("0031", 4) == "0031"
     assert _to_id(1, 2) == "01" and _to_id(31.0, 4) == "0031"   # numeric-stored IDs
@@ -88,6 +134,8 @@ def test_to_id_zero_pads_strings_and_numeric_cells():
     (2019, "ALG1", "FSA"), (2024, "GEO", "B.E.S.T."),
     (2015, "SCI", "NGSSS Science"), (2026, "SCI", "NGSSS Science"),
     (2016, "BIO1", "NGSSS EOC"), (2025, "USHIST", "NGSSS EOC"),
+    (2011, "ELA", "FCAT 2.0"), (2014, "MATH", "FCAT 2.0"),
+    (2011, "ALG1", "NGSSS EOC"), (2013, "GEO", "NGSSS EOC"),
 ])
 def test_regime_map(year, subject, expected):
     assert regime(year, subject) == expected

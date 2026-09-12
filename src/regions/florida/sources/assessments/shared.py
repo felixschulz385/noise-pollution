@@ -12,9 +12,12 @@ DOMAIN = "assessments"
 
 RESULTS_INDEX = "https://www.fldoe.org/accountability/assessments/k-12-student-assessment/results/"
 
-# Spring-administration year -> FLDOE results page. The modern results pages
-# (FSA 2015-2022, FAST / B.E.S.T. 2023-) follow the <year>.stml pattern.
-FIRST_MODERN_YEAR = 2015
+# Spring-administration year -> FLDOE results page. Confirmed (2026-09) that the
+# <year>.stml pattern is NOT FSA/FAST-specific — it extends back at least to 2011
+# (FCAT 2.0 era: results/2011.stml ... results/2014.stml resolve the same way as
+# the modern pages). FIRST_MODERN_YEAR therefore marks the start of the per-year
+# .stml registry, not a regime boundary — regime labeling lives in preprocess.py.
+FIRST_MODERN_YEAR = 2011
 LATEST_KNOWN_YEAR = 2026
 # No statewide spring administration (COVID) — the page exists but has no
 # school-level results to collect.
@@ -25,12 +28,16 @@ RESULTS_PAGES = {
     if year not in NO_SPRING_TESTING
 }
 
-# Pre-2015 lives in the assessment archive, organised differently (not per-year
-# .stml). Listed for reference only; not fetch targets yet.
+# Not every EOC subject existed for the full 2011-2014 span — FLDOE phased in
+# EOCs year by year (source: FLDOE EOC program history). `fetch`'s per-year
+# instructions should not expect files that didn't exist yet.
+EOC_FIRST_YEAR = {"ALG1": 2011, "GEO": 2012, "BIO1": 2012, "USHIST": 2013, "CIVICS": 2014}
+
+# 1998-2010 (plain FCAT) is NOT yet confirmed to follow the same <year>.stml
+# pattern — unlike FCAT 2.0, it predates verification. Listed for reference
+# only; not a fetch target yet.
 ARCHIVE_PAGES = {
-    "fcat_2_0 (2011-2014)": "https://www.fldoe.org/accountability/assessments/k-12-student-assessment/archive/fcat-2-0/",
     "fcat (1998-2010)": "https://www.fldoe.org/accountability/assessments/k-12-student-assessment/archive/fcat/",
-    "fsa (2015-2022, retakes to 2024)": "https://www.fldoe.org/accountability/assessments/k-12-student-assessment/archive/fsa.stml",
 }
 
 _YEAR_RE = re.compile(r"^(19|20)\d{2}$")
@@ -95,6 +102,13 @@ MANUAL_DOWNLOAD_STEPS = (
     "  4. Re-run `... assessments fetch` (optionally with --from-file) to import\n"
     "     and verify what is present.\n"
     "\n"
-    "Pre-2015 (FCAT 2.0, FCAT) lives in the assessment archive — see\n"
-    "`... assessments list-years` for the archive hub URLs."
+    "2011-2014 (FCAT 2.0) uses the same results/<year>.stml pages — FLDOE just\n"
+    "labels the ELA-equivalent test 'Reading', not 'ELA'; rename it to the\n"
+    "canonical FL<year>_ELA_G<NN>_school.xls on import like every other year.\n"
+    "Not every EOC existed yet: Algebra 1 from 2011, Geometry/Biology 1 from\n"
+    "2012, U.S. History from 2013, Civics from 2014 — don't expect files for an\n"
+    "EOC before its first year.\n"
+    "\n"
+    "Pre-2011 (FCAT) lives in a differently-organised archive, not yet fetch-\n"
+    "ready — see `... assessments list-years` for the archive hub URL."
 )
