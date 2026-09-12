@@ -4,7 +4,7 @@
 #   - Hand-assembled on 2026-09-09 from the third-party imports found in src/
 #     (macOS / darwin, project developed against Python 3.12). It is NOT a
 #     `conda list --explicit` dump of any specific machine.
-#   - NOT yet verified against a test suite (the project has no tests yet).
+#   - Verified to run the pytest suite under tests/ (see .github/workflows/tests.yml).
 #   - NOT a byte-exact record of any HPC/production environment. Before trusting
 #     it for a cluster run, reconcile it against that environment's own
 #     `conda list --explicit` output.
@@ -25,6 +25,7 @@ dependencies:
   - contextily       # web-tile basemaps for the exploratory notebooks
   - pyarrow          # timetable preprocess writes .parquet
   - xlrd>=2.0.1      # read the legacy .xls FLDOE assessment workbooks
+  - pytest
   - pip
   - pip:
       - -e .
