@@ -122,6 +122,91 @@ def test_appended_late_district_resubmission_keeps_the_later_row():
     assert tusk["n_students"] == 329 and tusk["mean_scale_score"] == 1715
 
 
+def test_2004_07_bare_school_label_is_still_school_name():
+    # 2004-07 FCAT labels the school-name column just "School", not "School
+    # Name" -- the exact-match rule used to miss it entirely.
+    header = ["Grade", "District number", "District Name", "School Number",
+              "School", "Number of Students", "Mean Developmental Scale Score",
+              "Mean Scale Score (100-500)", "1", "2", "3", "4", "5"]
+    data = [["FCAT 2004"] + [None] * 12,
+            header,
+            ["04", "01", "ALACHUA", "0021", "DUVAL ELEM", 91, 1485, 303, 20, 15, 25, 25, 15]]
+    out = parse_sheet(pd.DataFrame(data), year=2004, subject="ELA", grade="04")
+    assert out.iloc[0]["school_name"] == "DUVAL ELEM"
+    assert out.iloc[0]["mean_scale_score"] == 303   # not the developmental column
+
+
+def test_2003_bare_district_school_labels_use_positional_layout():
+    # 2003 grades 4-10: the NUMBER columns carry no header text at all --
+    # only bare "District"/"School" (name) labels, merged-cell-shifted to an
+    # unreliable column position. The underlying data is always
+    # [district_number, district_name, school_number, school_name] in the
+    # first 4 columns regardless of where the label text landed.
+    header = [None, "District", None, "School", None, "Number of Students",
+              "Mean Developmental Scale Score", "Mean Scale Score (100-500)",
+              "1", "2", "3", "4", "5"]
+    data = [["FCAT 2003"] + [None] * 12,
+            header,
+            [1, "ALACHUA", 21, "DUVAL ELEM SCH", 6, 91, 1619, 295, 20, 15, 25, 25, 15]]
+    out = parse_sheet(pd.DataFrame(data), year=2003, subject="ELA", grade="06")
+    row = out.iloc[0]
+    assert (row["district_number"], row["district_name"]) == ("01", "ALACHUA")
+    assert (row["school_number"], row["school_name"]) == ("0021", "DUVAL ELEM SCH")
+
+
+def test_state_totals_row_kept_despite_blank_school_name():
+    # Some pre-2011 FCAT files leave the STATE TOTALS row's school-name cell
+    # blank (no "RESULTS FOR GRADE"-style placeholder) -- it must not be
+    # dropped by the school_name.notna() filter.
+    out = parse_sheet(_wide_sheet([
+        ["00", "STATE TOTALS", "0000", None, "04", 192480, 1547, 314, 20, 15, 25, 25, 15],
+        ["01", "ALACHUA", "0021", "DUVAL ELEM", "04", 91, 1485, 303, 20, 15, 25, 25, 15],
+    ]), year=2006, subject="ELA", grade="04")
+    assert len(out) == 2
+    assert out[out.is_state_total].iloc[0]["msid"] == "000000"
+
+
+def test_state_totals_row_with_blank_ids_gets_zero_filled():
+    # 2006-08 Math grade 3 leaves district_number/school_number blank (not
+    # even "00"/"0000") on the STATE TOTALS row -- recovered by district_name
+    # text alone and filled to the usual all-zero msid.
+    header = ["Grade", "District Number", "District Name", "School Number", "School Name",
+              "Number of Students", "Mean  Scale Score ",
+              "Percentage in Level 3 or Above", "1", "2", "3", "4", "5"]
+    data = [["FCAT 2007"] + [None] * 12,
+            header,
+            ["03", None, "STATE TOTALS", None, "Grade 03", 192480, 314, 60, 20, 15, 25, 25, 15],
+            ["03", "01", "ALACHUA", "0021", "DUVAL ELEM", 91, 303, 55, 20, 15, 25, 25, 15],
+    ]
+    out = parse_sheet(pd.DataFrame(data), year=2007, subject="MATH", grade="03")
+    assert len(out) == 2
+    total = out[out.is_state_total].iloc[0]
+    assert (total["district_number"], total["school_number"]) == ("00", "0000")
+    assert total["msid"] == "000000"
+
+
+def test_parse_workbook_dispatches_html_excel_export(tmp_path):
+    # 2004-05 Science school reports are SAS-generated "Excel HTML" exports,
+    # not OLE2 binaries, despite the .xls extension -- parse_workbook must
+    # sniff the real format rather than assume OLE2 from the extension.
+    html = """<html><head><meta name=ProgId content=Excel.Sheet></head><body>
+    <table>
+    <tr><td>FCAT 2004</td></tr>
+    <tr><td>Grade</td><td>District number</td><td>District Name</td>
+        <td>School Number</td><td>School Name</td><td>Number of Students</td>
+        <td>Mean Scale Score (100-500)</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td></tr>
+    <tr><td>05</td><td>01</td><td>ALACHUA</td><td>0031</td><td>FINLEY ELEM</td>
+        <td>96</td><td>283</td><td>20</td><td>15</td><td>25</td><td>25</td><td>15</td></tr>
+    </table></body></html>"""
+    path = tmp_path / "FL2004_SCI_G05_school.xls"
+    path.write_text(html)
+
+    from src.regions.florida.sources.assessments.preprocess import parse_workbook
+    out = parse_workbook(path, year=2004, subject="SCI", grade="05")
+    assert out.iloc[0]["school_name"] == "FINLEY ELEM"
+    assert out.iloc[0]["mean_scale_score"] == 283
+
+
 def test_to_id_zero_pads_strings_and_numeric_cells():
     assert _to_id("1", 2) == "01" and _to_id("0031", 4) == "0031"
     assert _to_id(1, 2) == "01" and _to_id(31.0, 4) == "0031"   # numeric-stored IDs
@@ -136,6 +221,9 @@ def test_to_id_zero_pads_strings_and_numeric_cells():
     (2016, "BIO1", "NGSSS EOC"), (2025, "USHIST", "NGSSS EOC"),
     (2011, "ELA", "FCAT 2.0"), (2014, "MATH", "FCAT 2.0"),
     (2011, "ALG1", "NGSSS EOC"), (2013, "GEO", "NGSSS EOC"),
+    (2003, "ELA", "FCAT"), (2010, "MATH", "FCAT"),
+    (2003, "SCI", "SSS Science"), (2010, "SCI", "SSS Science"),
+    (2011, "SCI", "NGSSS Science"),
 ])
 def test_regime_map(year, subject, expected):
     assert regime(year, subject) == expected

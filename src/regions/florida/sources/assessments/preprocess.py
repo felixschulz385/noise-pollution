@@ -60,17 +60,22 @@ SUBJECT_LABEL = {
     "BIO1": "Biology 1 EOC", "CIVICS": "Civics EOC", "USHIST": "U.S. History EOC",
 }
 
-# The z-score is comparable only within a regime x subject x grade. FCAT 2.0 ->
-# FSA rescales at 2015; FSA -> FAST (ELA, Math) and FSA -> B.E.S.T. (Algebra 1,
-# Geometry) rescale again at 2023. The NGSSS EOCs (Biology 1, Civics, U.S.
-# History) and Statewide Science were never rescaled through the FCAT 2.0/FSA
-# boundary.
+# The z-score is comparable only within a regime x subject x grade. FCAT ->
+# FCAT 2.0 rescales at 2011 (new Next Generation Sunshine State Standards,
+# NGSSS); FCAT 2.0 -> FSA rescales again at 2015; FSA -> FAST (ELA, Math) and
+# FSA -> B.E.S.T. (Algebra 1, Geometry) rescale a third time at 2023. EOCs
+# (Algebra 1, Geometry, Biology 1, Civics, U.S. History) didn't exist before
+# 2011 (FCAT had no EOCs) and the NGSSS ones were never rescaled through the
+# FCAT 2.0/FSA boundary.
+FIRST_FCAT2_YEAR = 2011
 FIRST_FSA_YEAR = 2015
 FIRST_MODERN_REGIME_YEAR = 2023
 
 
 def regime(year: int, subject: str) -> str:
     if subject in ("ELA", "MATH"):
+        if year < FIRST_FCAT2_YEAR:
+            return "FCAT"
         if year < FIRST_FSA_YEAR:
             return "FCAT 2.0"
         return "FSA" if year < FIRST_MODERN_REGIME_YEAR else "FAST"
@@ -79,7 +84,7 @@ def regime(year: int, subject: str) -> str:
             return "NGSSS EOC"
         return "FSA" if year < FIRST_MODERN_REGIME_YEAR else "B.E.S.T."
     if subject == "SCI":
-        return "NGSSS Science"
+        return "SSS Science" if year < FIRST_FCAT2_YEAR else "NGSSS Science"
     return "NGSSS EOC"  # BIO1, CIVICS, USHIST
 
 
@@ -91,11 +96,11 @@ def _norm_col(value) -> str | None:
         return None
     if "district number" in s:
         return "district_number"
-    if s == "district name":
+    if s in ("district name", "district"):   # 2003 G04-10 labels this column just "District"
         return "district_name"
     if "school number" in s:
         return "school_number"
-    if s == "school name":
+    if s in ("school name", "school"):   # 2004-07 FCAT labels this column just "School"
         return "school_name"
     if s == "grade":
         return "grade_raw"
@@ -123,6 +128,14 @@ def _header_row(raw: pd.DataFrame) -> int:
         joined = " | ".join(re.sub(r"\s+", " ", str(v)).strip().lower() for v in raw.iloc[i])
         if "district number" in joined and "school number" in joined:
             return i
+    # 2003 grades 4-10: the District/School NUMBER columns carry no header
+    # text at all -- only bare "District" / "School" labels (meaning the
+    # NAME columns, one position to their right). Detect via those two exact
+    # cells co-occurring with a scale-score label, to avoid false positives.
+    for i in range(min(16, len(raw))):
+        cells = [re.sub(r"\s+", " ", str(v)).strip().lower() for v in raw.iloc[i]]
+        if "district" in cells and "school" in cells and any("scale score" in c for c in cells):
+            return i
     raise ValueError("header row (District Number + School Number) not found in first 16 rows")
 
 
@@ -137,6 +150,7 @@ def parse_sheet(raw: pd.DataFrame, year: int, subject: str, grade: str,
     row per school, plus the file's single ``STATE TOTALS`` row). Split out from
     :func:`parse_workbook` so it can be unit-tested without an ``.xls`` file."""
     h = _header_row(raw)
+    header_cells = [re.sub(r"\s+", " ", str(v)).strip().lower() for v in raw.iloc[h]]
     names = [_norm_col(v) for v in raw.iloc[h]]
     body = raw.iloc[h + 1:].reset_index(drop=True)
 
@@ -144,6 +158,21 @@ def parse_sheet(raw: pd.DataFrame, year: int, subject: str, grade: str,
     for j, name in enumerate(names):
         if name and name not in cols:
             cols[name] = body.iloc[:, j]
+
+    # 2003 grades 4-10: the District/School NUMBER columns have no header
+    # text at all -- only bare "District"/"School" (name) labels -- and
+    # merged header cells shift where that text lands column-to-column
+    # inconsistently across files, so its position can't be trusted. The
+    # underlying data is always laid out
+    # [district_number, district_name, school_number, school_name] in the
+    # first 4 columns regardless, confirmed across multiple files -- use that
+    # fixed positional layout instead of hunting for the label.
+    if "district" in header_cells and "school" in header_cells:
+        cols["district_number"] = body.iloc[:, 0]
+        cols["district_name"] = body.iloc[:, 1]
+        cols["school_number"] = body.iloc[:, 2]
+        cols["school_name"] = body.iloc[:, 3]
+
     df = pd.DataFrame(cols)
 
     if "mean_scale_score" not in df.columns and "mean_scale_score_dev" in df.columns:
@@ -155,8 +184,19 @@ def parse_sheet(raw: pd.DataFrame, year: int, subject: str, grade: str,
     df["school_number"] = df["school_number"].map(lambda v: _to_id(v, 4))
     for c in ("district_name", "school_name"):
         df[c] = df[c].astype("string").str.strip()
-    df = df[df["district_number"].notna() & df["school_number"].notna()
-            & df["school_name"].notna()].copy()
+    # Some pre-2011 FCAT files leave the STATE TOTALS row's school-name cell
+    # blank (no "RESULTS FOR GRADE"-style placeholder), and a few (e.g.
+    # 2006-08 Math grade 3) leave district_number/school_number blank there
+    # too, not even "00"/"0000" -- don't drop that row for missing IDs, or
+    # the file's single provenance total row is silently lost. No real
+    # Florida county name contains "state", so this text match is safe.
+    is_totals_row = df["district_name"].str.upper().str.contains("STATE", na=False)
+    keep = is_totals_row | (df["district_number"].notna() & df["school_number"].notna()
+                            & df["school_name"].notna())
+    df = df[keep].copy()
+    is_totals_row = is_totals_row.loc[df.index]
+    df.loc[is_totals_row & df["district_number"].isna(), "district_number"] = "00"
+    df.loc[is_totals_row & df["school_number"].isna(), "school_number"] = "0000"
 
     df["msid"] = df["district_number"] + df["school_number"]
     df["is_state_total"] = (df["msid"].eq("000000")
@@ -186,9 +226,24 @@ def parse_sheet(raw: pd.DataFrame, year: int, subject: str, grade: str,
                "suppressed", *SCORE_COLS, "source_file"]]
 
 
+OLE2_MAGIC = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+
+
 def parse_workbook(path: Path, year: int, subject: str, grade: str) -> pd.DataFrame:
-    """Read one raw ``.xls`` workbook and parse it to the canonical long schema."""
-    raw = pd.ExcelFile(path).parse(0, header=None, dtype=object)
+    """Read one raw ``.xls`` workbook and parse it to the canonical long schema.
+
+    2004-05 Science school reports are SAS-generated "Excel HTML" exports, not
+    real OLE2 binaries, despite the ``.xls`` extension (Excel opens them fine
+    either way). ``pd.read_html`` happens to produce the same header-less grid
+    shape as ``pd.ExcelFile(...).parse(0, header=None)``, so the rest of the
+    pipeline (header detection, column mapping) is unchanged either way.
+    """
+    with path.open("rb") as f:
+        head = f.read(8)
+    if head == OLE2_MAGIC:
+        raw = pd.ExcelFile(path).parse(0, header=None, dtype=object)
+    else:
+        raw = pd.read_html(path, header=None)[0]
     return parse_sheet(raw, year, subject, grade, source_file=path.name)
 
 
@@ -284,8 +339,16 @@ def build_assessments_table(
 
     school = out[~out["is_state_total"].fillna(False)]
     ok = school[~school["suppressed"].fillna(False)]
-    lv_sum = ok[["pct_l1", "pct_l2", "pct_l3", "pct_l4", "pct_l5"]].sum(axis=1)
-    l3p_gap = (ok["pct_l3"] + ok["pct_l4"] + ok["pct_l5"] - ok["pct_level3_plus"]).abs()
+    level_cols = ["pct_l1", "pct_l2", "pct_l3", "pct_l4", "pct_l5"]
+    # 2003-05 Science reports predate FLDOE finalizing Science achievement
+    # levels ("Science Achievement Levels have not been determined" is the
+    # sheet's own footnote) -- those rows carry no level percentages at all,
+    # not a suppression or parsing gap, so exclude them from these two
+    # consistency checks rather than count an all-NaN row as a violation.
+    has_levels = ok[level_cols].notna().any(axis=1)
+    scored = ok[has_levels]
+    lv_sum = scored[level_cols].sum(axis=1)
+    l3p_gap = (scored["pct_l3"] + scored["pct_l4"] + scored["pct_l5"] - scored["pct_level3_plus"]).abs()
     stats = {
         "years": sorted(int(y) for y in df["year"].unique()),
         "n_files": int(df["source_file"].nunique()),

@@ -9,7 +9,7 @@ is in place.
 | Domain | Steps implemented | Prerequisites | Module |
 |---|---|---|---|
 | `noise_barriers` | `list-versions`, `fetch`, `preprocess` (clean one FGDL release → tidy GeoParquet barrier layer) | — | `src/regions/florida/sources/noise_barriers/` |
-| `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2011–2026**, 307 files — FCAT 2.0 + FSA + FAST/B.E.S.T.), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/regions/florida/sources/assessments/` |
+| `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2003–2026**, 435 files — plain FCAT + FCAT 2.0 + FSA + FAST/B.E.S.T.), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/regions/florida/sources/assessments/` |
 | `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/regions/florida/sources/schools/` |
 | `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and will underpin the planned `traffic` / `road_projects` sources. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, `road_projects`) | `src/regions/florida/sources/road_network/` |
 | `panel` | `assemble` (join `assessments` + `schools` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates + all three barrier-treatment-timing definitions, but the six other planned covariate modules (`traffic`, `road_projects`, `staff`, `shocks`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)) don't exist yet, `road_projects`/`traffic` most notably since they're what the design doc treats as central to the identification strategy. | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
@@ -234,12 +234,14 @@ directory comes from the **`master_file` (MSID)** source instead:
 `www.fldoe.org` blocks automated clients (HTTP 403 / bot protection), so there
 is **no unattended download**. `fetch` is a manual-download orchestrator:
 
-- `list-years` prints the results-page registry (spring years **2011–2026**,
+- `list-years` prints the results-page registry (spring years **2003–2026**,
   minus the COVID gap year 2020 — confirmed 2026-09 that the same
   `results/<year>.stml` page pattern covers the FCAT 2.0 years 2011–2014, not
-  just FSA/FAST) plus the pre-2011 FCAT archive hub URL (not yet a fetch
-  target — different page structure, unverified), and scans
-  `data/florida/assessments/raw/` for what has been collected.
+  just FSA/FAST; 2003–2010 plain FCAT uses a different, also-confirmed
+  directory-per-year archive pattern, `archive/fcat/scores-reports/<year>/`)
+  plus the pre-2003 FCAT archive hub URL (not yet a fetch target — existence
+  itself unconfirmed), and scans `data/florida/assessments/raw/` for what has
+  been collected.
 - `fetch` creates the `raw/<year>/` drop folders, reports each year's status
   (`present` / `missing`), and echoes step-by-step download instructions.
 - `fetch --year <YYYY> --from-file <path>` imports a workbook you downloaded in a
@@ -293,12 +295,13 @@ Regime coverage:
 
 (2020 has no spring administration — not in the registry, no folder.)
 
-Integrity checks run at import (all 231 pass for 2015-2026; the 76 FCAT 2.0
-files passed the same OLE2-magic-bytes + no-cross-file-sha256-collision checks
-via `organize_fldoe_downloads.py`):
+Integrity checks run at import (all 231 pass for 2015-2026; the 204 FCAT /
+FCAT 2.0 files (2003-2014) passed the same checks via
+`organize_fldoe_downloads.py`, extended to also recognize the 2004-05
+Science files' Excel-HTML export format rather than flag them as blocked):
 
-- Every file is a real OLE2 `.xls` binary — no HTML/403 error page saved under an
-  `.xls` name.
+- Every file is a real OLE2 `.xls` binary, or a recognized Excel-HTML export —
+  no HTML/403 error page saved under an `.xls` name.
 - No two files share a sha256 — so no link resolved to the wrong file
   (a district report, or a prior year's copy).
 - Live in-sheet titles spot-checked across 2015/2019/2022/2023/2025/2026 — year
@@ -367,6 +370,75 @@ Both fixes are covered by `test_assessments_preprocess.py` (`test_regime_map`
 FCAT 2.0 cases) and verified by re-parsing all 76 FCAT 2.0 files cleanly and
 re-running the full merge (see `preprocess` numbers below).
 
+### 2003–2010 (plain FCAT) — collected and merged (2026-09)
+
+Confirmed (web search) that this era is genuinely NOT on the `results/<year>.stml`
+pattern — it lives at `archive/fcat/scores-reports/<year>/` (a directory-style
+archive page, 2003–2010 only; no evidence 1998–2002 is digitized anywhere on
+fldoe.org). Same manual-download workflow otherwise: pulled via a
+Claude-for-Chrome session, organized with the same `organize_fldoe_downloads.py` /
+`SOURCE_MANIFEST_<year>.tsv` pattern as FCAT 2.0. No EOCs in this era
+(Algebra 1 etc. started in 2011) — Reading, Math, Science (grades 5 & 8) only,
+16 files/year × 8 years = 128 files. FCAT-era Writing (grades 4/8/10) was
+skipped, matching the exclusion rule used for every other era.
+
+**Four more real parsing issues, all found by actually running the parser
+against these files (every prior layout assumption had only ever been
+exercised on 2011–2026 data):**
+
+1. **2004–05 Science school reports are SAS-generated "Excel HTML" exports**,
+   not OLE2 binaries, despite the `.xls` extension (Excel opens them fine
+   either way — this is a real FLDOE export quirk, not a bot-block page; the
+   organize script's OLE2-magic-byte integrity check initially flagged these
+   4 files as blocked downloads until it learned to recognize the
+   `ProgId content=Excel` HTML-export marker too). `pd.read_html` produces the
+   same header-less grid shape as `pd.ExcelFile(...).parse(0, header=None)`,
+   so `parse_workbook` now sniffs the real file format (OLE2 magic bytes vs.
+   not) and dispatches to the matching reader — everything downstream
+   (header detection, column mapping) is unchanged either way.
+2. **2004–07 grades 4–10 label the school-name column just `"School"`**, not
+   `"School Name"` — the exact-match rule in `_norm_col` missed it entirely
+   (`KeyError: 'school_name'`). Fixed by accepting the bare label too.
+3. **2003 grades 4–10 have NO header text at all for the District/School
+   NUMBER columns** — only bare `"District"` / `"School"` (meaning the *name*
+   columns), and merged header cells shift where that text lands
+   column-to-column inconsistently across files, so position relative to the
+   label can't be trusted. The underlying data is always laid out
+   `[district_number, district_name, school_number, school_name]` in the
+   first 4 columns regardless (confirmed across multiple files) — `parse_sheet`
+   now detects this template (bare `"district"` + `"school"` cells
+   co-occurring with a scale-score label) and uses that fixed positional
+   layout instead of hunting for a label that may not exist.
+4. **The STATE TOTALS row is sometimes missing pieces of its own identity**:
+   some files leave its `school_name` cell blank (no `"RESULTS FOR GRADE"`-
+   style placeholder), which the `school_name.notna()` filter was silently
+   dropping the row for; 2006–08 Math grade 3 additionally leaves
+   `district_number`/`school_number` blank (not even `"00"`/`"0000"`) on that
+   row. Fixed by detecting the totals row from `district_name` text alone
+   (`str.contains("STATE")` — no real Florida county name contains "state")
+   and filling blank IDs to the usual `"00"`/`"0000"` so `msid` still resolves
+   to `"000000"`. Before this fix, 17 of the 435 files across the whole panel
+   (not just 2003–10) were silently missing their single STATE TOTALS
+   provenance row; now `state_total_rows == n_files` exactly, for every year.
+
+A fifth thing that looked like a bug but isn't: **2003–05 Science rows have no
+achievement-level percentages at all** (`pct_l1..pct_l5`, `pct_level3_plus` all
+blank) — the raw cell for those columns literally reads `"To Be Determined"`,
+and the HTML files' own footnote says *"Science Achievement Levels have not
+been determined"*. FLDOE hadn't yet set Science cut scores this early. This
+isn't suppression or a parsing gap — the data genuinely doesn't exist — so the
+two achievement-level consistency checks in `build_assessments_table` (`L1..L5`
+sum ≈100, `L3+L4+L5 == pct_level3_plus`) now exclude rows with no level data
+at all from their denominator, rather than counting an all-NaN row (which
+pandas `.sum()` silently turns into 0) as a violation.
+
+All five issues are covered by new tests in `test_assessments_preprocess.py`
+and verified by re-parsing all 128 plain-FCAT files cleanly and re-running the
+full merge (see `preprocess` numbers below): 435 files total (2003–2026,
+skipping the 2020 gap year), 661k rows, 5,039 distinct schools, both
+achievement-level consistency checks back at 1.0, `state_total_rows == n_files`
+for the first time across the whole panel.
+
 **Caveats for `preprocess`:**
 
 - **Key the year off an in-sheet cell, never the file's document Title.** The
@@ -404,15 +476,16 @@ name) and writes, into `processed/`:
 
 - **`assessments.parquet`** — one row per school per subject × grade × year,
   **indexed on `(msid, grade, subject, year)`**. Columns: `subject_label`,
-  `regime` (`FCAT 2.0` · `FSA` / `FAST` · `FSA` / `B.E.S.T.` · `NGSSS Science`
-  · `NGSSS EOC`), `retrofitted_2015`, `fcat_equivalent_2011`,
-  `district_number` / `district_name` / `school_number` /
+  `regime` (`FCAT` / `SSS Science` · `FCAT 2.0` · `FSA` / `FAST` · `FSA` /
+  `B.E.S.T.` · `NGSSS Science` · `NGSSS EOC`), `retrofitted_2015`,
+  `fcat_equivalent_2011`, `district_number` / `district_name` / `school_number` /
   `school_name`, `is_state_total`, `suppressed`, `n_students`,
   `mean_scale_score`, `pct_level3_plus`, `pct_l1..pct_l5`, `source_file`, and the
   primary outcome **`z_mss` / `z_mss_w`** — the school mean scale score
   standardised within each `year × subject × grade` cell (unweighted /
-  `n_students`-weighted), which differences the regime scale breaks (FCAT 2.0
-  -> FSA -> FAST/B.E.S.T., plus the 2011-internal FCAT-equivalent break) out.
+  `n_students`-weighted), which differences every regime scale break (FCAT ->
+  FCAT 2.0 -> FSA -> FAST/B.E.S.T., plus the 2011-internal FCAT-equivalent
+  break) out.
   Nullable dtypes, so suppression / state-total `NaN`s round-trip. One
   `STATE TOTALS` row per file is kept and flagged (`msid == "000000"`),
   excluded from the z-score moments.
@@ -421,8 +494,10 @@ name) and writes, into `processed/`:
   achievement-level consistency checks (`L1..L5` sum, `L3+L4+L5 ==
   pct_level3_plus`).
 
-Current run: **307 files → 485k rows, ~4.6k distinct schools**, suppressed share
-≈ 0.11, all consistency checks pass. `src/experiments/florida/assessments.ipynb`
+Current run: **435 files → 661k rows, ~5.0k distinct schools** (years 2003-2026,
+skipping 2020), suppressed share ≈ 0.10, both achievement-level consistency
+checks at 1.0, `state_total_rows == n_files` exactly.
+`src/experiments/florida/assessments.ipynb`
 imports this same parser and investigates the merged frame (regime breaks,
 panel shape, the 2015-scale check, the z-score's continuity) — it writes
 nothing. The join key is `msid` = FLDOE District + School number; the

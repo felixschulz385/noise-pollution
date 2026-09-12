@@ -11,9 +11,13 @@ from pathlib import Path
 
 
 def find_repo_root(start: Path | None = None) -> Path:
+    # `data/` is gitignored and legitimately absent on a fresh checkout (e.g.
+    # CI) -- `region_dirs` below creates it on demand, so root detection can't
+    # require it to already exist. `pyproject.toml` is a durable, always-
+    # tracked marker instead.
     current = (start or Path.cwd()).resolve()
     for candidate in [current, *current.parents]:
-        if (candidate / "src").exists() and (candidate / "data").exists():
+        if (candidate / "src").exists() and (candidate / "pyproject.toml").exists():
             return candidate
     raise FileNotFoundError("Could not locate repository root from the current working directory.")
 

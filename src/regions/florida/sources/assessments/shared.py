@@ -22,22 +22,43 @@ LATEST_KNOWN_YEAR = 2026
 # No statewide spring administration (COVID) — the page exists but has no
 # school-level results to collect.
 NO_SPRING_TESTING = frozenset({2020})
+# 2003-2010 (plain FCAT) lives in a directory-per-year archive, NOT the
+# <year>.stml pattern -- confirmed (2026-09, web search) that
+# archive/fcat/scores-reports/<year>/ resolves for 2003-2010, each holding the
+# same kind of per-grade "School Scores for All Curriculum Groups" Excel files
+# as every later era. No evidence 1998-2002 is digitized on fldoe.org at
+# all (not even a results.stml-style redirect found); not registered until
+# confirmed -- see `ARCHIVE_PAGES`.
+FCAT_ARCHIVE_INDEX = ("https://www.fldoe.org/accountability/assessments/"
+                      "k-12-student-assessment/archive/fcat/scores-reports/")
+FIRST_FCAT_ARCHIVE_YEAR = 2003
+LAST_FCAT_ARCHIVE_YEAR = 2010
+FCAT_ARCHIVE_PAGES = {
+    year: f"{FCAT_ARCHIVE_INDEX}{year}/"
+    for year in range(FIRST_FCAT_ARCHIVE_YEAR, LAST_FCAT_ARCHIVE_YEAR + 1)
+}
+
 RESULTS_PAGES = {
-    year: f"{RESULTS_INDEX}{year}.stml"
-    for year in range(FIRST_MODERN_YEAR, LATEST_KNOWN_YEAR + 1)
-    if year not in NO_SPRING_TESTING
+    **FCAT_ARCHIVE_PAGES,
+    **{
+        year: f"{RESULTS_INDEX}{year}.stml"
+        for year in range(FIRST_MODERN_YEAR, LATEST_KNOWN_YEAR + 1)
+        if year not in NO_SPRING_TESTING
+    },
 }
 
 # Not every EOC subject existed for the full 2011-2014 span — FLDOE phased in
 # EOCs year by year (source: FLDOE EOC program history). `fetch`'s per-year
-# instructions should not expect files that didn't exist yet.
+# instructions should not expect files that didn't exist yet. Plain FCAT
+# (2003-2010) had no EOCs at all — only Reading, Math, Science.
 EOC_FIRST_YEAR = {"ALG1": 2011, "GEO": 2012, "BIO1": 2012, "USHIST": 2013, "CIVICS": 2014}
 
-# 1998-2010 (plain FCAT) is NOT yet confirmed to follow the same <year>.stml
-# pattern — unlike FCAT 2.0, it predates verification. Listed for reference
-# only; not a fetch target yet.
+# 1998-2002: not confirmed to be digitized anywhere on fldoe.org (web search
+# turned up nothing, unlike every later era). Listed for reference only; not
+# a fetch target until someone finds where/whether this data exists (possibly
+# only via the Wayback Machine, if at all).
 ARCHIVE_PAGES = {
-    "fcat (1998-2010)": "https://www.fldoe.org/accountability/assessments/k-12-student-assessment/archive/fcat/",
+    "fcat pre-2003 (unconfirmed)": "https://www.fldoe.org/accountability/assessments/k-12-student-assessment/archive/fcat/",
 }
 
 _YEAR_RE = re.compile(r"^(19|20)\d{2}$")
@@ -109,6 +130,12 @@ MANUAL_DOWNLOAD_STEPS = (
     "2012, U.S. History from 2013, Civics from 2014 — don't expect files for an\n"
     "EOC before its first year.\n"
     "\n"
-    "Pre-2011 (FCAT) lives in a differently-organised archive, not yet fetch-\n"
-    "ready — see `... assessments list-years` for the archive hub URL."
+    "2003-2010 (plain FCAT) uses a directory-per-year page instead of a\n"
+    "<year>.stml page (e.g. .../archive/fcat/scores-reports/2009/), but the\n"
+    "same per-grade 'School Scores for All Curriculum Groups' Excel files are\n"
+    "there. No EOCs in this era — Reading, Math, Science (grades 5 & 8) only.\n"
+    "Rename to the canonical pattern on import, same as every other year.\n"
+    "\n"
+    "Pre-2003 is not confirmed to exist anywhere on fldoe.org — see\n"
+    "`... assessments list-years` for the one unconfirmed archive hub URL."
 )
