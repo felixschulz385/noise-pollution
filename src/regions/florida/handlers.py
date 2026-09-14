@@ -100,6 +100,37 @@ def command_traffic_assemble(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_road_projects_fetch(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.road_projects.fetch import fetch_road_projects
+
+    result = fetch_road_projects(force=args.force)
+    print_json({"domain": "road_projects", "stage": "fetch", **result})
+    return 0
+
+
+def command_road_projects_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.road_projects.preprocess import run_road_projects_preprocess
+
+    result = run_road_projects_preprocess()
+    print_json({"domain": "road_projects", "stage": "preprocess", **result})
+    return 0
+
+
+def command_road_projects_assemble(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.road_projects.assemble import (
+        MAX_MATCH_DIST_M,
+        MILEPOST_TOLERANCE_MI,
+        run_road_projects_assemble,
+    )
+
+    result = run_road_projects_assemble(
+        max_dist=args.max_dist if args.max_dist is not None else MAX_MATCH_DIST_M,
+        tolerance_mi=args.tolerance_mi if args.tolerance_mi is not None else MILEPOST_TOLERANCE_MI,
+    )
+    print_json({"domain": "road_projects", "stage": "assemble", **result})
+    return 0
+
+
 def command_assessments_list_years(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.assessments.fetch import list_years
 

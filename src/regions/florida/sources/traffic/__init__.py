@@ -8,7 +8,10 @@ event study needs (Cluster C, `docs/data/florida/covariates.md`). Full design
 brief: `docs/data/florida/traffic/README.md`.
 
 Stages: `fetch` (per-release attribute tables, geometry dropped) ->
-`preprocess` (stack into one panel). No `assemble` yet -- joining the panel
-to schools by matched `roadway_id` (from `schools/assemble.py`'s
-`match_barriers_road` / `road_network/linear_ref.py`) is future work.
+`preprocess` (stack into one panel) -> `assemble` (match schools to a
+roadway via `road_network/linear_ref.py`'s nearest-road matching, then
+attach that roadway's AADT time series, plus a current-snapshot local-
+intensity scaling factor -- see `assemble.py`'s module docstring). Joined
+into the final event-study panel by `panel/assemble.py`'s `attach_traffic`
+(nearest-release-year match, not exact-year -- see that module's docstring).
 """

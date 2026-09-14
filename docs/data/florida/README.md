@@ -13,7 +13,8 @@ is in place.
 | `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/regions/florida/sources/schools/` |
 | `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and underpins `traffic`. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, planned `road_projects`) | `src/regions/florida/sources/road_network/` |
 | `traffic` | `list-versions`, `fetch`, `preprocess` (fetch many FGDL `rciroads` releases' `AADT` field and stack into `aadt_panel.parquet`, one row per `roadway_id × release_year`), `assemble` (match schools to a roadway, join its AADT time series → `school_aadt_panel.parquet`, 89.7% match rate) — all implemented, see [`traffic/README.md`](traffic/README.md). Covariate Cluster C. **Joined into `panel`'s final event-study table** (nearest-release-year match, 71.3% of rows matched). | `road_network`'s fetch machinery (reused directly), `schools preprocess` + `road_network preprocess` (`assemble`) | `src/regions/florida/sources/traffic/` |
-| `panel` | `assemble` (join `assessments` + `schools` + `traffic` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, and now `traffic` (nearest-release-year match, 71.3% of rows matched — see the `traffic` section below), but doesn't yet carry the five other planned covariate modules (`road_projects`, `staff`, `shocks`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)); `road_projects` is the other half of the identification-driver confounder pair the design doc names. | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
+| `panel` | `assemble` (join `assessments` + `schools` + `traffic` + `road_projects` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, `traffic` (nearest-release-year match, 71.3% of rows matched), and now `road_projects` (year-interval-overlap match, 4.5% of rows matched an active project — see the sections below), but doesn't yet carry the three other planned covariate modules (`staff`, `shocks`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)). | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`), `road_projects` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
+| `road_projects` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`road_projects/README.md`](road_projects/README.md). Covariate Cluster D (widening/PD&E/construction projects co-timed with a wall). Pulls FDOT `Work_Program_Current` layers 2/13 + `Active_Construction_Projects` ArcGIS REST services (both keyed by the same `ROADWAY` id format as `road_network.roadway_id`, confirmed live) into `road_projects.parquet` (118,014 project-item rows, 4,676 distinct roadways). `assemble` matches schools to a roadway + milepost and joins nearby projects via milepost-range overlap (5,366/5,984 schools matched, 40,729 school↔project pairs, 2,586 schools with ≥1 nearby project). **Joined into `panel`'s `event_study_panel.parquet`** via a year-interval-overlap match (4.5% of panel rows matched an active project). | `schools` (`preprocess`), `road_network` (`preprocess`) | `src/regions/florida/sources/road_projects/` |
 
 On-disk output lands under `data/florida/<domain>/{raw,processed,assembled}/`.
 
@@ -224,10 +225,10 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
   first_treat_year_*` computed here. The analysis layer picks a baseline
   (recommended: `_same_side`, the most rigorous) and the other two as
   robustness checks.
-- **Real run**: 370,891 rows, 4,419 distinct schools, years 2015–2026.
-  `ever_treated` schools: 455 (`_point`) → 262 (`_same_route`) → 198
+- **Real run**: 660,681 rows, 5,039 distinct schools, years 2003–2026.
+  `ever_treated` schools: 513 (`_point`) → 293 (`_same_route`) → 221
   (`_same_side`) — each tier a strict refinement of the last.
-- **Traffic (Cluster C) is now joined in**: `traffic_roadway_id`,
+- **Traffic (Cluster C) is joined in**: `traffic_roadway_id`,
   `traffic_release_year`, `traffic_aadt`, `traffic_match_dist_m`, via
   `attach_traffic` — a `pd.merge_asof(direction="nearest",
   tolerance=MAX_TRAFFIC_YEAR_GAP=2)` per `msid`, matching each
@@ -241,14 +242,27 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
   not obviously explained by the FGDL archive's own 2005/2012–2015 gaps
   (both bracketed within the ±2-year tolerance, so neither actually loses
   coverage — see [`traffic/README.md`](traffic/README.md)).
-- **Known gap:** still a **first-pass panel** for the other five covariate
-  modules — see the domain table above and [`covariates.md`](covariates.md)
-  for `road_projects`, `staff`, `shocks`, `air_quality`, `neighbourhood`.
-  Treat it as sufficient for a first-pass / robustness-limited specification,
-  not the paper's baseline spec, until at least `road_projects` (the module
-  `covariates.md` flags as the other half of the identification-driver pair
-  alongside `traffic` — FDOT tends to build barriers alongside road-widening
-  projects) exists.
+- **Road-works (Cluster D) is joined in**: `n_road_projects_active`,
+  `road_project_is_wall`, `road_project_is_widening`, via
+  `attach_road_projects` — a project's timing is a *year interval*
+  (`fiscal_year` or `[start_date, end_date]`), not a single value, so this
+  first explodes `road_projects assemble`'s `school_road_projects.parquet`
+  pairs to one row per calendar year the project spans, then does a plain
+  exact-`(msid, year)` left join — no nearest-value tolerance like traffic's.
+  A school-year with nothing logged gets `n_road_projects_active=0` / the
+  flags `False` (a real value). **Real run**: **29,515 of 660,681 rows
+  (4.5%)** matched an active road project; 30 rows hit the
+  `road_project_is_wall` keyword flag, 3,344 the `road_project_is_widening`
+  flag — small relative to the full panel, consistent with `road_projects`'
+  own coverage gaps (Work Program layers current-window only, Active
+  Construction only back to 2009 — see
+  [`road_projects/README.md`](road_projects/README.md)).
+- **Known gap:** still a **first-pass panel** for the remaining four
+  covariate modules — see the domain table above and
+  [`covariates.md`](covariates.md) for `staff`, `shocks`, `air_quality`,
+  `neighbourhood`. Treat it as sufficient for a first-pass /
+  robustness-limited specification, not the paper's baseline spec, until
+  those exist too.
 
 ## `assessments` — `fetch` (manual) + `preprocess` (merge to a tidy panel)
 

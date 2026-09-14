@@ -23,10 +23,22 @@ roadway_id (reusing `schools`' own nearest-road matcher) and attach that
 roadway's AADT time series, REQUIRES `schools preprocess` +
 `road-network preprocess`), ``panel``
 (`assemble` — the final event-study panel, joining `assessments` + `schools`
-+ `traffic` into one msid x grade x subject x year table, traffic joined by
-nearest FGDL release year within `MAX_TRAFFIC_YEAR_GAP` years; no
++ `traffic` + `road-projects` into one msid x grade x subject x year table,
+traffic joined by nearest FGDL release year within `MAX_TRAFFIC_YEAR_GAP`
+years, road-projects joined by exact-year match against each project's
+exploded `[fiscal_year]`/`[start_date, end_date]` interval; no
 `fetch`/`preprocess` of its own, REQUIRES `assessments preprocess`,
-`schools {preprocess,assemble}`, and `traffic {fetch,preprocess,assemble}`).
+`schools {preprocess,assemble}`, `traffic {fetch,preprocess,assemble}`, and
+`road-projects {fetch,preprocess,assemble}`), ``road-projects`` (`fetch`,
+`preprocess` — FDOT road-works/construction
+projects co-timed with a wall, covariate Cluster D; two live ArcGIS REST
+extracts, `Work_Program_Current` layers 2/13 (current-window only) and
+`Active_Construction_Projects` (reaches back to 2009); both keyed by the same
+`ROADWAY` id format `road-network` uses, so no spatial matching is needed;
+`assemble` — match schools to a roadway + milepost (reusing
+`road-network`'s linear-referencing helpers) and attach every project whose
+milepost range overlaps, REQUIRES `schools preprocess` + `road-network
+preprocess`, see `docs/data/florida/road_projects/README.md`).
 """
 from __future__ import annotations
 
@@ -47,6 +59,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_schools(data_domains)
     _register_road_network(data_domains)
     _register_traffic(data_domains)
+    _register_road_projects(data_domains)
     _register_panel(data_domains)
 
 
@@ -187,6 +200,46 @@ def _register_traffic(domains: argparse._SubParsersAction) -> None:
         help="Max school-to-roadway match distance in metres (default: 1000).",
     )
     tr_assemble.set_defaults(func=h.command_traffic_assemble)
+
+
+def _register_road_projects(domains: argparse._SubParsersAction) -> None:
+    road_projects = domains.add_parser(
+        "road-projects", help="FDOT road-works/construction projects (Work Program + Active Construction)"
+    )
+    cmd = road_projects.add_subparsers(dest="stage", required=True)
+
+    rp_fetch = cmd.add_parser(
+        "fetch",
+        help="Download Work_Program_Current layers 2/13 and Active_Construction_Projects (attributes only)",
+    )
+    rp_fetch.add_argument(
+        "--force", action="store_true", help="Re-fetch a layer even if it is already cached."
+    )
+    rp_fetch.set_defaults(func=h.command_road_projects_fetch)
+
+    rp_pre = cmd.add_parser(
+        "preprocess",
+        help="Tidy the three raw extracts into one project-events table, road_projects.parquet",
+    )
+    rp_pre.set_defaults(func=h.command_road_projects_preprocess)
+
+    rp_assemble = cmd.add_parser(
+        "assemble",
+        help="Match schools to a roadway+milepost and attach nearby projects, REQUIRES schools + road-network preprocess",
+    )
+    rp_assemble.add_argument(
+        "--max-dist",
+        type=float,
+        default=None,
+        help="Max school-to-roadway match distance in metres (default: 1000).",
+    )
+    rp_assemble.add_argument(
+        "--tolerance-mi",
+        type=float,
+        default=None,
+        help="Milepost-overlap tolerance in miles when matching a school to a nearby project (default: 0.25).",
+    )
+    rp_assemble.set_defaults(func=h.command_road_projects_assemble)
 
 
 def _register_assessments(domains: argparse._SubParsersAction) -> None:

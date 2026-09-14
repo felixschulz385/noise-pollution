@@ -24,7 +24,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from src.regions.florida.sources._http import download_to_file
+from src.regions.florida.sources._http import download_to_file, get_json
 from src.regions.florida.sources.schools.shared import (
     API_SUBSOURCES,
     API_YEARS_DEFAULT,
@@ -196,34 +196,11 @@ class _ApiNotFound(RuntimeError):
     """The API has no data for this subsource/year (HTTP 404)."""
 
 
-_RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
-
-
 def _get_json(url: str, *, timeout: int = 120, attempts: int = 4) -> dict:
     """GET JSON, retrying transient upstream failures (5xx / 429 / transport)
     with exponential backoff. educationdata.urban.org sits behind Cloudflare and
     502s intermittently, which would otherwise kill a whole year's pull."""
-    request = Request(url, headers={"User-Agent": _API_UA, "Accept": "application/json"}, method="GET")
-    last_error = ""
-    for attempt in range(1, attempts + 1):
-        try:
-            with urlopen(request, timeout=timeout) as response:
-                payload = response.read()
-            return json.loads(payload)
-        except HTTPError as exc:
-            if exc.code == 404:
-                raise _ApiNotFound(url) from exc
-            detail = exc.read().decode("utf-8", errors="replace")[:300]
-            last_error = f"HTTP {exc.code} for {url}: {detail}"
-            if exc.code not in _RETRY_STATUS:
-                raise RuntimeError(last_error) from exc
-        except URLError as exc:
-            last_error = f"Request failed for {url}: {exc}"
-        except ValueError as exc:
-            last_error = f"{url} did not return JSON: {exc}"
-        if attempt < attempts:
-            time.sleep(min(2 ** attempt, 15))
-    raise RuntimeError(f"{last_error}  (gave up after {attempts} attempts)")
+    return get_json(url, user_agent=_API_UA, timeout=timeout, attempts=attempts, not_found_exc=_ApiNotFound)
 
 
 def _get_all_pages(first_url: str, *, timeout: int = 120, page_cap: int = 500) -> list[dict]:

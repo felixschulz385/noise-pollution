@@ -115,6 +115,15 @@ the barrier layer.
 
 ## Cluster D — Road-works / construction projects
 
+**Status: fully implemented and joined into `panel` 2026-09-14** — `fetch` +
+`preprocess` + `assemble` (118,014 project-item rows / 4,676 roadways;
+5,366/5,984 schools matched to a roadway+milepost, 40,729 school↔project
+pairs, 2,586 schools with ≥1 nearby project) plus the final panel join
+(`attach_road_projects`, a year-interval-overlap match — 4.5% of the
+660,681-row event-study panel matched an active project). Full
+implementation brief, live-verified schema, and the join strategy:
+[`road_projects/README.md`](road_projects/README.md).
+
 Walls are frequently one line item in a widening or PD&E project. The widening
 adds capacity (→ traffic) and the construction itself is disruptive; both
 coincide with wall completion. Need this to (a) control for it and (b) split
@@ -122,13 +131,17 @@ coincide with wall completion. Need this to (a) control for it and (b) split
 
 | Variable | Role | TV? | Why it matters | Source | Access |
 |---|---|---|---|---|---|
-| Adjacent widening / resurfacing / interchange / PD&E project — presence & dates | baseline / treatment-split | Y | co-timed confounder | FDOT **Five-Year Work Program** / Work Program Administration extract | Open Data Hub: *Work Program Current*, *Current Active Construction Projects*, *Construction Phase* <https://gis-fdot.opendata.arcgis.com/search?categories=projects> |
-| Construction start / end / letting dates | baseline | Y | timing alignment | FDOT Work Program (FM/Financial-Management number keyed); SCO Construction <https://scoc.fdot.gov/> | Open Data Hub; `data.fdot.gov/road/projects/` |
-| Project type / scope code | treatment-split | Y | widening vs standalone barrier vs resurfacing | FDOT Work Program | same |
-| Quieter-pavement resurfacing (OGFC / open-graded) | selection | Y | a *different* noise reduction, could be attributed to the wall | FDOT RCI pavement / resurfacing contracts | FDOT Data portal |
+| Adjacent widening / resurfacing / interchange / PD&E project — presence & dates | baseline / treatment-split | Y | co-timed confounder | FDOT **Five-Year Work Program** / Work Program Administration extract | live REST, confirmed: `Work_Program_Current` FeatureServer (21 phase layers, `RDWYID`+milepost keyed — same id format as `road_network.roadway_id`), layers 2 (Construction) + 13 (PD&E) prioritized |
+| Construction start / end / letting dates | baseline | Y | timing alignment | `Active_Construction_Projects` FeatureServer (Site Manager extract) — has real `StartDate`/`EstEndDate`, `Work_Program_Current` only has fiscal-year grain | live REST, confirmed field schema |
+| Project type / scope code | treatment-split | Y | widening vs standalone barrier vs resurfacing | `Work_Program_Current.WPWKMIXN` (confirmed values incl. `"RESURFACING"`, `"ADD LANES & RECONSTR"`, `"INTERCHANGE - ADD LA"`) | same |
+| Quieter-pavement resurfacing (OGFC / open-graded) | selection | Y | a *different* noise reduction, could be attributed to the wall | FDOT RCI pavement / resurfacing contracts | not found in either live service checked — open question, see README |
 
-Pre-~2010 history may need a manual pull from Work Program archives or an FDOT
-data request; the Open Data Hub extract is current/recent.
+**Real, unresolved gap**: both live services are current-only; the one
+downloadable historical archive found (`fdotewp1.dot.state.fl.us`) only
+reaches back to adoption year **2019** — well short of this study's 1998–2026
+wall cohort. See `road_projects/README.md`'s Open Question 1 for the scoping
+decision this forces (accept 2019+ coverage / pursue an FDOT records request
+/ restrict the road-works control to recent wall cohorts).
 
 ---
 
