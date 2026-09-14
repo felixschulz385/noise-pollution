@@ -25,6 +25,7 @@ dependencies:
   - contextily       # web-tile basemaps for the exploratory notebooks
   - pyarrow          # timetable preprocess writes .parquet
   - xlrd>=2.0.1      # read the legacy .xls FLDOE assessment workbooks
+  - lxml             # pd.read_html parser for "Excel HTML" .xls exports (2004-05 science reports)
   - pytest
   - pip
   - pip:
