@@ -5,8 +5,9 @@ local-intensity scaling), and the `panel/assemble.py` join are all
 implemented and run against real data** — see
 [Real run](#real-run-2026-09-14),
 [Local-intensity scaling](#local-intensity-scaling-aadt_local--implemented-2026-09-14),
-and [What's next](#whats-next) for the one open question the panel-level
-join surfaced.
+and [What's next](#whats-next). The 2003–2010 vs. 2014+ match-rate gap the
+panel-level join surfaced is now resolved (root cause: FGDL's own AADT-field
+coverage, not a matching bug — see the real-run section below).
 
 ## Why this source exists
 
@@ -232,15 +233,38 @@ tolerance=MAX_TRAFFIC_YEAR_GAP=2)`, adding `traffic_roadway_id`,
 barely moved since de-duplication changes which AADT value gets picked, not
 whether a match exists).
 **Coverage is markedly lower in 2003–2010 (~46%) than 2014 onward
-(~83–88%)** — not obviously explained by the archive's own 2005/2012–2015
-gaps, since both are narrow enough (nearest release ≤2 years away in every
-case, e.g. 2013 is 2 years from 2011) to fall inside the tolerance and
-shouldn't have caused a coverage drop on their own; 2011–2013 sit at an
-intermediate ~57–58%. Left as an open question — worth checking whether
-older/closed schools (more common in the earlier panel years) are
-disproportionately unmatched to a roadway in the first place, before
-`traffic_aadt` is relied on as a baseline control for the FCAT era. Not
-investigated further in this pass.
+(~83–88%)**, with 2011–2013 at an intermediate ~57–58%.
+
+**Resolved 2026-09-14 — root cause confirmed empirically, not a matching
+bug.** The originally-suspected explanation (older/closed schools
+disproportionately unmatched to a roadway) is **wrong**: `school_road_match
+.parquet`'s match rate is msid-level, year-invariant, and high (**89.7%**
+of placed schools matched to a roadway) — it cannot by itself produce a
+year-dependent coverage pattern. The real driver is on the roadway side:
+FGDL's `rciroads` `AADT` field itself was sparsely populated in early
+releases. Checked directly:
+
+- Across **all** `rciroads` roadways, the share with a real (non-null)
+  `AADT` value: **~9–11%** for releases 2004–2010, **21.8%** for 2011, then
+  a step up to **~70–74%** for every release 2016 onward.
+- Restricted to schools' own matched roadways specifically (`traffic
+  /assemble.py` only matches against `arterial_subset` — major/collector
+  roads FDOT prioritizes for counting, so coverage is much better than the
+  all-roadway figure but shows the identical step pattern):
+  `school_aadt_panel.parquet`'s per-release-year AADT-known rate is
+  **~63–64%** for 2004–2010, **75.7%** for 2011, then **~98–99.9%** for
+  every release 2016 onward.
+
+This release-level step pattern (63% → 76% → 99%) lines up almost exactly
+with the panel-level match-rate pattern (46% → 58% → 82%+); the residual
+gap is just the ±2-year `merge_asof` tolerance and the 10.3% of schools
+with no roadway match at all. **Conclusion: comprehensive AADT counting for
+arterial roads wasn't in place until roughly 2016 — a genuine
+characteristic of the underlying FDOT/FGDL source, not a pipeline bug.**
+Worth keeping in mind as a possible selection concern for the FCAT era
+specifically (pre-2016 `traffic_aadt`, where present, may reflect which
+roads FDOT happened to count first) — but the match *rate* itself is no
+longer unexplained.
 
 ## Local-intensity scaling (`aadt_local`) — implemented (2026-09-14)
 
@@ -283,8 +307,7 @@ moderate adjustment, not a rounding-error-sized one.
 
 ## What's next
 
-- **Explain the 2003–2010 vs. 2014+ traffic-match-rate gap** (above) before
-  treating either `traffic_aadt` or `traffic_aadt_local` as reliable for the
-  earliest panel years.
+- ~~Explain the 2003–2010 vs. 2014+ traffic-match-rate gap~~ **resolved**
+  (2026-09-14, above) — FGDL's own AADT-field coverage, not a matching bug.
 - **Truck AADT / heavy-vehicle share** and **pre-`jun04` coverage** remain
   open (see [Known gaps](#known-gaps-not-blocking)).

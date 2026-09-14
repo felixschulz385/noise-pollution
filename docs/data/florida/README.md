@@ -238,11 +238,13 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
   beyond the tolerance keeps `NA` traffic columns rather than a stale match.
   **Real run**: 470,763 of 660,681 rows (71.3%) got a traffic match;
   coverage is markedly lower in the earlier panel (~46% for 2003–2010) than
-  the later panel (~83–88% from 2014 on) — worth digging into before relying
-  on `traffic_aadt` as a baseline control for the earliest years, since it's
-  not obviously explained by the FGDL archive's own 2005/2012–2015 gaps
-  (both bracketed within the ±2-year tolerance, so neither actually loses
-  coverage — see [`traffic/README.md`](traffic/README.md)).
+  the later panel (~83–88% from 2014 on). **Resolved** (2026-09-14): not a
+  matching bug (school→roadway matching is 89.7%, year-invariant) — FGDL's
+  own `AADT` field was sparsely populated on arterial roads before ~2016
+  (~63–64% coverage 2004–2010 vs. ~98–99% 2016 on, checked directly), a
+  genuine characteristic of the source. See
+  [`traffic/README.md`](traffic/README.md)'s real-run section for the full
+  investigation.
 - **Road-works (Cluster D) is joined in**: `n_road_projects_active`,
   `road_project_is_wall`, `road_project_is_widening`, via
   `attach_road_projects` — a project's timing is a *year interval*

@@ -24,3 +24,27 @@ src/experiments/florida/schools.ipynb
 # (incl. the >=95% match-rate acceptance check) are the deliverable; reads
 # only public FGDL / FLDOE MSID data, no confidential content.
 src/experiments/florida/road_network.ipynb
+#
+# traffic.ipynb: imports `traffic/{preprocess,assemble}.py` and walks through
+# the source's main data-preparation decisions (roadway-level not
+# segment-level grain, length-weighted AADT aggregation, the duplicate-release
+# bug fix, local-intensity scaling, the 2003-2010 vs. 2014+ match-rate
+# investigation) with real FGDL data; the validation tables/figures are the
+# deliverable; reads only public FGDL data, no confidential content.
+src/experiments/florida/traffic.ipynb
+#
+# road_projects.ipynb: imports `road_projects/{preprocess,assemble}.py` and
+# walks through the source's main data-preparation decisions (two ArcGIS
+# extracts' differing temporal coverage, the roadway_id+milepost join
+# validated against road_network, the is_wall_project keyword-flag false
+# positive) with real FDOT data; the validation tables/figures are the
+# deliverable; reads only public FDOT ArcGIS data, no confidential content.
+src/experiments/florida/road_projects.ipynb
+#
+# shocks.ipynb: imports `shocks/{preprocess,assemble}.py` and walks through
+# the source's main data-preparation decisions (the county-name-not-FIPS
+# join validated against the FLDOE district roster, the month-aware
+# assessment-year derivation, the Statewide-declaration expansion) with real
+# OpenFEMA data; the validation tables/figures are the deliverable; reads
+# only public OpenFEMA data, no confidential content.
+src/experiments/florida/shocks.ipynb
