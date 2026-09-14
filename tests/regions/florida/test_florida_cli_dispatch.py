@@ -72,6 +72,10 @@ from src.regions.florida.sources.road_network.shared import (
         ["florida", "data", "road-projects", "preprocess"],
         ["florida", "data", "road-projects", "assemble"],
         ["florida", "data", "road-projects", "assemble", "--max-dist", "500", "--tolerance-mi", "0.1"],
+        ["florida", "data", "shocks", "fetch"],
+        ["florida", "data", "shocks", "fetch", "--force"],
+        ["florida", "data", "shocks", "preprocess"],
+        ["florida", "data", "shocks", "assemble"],
         ["florida", "data", "panel", "assemble"],
     ],
 )

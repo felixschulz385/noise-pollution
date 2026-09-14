@@ -13,8 +13,9 @@ is in place.
 | `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/regions/florida/sources/schools/` |
 | `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and underpins `traffic`. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, planned `road_projects`) | `src/regions/florida/sources/road_network/` |
 | `traffic` | `list-versions`, `fetch`, `preprocess` (fetch many FGDL `rciroads` releases' `AADT` field and stack into `aadt_panel.parquet`, one row per `roadway_id × release_year`), `assemble` (match schools to a roadway, join its AADT time series → `school_aadt_panel.parquet`, 89.7% match rate) — all implemented, see [`traffic/README.md`](traffic/README.md). Covariate Cluster C. **Joined into `panel`'s final event-study table** (nearest-release-year match, 71.3% of rows matched). | `road_network`'s fetch machinery (reused directly), `schools preprocess` + `road_network preprocess` (`assemble`) | `src/regions/florida/sources/traffic/` |
-| `panel` | `assemble` (join `assessments` + `schools` + `traffic` + `road_projects` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, `traffic` (nearest-release-year match, 71.3% of rows matched), and now `road_projects` (year-interval-overlap match, 4.5% of rows matched an active project — see the sections below), but doesn't yet carry the three other planned covariate modules (`staff`, `shocks`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)). | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`), `road_projects` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
+| `panel` | `assemble` (join `assessments` + `schools` + `traffic` + `road_projects` + `shocks` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, `traffic` (nearest-release-year match, 71.3% of rows matched), `road_projects` (year-interval-overlap match, 4.5% of rows matched an active project), and now `shocks` (exact county-year match, 44.7% of rows matched a disaster declaration — see the sections below), but doesn't yet carry the two other planned covariate modules (`staff`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)). | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`), `road_projects` (`fetch` + `preprocess` + `assemble`), `shocks` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
 | `road_projects` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`road_projects/README.md`](road_projects/README.md). Covariate Cluster D (widening/PD&E/construction projects co-timed with a wall). Pulls FDOT `Work_Program_Current` layers 2/13 + `Active_Construction_Projects` ArcGIS REST services (both keyed by the same `ROADWAY` id format as `road_network.roadway_id`, confirmed live) into `road_projects.parquet` (118,014 project-item rows, 4,676 distinct roadways). `assemble` matches schools to a roadway + milepost and joins nearby projects via milepost-range overlap (5,366/5,984 schools matched, 40,729 school↔project pairs, 2,586 schools with ≥1 nearby project). **Joined into `panel`'s `event_study_panel.parquet`** via a year-interval-overlap match (4.5% of panel rows matched an active project). | `schools` (`preprocess`), `road_network` (`preprocess`) | `src/regions/florida/sources/road_projects/` |
+| `shocks` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`shocks/README.md`](shocks/README.md). Covariate Cluster G (county-level hurricane/disaster declarations). Pulls OpenFEMA `DisasterDeclarationsSummaries` v2 (entire FL history, 2,794 rows, in one request — no pagination needed) into `disaster_declarations.parquet`. `assemble` rolls up to `county_name x assessment_year` (1,774 rows) and validates the join against the real 67-county FLDOE district roster — a name join, not FIPS, since Florida has one district per county. **Joined into `panel`'s `event_study_panel.parquet`** via an exact `(district_name, year)` match (44.7% of panel rows matched a declaration, 35.6% a hurricane). | `schools` (`preprocess`) | `src/regions/florida/sources/shocks/` |
 
 On-disk output lands under `data/florida/<domain>/{raw,processed,assembled}/`.
 
@@ -257,12 +258,25 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
   own coverage gaps (Work Program layers current-window only, Active
   Construction only back to 2009 — see
   [`road_projects/README.md`](road_projects/README.md)).
-- **Known gap:** still a **first-pass panel** for the remaining four
+- **Shocks (Cluster G) is joined in**: `shock_n_declarations`,
+  `shock_n_hurricane_declarations`, `shock_any_major_disaster`, via
+  `attach_shocks` — the simplest join in this module: `shocks assemble`
+  already resolves each declaration to one exact assessment year and
+  county, so this is a plain exact `(district_name, year)` left join
+  against `assessments`' own district-name column, no per-school
+  intermediate file or match tolerance needed. **Real run**: **295,517 of
+  660,681 rows (44.7%)** matched at least one declaration that year, 235,152
+  (35.6%) a hurricane specifically, 217,658 (32.9%) a major (`DR`) disaster
+  — a much higher match rate than `traffic`/`road_projects` since disaster
+  declarations are common, county-wide events rather than tied to a
+  specific school's roadway proximity (see
+  [`shocks/README.md`](shocks/README.md)).
+- **Known gap:** still a **first-pass panel** for the remaining two
   covariate modules — see the domain table above and
-  [`covariates.md`](covariates.md) for `staff`, `shocks`, `air_quality`,
-  `neighbourhood`. Treat it as sufficient for a first-pass /
-  robustness-limited specification, not the paper's baseline spec, until
-  those exist too.
+  [`covariates.md`](covariates.md) for `staff` and `neighbourhood`
+  (`air_quality` is explicitly non-baseline). Treat it as sufficient for a
+  first-pass / robustness-limited specification, not the paper's baseline
+  spec, until those exist too.
 
 ## `assessments` — `fetch` (manual) + `preprocess` (merge to a tidy panel)
 

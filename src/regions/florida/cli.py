@@ -38,7 +38,14 @@ extracts, `Work_Program_Current` layers 2/13 (current-window only) and
 `assemble` — match schools to a roadway + milepost (reusing
 `road-network`'s linear-referencing helpers) and attach every project whose
 milepost range overlaps, REQUIRES `schools preprocess` + `road-network
-preprocess`, see `docs/data/florida/road_projects/README.md`).
+preprocess`, see `docs/data/florida/road_projects/README.md`), ``shocks``
+(`fetch`, `preprocess`, `assemble` — county-level disaster/hurricane
+declarations, covariate Cluster G; OpenFEMA `DisasterDeclarationsSummaries`
+v2, the entire FL history fetched in one request; `assemble` rolls up to
+`county_name x assessment_year` and joins onto the real FLDOE county-
+district roster (a name join, not FIPS — Florida has one district per
+county), REQUIRES `schools preprocess`, see
+`docs/data/florida/shocks/README.md`).
 """
 from __future__ import annotations
 
@@ -60,6 +67,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_road_network(data_domains)
     _register_traffic(data_domains)
     _register_road_projects(data_domains)
+    _register_shocks(data_domains)
     _register_panel(data_domains)
 
 
@@ -240,6 +248,33 @@ def _register_road_projects(domains: argparse._SubParsersAction) -> None:
         help="Milepost-overlap tolerance in miles when matching a school to a nearby project (default: 0.25).",
     )
     rp_assemble.set_defaults(func=h.command_road_projects_assemble)
+
+
+def _register_shocks(domains: argparse._SubParsersAction) -> None:
+    shocks = domains.add_parser(
+        "shocks", help="County-level disaster/hurricane declarations (OpenFEMA)"
+    )
+    cmd = shocks.add_subparsers(dest="stage", required=True)
+
+    sh_fetch = cmd.add_parser(
+        "fetch", help="Download the entire FL disaster-declaration history in one request"
+    )
+    sh_fetch.add_argument(
+        "--force", action="store_true", help="Re-fetch even if the raw extract is already cached."
+    )
+    sh_fetch.set_defaults(func=h.command_shocks_fetch)
+
+    sh_pre = cmd.add_parser(
+        "preprocess",
+        help="Normalize county names and derive the assessment year each declaration disrupted",
+    )
+    sh_pre.set_defaults(func=h.command_shocks_preprocess)
+
+    sh_assemble = cmd.add_parser(
+        "assemble",
+        help="Roll declarations up to county x assessment-year, REQUIRES schools preprocess",
+    )
+    sh_assemble.set_defaults(func=h.command_shocks_assemble)
 
 
 def _register_assessments(domains: argparse._SubParsersAction) -> None:

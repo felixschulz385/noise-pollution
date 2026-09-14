@@ -131,6 +131,30 @@ def command_road_projects_assemble(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_shocks_fetch(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.shocks.fetch import fetch_disaster_declarations
+
+    result = fetch_disaster_declarations(force=args.force)
+    print_json({"domain": "shocks", "stage": "fetch", **result})
+    return 0
+
+
+def command_shocks_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.shocks.preprocess import run_shocks_preprocess
+
+    result = run_shocks_preprocess()
+    print_json({"domain": "shocks", "stage": "preprocess", **result})
+    return 0
+
+
+def command_shocks_assemble(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.shocks.assemble import run_shocks_assemble
+
+    result = run_shocks_assemble()
+    print_json({"domain": "shocks", "stage": "assemble", **result})
+    return 0
+
+
 def command_assessments_list_years(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.assessments.fetch import list_years
 

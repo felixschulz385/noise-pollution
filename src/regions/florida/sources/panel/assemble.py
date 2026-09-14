@@ -62,6 +62,24 @@ plausibly land a reversed range; ``_project_active_years`` treats
 ``year_lo > year_hi`` the same as an unusable/missing interval (excluded
 before exploding) rather than crashing on ``range(lo, hi + 1)`` producing an
 empty span.
+
+**Shocks (Cluster G) is joined by an exact ``(district_name, year)`` match —
+the simplest join in this module.** ``shocks``' ``county_year_panel``
+(``shocks/assemble.py``'s output, despite the ``school_shocks_panel.parquet``
+filename — kept at ``county_name x assessment_year`` grain, not exploded per
+school, since every school in a county sees the identical declaration
+history) already carries ``assessment_year`` — ``shocks/preprocess.py``
+derives it from each declaration's actual date via the same month-aware rule
+``schools/preprocess.py`` uses for ``in_operation``. So ``attach_shocks``
+needs no ``merge_asof`` tolerance or interval explosion: it renames
+``county_name``/``assessment_year`` to ``district_name``/``year`` and does a
+plain left join — ``assessments``' own ``district_name`` column already
+upper-cases to the same county-name convention ``shocks`` normalizes to, no
+extra crosswalk needed here. A school-year in a county with no declaration
+that year (or in one of the ~20 special, non-county FLDOE districts) gets
+``shock_n_declarations=0`` / ``shock_any_major_disaster=False`` — a real "no
+shock" value, matching the ``ever_treated_*``/``n_road_projects_active``
+convention, not ``NA``.
 """
 from __future__ import annotations
 
@@ -80,6 +98,7 @@ from src.regions.florida.sources.schools.shared import (
     processed_cross_section_path,
     processed_panel_path,
 )
+from src.regions.florida.sources.shocks.shared import school_shocks_panel_path
 from src.regions.florida.sources.traffic.shared import school_aadt_panel_path
 
 TREATMENT_DEFINITIONS = ("point", "same_route", "same_side")
@@ -172,6 +191,13 @@ def load_school_road_projects(root: Path | None = None) -> pd.DataFrame:
     path = school_road_projects_path(root)
     if not path.exists():
         raise FileNotFoundError(f"{path} missing — run `... florida data road-projects assemble` first.")
+    return pd.read_parquet(path)
+
+
+def load_shocks_county_year_panel(root: Path | None = None) -> pd.DataFrame:
+    path = school_shocks_panel_path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing — run `... florida data shocks assemble` first.")
     return pd.read_parquet(path)
 
 
@@ -298,6 +324,34 @@ def attach_road_projects(panel: pd.DataFrame, school_road_projects: pd.DataFrame
     return out
 
 
+SHOCKS_RENAME = {
+    "county_name": "district_name",
+    "assessment_year": "year",
+    "n_declarations": "shock_n_declarations",
+    "n_hurricane_declarations": "shock_n_hurricane_declarations",
+    "any_major_disaster": "shock_any_major_disaster",
+}
+
+
+def attach_shocks(panel: pd.DataFrame, shocks_county_year_panel: pd.DataFrame) -> pd.DataFrame:
+    """Left-join each row onto the county-year shocks rollup by exact
+    ``(district_name, year)`` — the simplest join in this module:
+    ``assessment_year`` (derived in ``shocks/preprocess.py``) already
+    resolves each declaration to one exact spring, and ``assessments``' own
+    ``district_name`` already upper-cases to the same county-name convention
+    ``shocks`` normalizes to, so no ``merge_asof`` tolerance or interval
+    explosion is needed. A school-year in a county with no declaration (or
+    in a special, non-county FLDOE district) gets ``shock_n_declarations=0``
+    / ``shock_any_major_disaster=False`` — a real "no shock" value, not
+    ``NA``."""
+    renamed = shocks_county_year_panel.rename(columns=SHOCKS_RENAME)
+    out = panel.merge(renamed, on=["district_name", "year"], how="left")
+    out["shock_n_declarations"] = out["shock_n_declarations"].fillna(0).astype(int)
+    out["shock_n_hurricane_declarations"] = out["shock_n_hurricane_declarations"].fillna(0).astype(int)
+    out["shock_any_major_disaster"] = out["shock_any_major_disaster"].fillna(False).astype(bool)
+    return out
+
+
 def build_event_study_panel(
     assessments: pd.DataFrame,
     school_year_panel: gpd.GeoDataFrame,
@@ -305,12 +359,14 @@ def build_event_study_panel(
     rollup: pd.DataFrame,
     school_aadt_panel: pd.DataFrame,
     school_road_projects: pd.DataFrame,
+    shocks_county_year_panel: pd.DataFrame,
     max_traffic_year_gap: int = MAX_TRAFFIC_YEAR_GAP,
 ) -> gpd.GeoDataFrame:
     """One row per ``(msid, grade, subject, year)`` — the ``assessments``
     grain — with Cluster-A covariates, static school identity/filter fields,
     all three treatment-timing definitions, the nearest-year traffic (AADT)
-    match, and the road-projects year-interval match joined on."""
+    match, the road-projects year-interval match, and the shocks
+    county-year match joined on."""
     panel = assessments.loc[~assessments["is_state_total"].fillna(False)].copy()
 
     panel = panel.merge(
@@ -321,6 +377,7 @@ def build_event_study_panel(
     panel = panel.merge(rollup[TREATMENT_COLUMNS], on="msid", how="left", validate="m:1")
     panel = attach_traffic(panel, school_aadt_panel, max_traffic_year_gap)
     panel = attach_road_projects(panel, school_road_projects)
+    panel = attach_shocks(panel, shocks_county_year_panel)
 
     for definition in TREATMENT_DEFINITIONS:
         # No wall nearby -> genuinely never treated / no unknown-timing wall,
@@ -343,17 +400,24 @@ def save_panel(panel: gpd.GeoDataFrame, metadata: dict[str, object], root: Path 
 
 
 def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
-    """Load the assessments + schools + traffic + road-projects artifacts,
-    join, validate, and persist."""
+    """Load the assessments + schools + traffic + road-projects + shocks
+    artifacts, join, validate, and persist."""
     assessments = load_assessments(root)
     school_year_panel = load_school_year_panel(root)
     cross_section = load_cross_section(root)
     rollup = load_treatment_rollup(root)
     school_aadt_panel = load_school_aadt_panel(root)
     school_road_projects = load_school_road_projects(root)
+    shocks_county_year_panel = load_shocks_county_year_panel(root)
 
     panel = build_event_study_panel(
-        assessments, school_year_panel, cross_section, rollup, school_aadt_panel, school_road_projects
+        assessments,
+        school_year_panel,
+        cross_section,
+        rollup,
+        school_aadt_panel,
+        school_road_projects,
+        shocks_county_year_panel,
     )
 
     report: dict[str, object] = {
@@ -383,6 +447,9 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
         "rows_with_road_project_active": int((panel["n_road_projects_active"] > 0).sum()),
         "rows_with_road_project_wall_keyword": int(panel["road_project_is_wall"].sum()),
         "rows_with_road_project_widening_keyword": int(panel["road_project_is_widening"].sum()),
+        "rows_with_a_shock_declaration": int((panel["shock_n_declarations"] > 0).sum()),
+        "rows_with_a_hurricane_shock": int((panel["shock_n_hurricane_declarations"] > 0).sum()),
+        "rows_with_a_major_disaster_shock": int(panel["shock_any_major_disaster"].sum()),
     }
     saved = save_panel(panel, report, root)
     report["saved"] = saved

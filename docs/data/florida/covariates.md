@@ -180,6 +180,17 @@ endogeneity → `selection`.
 
 Mostly analysis-side indicator controls; some overlap with FE.
 
+**Status: hurricane/disaster-declaration row fully implemented and joined
+into `panel` 2026-09-14** — `fetch` + `preprocess` + `assemble` (2,794
+OpenFEMA rows fetched in one request, 1,774 county × assessment-year rollup
+rows, all 67 real counties matched) plus the final panel join
+(`attach_shocks`, exact `(district_name, year)` match — 44.7% of the
+660,681-row event-study panel matched at least one declaration, 35.6% a
+hurricane specifically). Full implementation brief:
+[`shocks/README.md`](shocks/README.md). The other six Cluster G rows below
+remain unimplemented — see that README's "Scope for a first pass" for what's
+deferred and why.
+
 | Variable | Role | TV? | Why it matters | Source | Access |
 |---|---|---|---|---|---|
 | Hurricane disaster declaration (county × year) — 2004 quad, 2005 Wilma, 2017 Irma, 2018 Michael | baseline | Y | testing disruption, displacement | **OpenFEMA** *Disaster Declarations Summaries v2* (county 1964→, no auth) | API: <https://www.fema.gov/openfema-data-page/disaster-declarations-summaries-v2> |
