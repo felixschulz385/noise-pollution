@@ -11,8 +11,9 @@ is in place.
 | `noise_barriers` | `list-versions`, `fetch`, `preprocess` (clean one FGDL release → tidy GeoParquet barrier layer) | — | `src/regions/florida/sources/noise_barriers/` |
 | `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2003–2026**, 435 files — plain FCAT + FCAT 2.0 + FSA + FAST/B.E.S.T.), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/regions/florida/sources/assessments/` |
 | `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/regions/florida/sources/schools/` |
-| `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and will underpin the planned `traffic` / `road_projects` sources. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, `road_projects`) | `src/regions/florida/sources/road_network/` |
-| `panel` | `assemble` (join `assessments` + `schools` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates + all three barrier-treatment-timing definitions, but the six other planned covariate modules (`traffic`, `road_projects`, `staff`, `shocks`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)) don't exist yet, `road_projects`/`traffic` most notably since they're what the design doc treats as central to the identification strategy. | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
+| `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and underpins `traffic`. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, planned `road_projects`) | `src/regions/florida/sources/road_network/` |
+| `traffic` | `list-versions`, `fetch`, `preprocess` (fetch many FGDL `rciroads` releases' `AADT` field and stack into `aadt_panel.parquet`, one row per `roadway_id × release_year`), `assemble` (match schools to a roadway, join its AADT time series → `school_aadt_panel.parquet`, 89.7% match rate) — all implemented, see [`traffic/README.md`](traffic/README.md). Covariate Cluster C. **Joined into `panel`'s final event-study table** (nearest-release-year match, 71.3% of rows matched). | `road_network`'s fetch machinery (reused directly), `schools preprocess` + `road_network preprocess` (`assemble`) | `src/regions/florida/sources/traffic/` |
+| `panel` | `assemble` (join `assessments` + `schools` + `traffic` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, and now `traffic` (nearest-release-year match, 71.3% of rows matched — see the `traffic` section below), but doesn't yet carry the five other planned covariate modules (`road_projects`, `staff`, `shocks`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)); `road_projects` is the other half of the identification-driver confounder pair the design doc names. | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
 
 On-disk output lands under `data/florida/<domain>/{raw,processed,assembled}/`.
 
@@ -144,6 +145,58 @@ implemented in `road_network/linear_ref.py` + `schools/assemble.py`'s
 point-only baseline on the real fetched data. See the `road_network`
 README's Open Question 7 for the full design writeup.
 
+## `traffic` — `fetch` + `preprocess` implemented, no `assemble` yet
+
+An AADT (Annual Average Daily Traffic) panel — covariate Cluster C, the core
+confounder set (`covariates.md`): FDOT sites noise walls by modelled noise
+level, which tracks traffic growth, so a traffic trend at a soon-to-be-treated
+road is the identification risk this covariate is meant to absorb.
+
+Built entirely from FGDL `rciroads` releases `road_network` already fetches —
+one release's `AADT` field is a cross-section, but fetching **many** releases
+(the archive holds 57, `jun04` → `jul26`, ~3/year) turns it into a real panel.
+Full design brief: [`traffic/README.md`](traffic/README.md).
+
+```bash
+python -m src.cli florida data traffic list-versions
+python -m src.cli florida data traffic fetch                       # every archived release (57 downloads)
+python -m src.cli florida data traffic fetch --version jul26 --version jan19
+python -m src.cli florida data traffic fetch --limit 5             # smoke test: 5 most recent releases only
+python -m src.cli florida data traffic preprocess                  # -> data/florida/traffic/processed/aadt_panel.parquet (+ traffic.json)
+```
+
+`fetch` reuses `road_network.fetch.fetch_road_network` for each requested
+version (sharing one copy of the release with `road_network` if it's already
+there) rather than duplicating the download/zip logic, keeps only the
+attribute columns this source needs, and by default deletes the ~34 MB of
+extracted geometry again afterwards (`--keep-road-network-raw` to keep it).
+Idempotent — re-running `fetch` skips a version whose attribute table is
+already on disk unless `--force`.
+
+**`preprocess`'s row grain is `roadway_id × release_year`, not `roadway_id ×
+segmentid` — verified against live data, not assumed.** Comparing `jul26`
+against `jan19` showed FGDL re-segments each `ROADWAY` differently release to
+release (only 5 of ~40k `jul26` segment-ids matched `jan19`'s, and even
+milepost breakpoints for the same stretch of road shift), while `roadway_id`
+itself is stable (84% overlap). So `preprocess` aggregates each release's
+segments within a `roadway_id` into one row — AADT as the **length-weighted**
+mean (`aadt_min`/`aadt_max`/`segment_count`/`length_mi` alongside it, so a
+consumer can see how much within-roadway heterogeneity that's smoothing
+over). Confirmed the aggregate still carries real time variation: `jul26` vs
+`jan19` (2026 vs 2019) shows a +10% median AADT change across ~15.5k shared
+roadways, ~51/49 up/down — consistent with traffic growth, not noise.
+
+`assemble` matches every placed school to its nearest arterial `roadway_id`
+(reusing `road_network/linear_ref.py`'s nearest-road matcher, the same
+helper `schools/assemble.py`'s `match_barriers_road` uses for walls) and
+left-joins `aadt_panel` onto it → `school_road_match.parquet` +
+`school_aadt_panel.parquet`. Real run: 5,984 placed schools → 5,366 matched
+(89.7%) within 1000 m; `school_aadt_panel.parquet` 91,431 rows, `aadt`
+known for ~89%. **Not yet wired into `panel`'s `event_study_panel.parquet`**
+— left at `msid × release_year` grain deliberately, since matching a
+`release_year` to an assessment year needs a nearest-year join that's
+`panel/assemble.py`'s job, not this source's.
+
 ## `panel` — the final event-study join (`assemble` only)
 
 Joins `assessments` (outcome) + `schools` (spine identity, Cluster A
@@ -174,14 +227,28 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
 - **Real run**: 370,891 rows, 4,419 distinct schools, years 2015–2026.
   `ever_treated` schools: 455 (`_point`) → 262 (`_same_route`) → 198
   (`_same_side`) — each tier a strict refinement of the last.
-- **Known gap:** this is a **first-pass panel** — see the domain table above
-  and [`covariates.md`](covariates.md) for the six covariate modules
-  (`traffic`, `road_projects`, `staff`, `shocks`, `air_quality`,
-  `neighbourhood`) it doesn't yet carry. Treat it as sufficient for a
-  first-pass / robustness-limited specification, not the paper's baseline
-  spec, until at least `road_projects` (the module `covariates.md` flags as
-  central to the identification strategy — FDOT tends to build barriers
-  alongside road-widening projects) exists.
+- **Traffic (Cluster C) is now joined in**: `traffic_roadway_id`,
+  `traffic_release_year`, `traffic_aadt`, `traffic_match_dist_m`, via
+  `attach_traffic` — a `pd.merge_asof(direction="nearest",
+  tolerance=MAX_TRAFFIC_YEAR_GAP=2)` per `msid`, matching each
+  `(msid, year)` row to the nearest FGDL release year for that school's
+  matched roadway (`traffic assemble`'s `school_aadt_panel.parquet`). A row
+  beyond the tolerance keeps `NA` traffic columns rather than a stale match.
+  **Real run**: 470,763 of 660,681 rows (71.3%) got a traffic match;
+  coverage is markedly lower in the earlier panel (~46% for 2003–2010) than
+  the later panel (~83–88% from 2014 on) — worth digging into before relying
+  on `traffic_aadt` as a baseline control for the earliest years, since it's
+  not obviously explained by the FGDL archive's own 2005/2012–2015 gaps
+  (both bracketed within the ±2-year tolerance, so neither actually loses
+  coverage — see [`traffic/README.md`](traffic/README.md)).
+- **Known gap:** still a **first-pass panel** for the other five covariate
+  modules — see the domain table above and [`covariates.md`](covariates.md)
+  for `road_projects`, `staff`, `shocks`, `air_quality`, `neighbourhood`.
+  Treat it as sufficient for a first-pass / robustness-limited specification,
+  not the paper's baseline spec, until at least `road_projects` (the module
+  `covariates.md` flags as the other half of the identification-driver pair
+  alongside `traffic` — FDOT tends to build barriers alongside road-widening
+  projects) exists.
 
 ## `assessments` — `fetch` (manual) + `preprocess` (merge to a tidy panel)
 

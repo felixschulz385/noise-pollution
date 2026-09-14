@@ -60,6 +60,13 @@ from src.regions.florida.sources.road_network.shared import (
         ["florida", "data", "road-network", "fetch", "--version", "apr23", "--keep-zip", "--no-metadata"],
         ["florida", "data", "road-network", "preprocess"],
         ["florida", "data", "road-network", "preprocess", "--version", "apr23"],
+        ["florida", "data", "traffic", "list-versions"],
+        ["florida", "data", "traffic", "fetch"],
+        ["florida", "data", "traffic", "fetch", "--version", "apr23", "--version", "jul26", "--force"],
+        ["florida", "data", "traffic", "fetch", "--limit", "5", "--keep-road-network-raw"],
+        ["florida", "data", "traffic", "preprocess"],
+        ["florida", "data", "traffic", "assemble"],
+        ["florida", "data", "traffic", "assemble", "--max-dist", "500"],
         ["florida", "data", "panel", "assemble"],
     ],
 )

@@ -10,6 +10,7 @@ from src.regions.florida.sources.panel.assemble import (
     STATIC_SCHOOL_COLUMNS,
     TREATMENT_COLUMNS,
     TREATMENT_DEFINITIONS,
+    attach_traffic,
     build_event_study_panel,
 )
 
@@ -77,6 +78,21 @@ def _rollup(rows):
     return pd.DataFrame(out)
 
 
+EMPTY_AADT_PANEL = pd.DataFrame(columns=["msid", "roadway_id", "release_year", "aadt", "dist_m"])
+
+
+def _aadt_panel(rows):
+    # rows: (msid, roadway_id, release_year, aadt, dist_m)
+    if not rows:
+        return EMPTY_AADT_PANEL.copy()
+    return pd.DataFrame(
+        [
+            {"msid": m, "roadway_id": r, "release_year": ry, "aadt": a, "dist_m": d}
+            for m, r, ry, a, d in rows
+        ]
+    )
+
+
 def test_grain_is_one_row_per_assessment_row_no_duplication():
     assessments = _assessments([
         ("a", "03", "ELA", 2020, {}),
@@ -88,7 +104,7 @@ def test_grain_is_one_row_per_assessment_row_no_duplication():
     cross_section = _cross_section([("a", 0, 0), ("b", 100, 0)])
     rollup = _rollup([("a", {}), ("b", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL)
     assert len(panel) == 4
     assert panel.drop_duplicates(["msid", "grade", "subject", "year"]).shape[0] == 4
 
@@ -102,7 +118,7 @@ def test_state_total_rows_are_dropped():
     cross_section = _cross_section([("a", 0, 0)])
     rollup = _rollup([("a", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL)
     assert list(panel["msid"]) == ["a"]
 
 
@@ -114,7 +130,7 @@ def test_school_missing_from_rollup_is_never_treated_not_missing():
     # unrelated school "z" is in the rollup at all).
     rollup = _rollup([("z", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL)
     row = panel.iloc[0]
     for definition in TREATMENT_DEFINITIONS:
         assert row[f"ever_treated_{definition}"] == False   # noqa: E712 -- not NaN
@@ -131,7 +147,7 @@ def test_event_time_is_year_minus_first_treat_year():
     cross_section = _cross_section([("a", 0, 0)])
     rollup = _rollup([("a", {"first_treat_year_same_side": 2018.0, "ever_treated_same_side": True})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup).set_index("year")
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL).set_index("year")
     assert panel.loc[2015, "event_time_same_side"] == pytest.approx(-3.0)
     assert panel.loc[2020, "event_time_same_side"] == pytest.approx(2.0)
 
@@ -142,7 +158,7 @@ def test_static_columns_renamed_to_avoid_collision_with_assessments():
     cross_section = _cross_section([("a", 0, 0)])
     rollup = _rollup([("a", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL)
     assert "msid_school_name" in panel.columns and "msid_district_name" in panel.columns
     assert panel.iloc[0]["msid_school_name"] == "MSID Name"
     # assessments' own district_name / school_name survive un-suffixed.
@@ -159,7 +175,7 @@ def test_missing_covariate_row_keeps_the_assessment_row():
     cross_section = _cross_section([("b", 0, 0)])
     rollup = _rollup([("b", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL)
     assert len(panel) == 1
     assert pd.isna(panel.iloc[0]["enrollment"])
 
@@ -170,7 +186,7 @@ def test_treatment_and_static_columns_present():
     cross_section = _cross_section([("a", 0, 0)])
     rollup = _rollup([("a", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL)
     for col in TREATMENT_COLUMNS:
         if col == "msid":
             continue
@@ -179,3 +195,56 @@ def test_treatment_and_static_columns_present():
         if col in ("msid", "name", "district_name"):
             continue
         assert col in panel.columns
+
+
+def test_attach_traffic_picks_nearest_release_year_within_tolerance():
+    panel = pd.DataFrame({"msid": ["a", "a"], "year": [2013, 2019]})
+    aadt = _aadt_panel(
+        [
+            ("a", "r1", 2011, 8000.0, 10.0),
+            ("a", "r1", 2016, 9000.0, 10.0),
+            ("a", "r1", 2019, 12000.0, 10.0),
+        ]
+    )
+
+    out = attach_traffic(panel, aadt, max_year_gap=2).set_index("year")
+    # 2013 is 2 away from 2011 and 3 away from 2016 -> matches 2011.
+    assert out.loc[2013, "traffic_release_year"] == 2011
+    assert out.loc[2013, "traffic_aadt"] == 8000.0
+    # exact match
+    assert out.loc[2019, "traffic_release_year"] == 2019
+    assert out.loc[2019, "traffic_aadt"] == 12000.0
+
+
+def test_attach_traffic_drops_match_beyond_tolerance():
+    # 2013 is 2 years from the nearest release (2011) -- beyond a tolerance
+    # of 1, so it must come back NA, not a stale match.
+    panel = pd.DataFrame({"msid": ["a"], "year": [2013]})
+    aadt = _aadt_panel([("a", "r1", 2011, 8000.0, 10.0), ("a", "r1", 2016, 9000.0, 10.0)])
+
+    out = attach_traffic(panel, aadt, max_year_gap=1)
+    assert pd.isna(out.loc[0, "traffic_aadt"])
+    assert pd.isna(out.loc[0, "traffic_release_year"])
+
+
+def test_attach_traffic_preserves_row_order_and_keeps_unmatched_school():
+    panel = pd.DataFrame({"msid": ["b", "a", "b"], "year": [2019, 2019, 2020]})
+    aadt = _aadt_panel([("a", "r1", 2019, 12000.0, 10.0)])  # nothing for "b"
+
+    out = attach_traffic(panel, aadt, max_year_gap=2)
+    assert list(out["msid"]) == ["b", "a", "b"]
+    assert list(out["year"]) == [2019, 2019, 2020]
+    assert pd.isna(out.loc[out["msid"] == "b", "traffic_aadt"]).all()
+    assert out.loc[out["msid"] == "a", "traffic_aadt"].iloc[0] == 12000.0
+
+
+def test_build_event_study_panel_includes_traffic_columns():
+    assessments = _assessments([("a", "03", "ELA", 2019, {})])
+    school_year_panel = _school_year_panel([("a", 2019, 500)])
+    cross_section = _cross_section([("a", 0, 0)])
+    rollup = _rollup([("a", {})])
+    aadt = _aadt_panel([("a", "r1", 2019, 12000.0, 10.0)])
+
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, aadt)
+    assert panel.iloc[0]["traffic_aadt"] == 12000.0
+    assert panel.iloc[0]["traffic_roadway_id"] == "r1"

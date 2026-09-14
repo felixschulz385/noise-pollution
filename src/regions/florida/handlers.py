@@ -64,6 +64,42 @@ def command_road_network_preprocess(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_traffic_list_versions(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.traffic.fetch import list_versions
+
+    print_json({"domain": "traffic", "stage": "list-versions", **list_versions()})
+    return 0
+
+
+def command_traffic_fetch(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.traffic.fetch import fetch_traffic_panel
+
+    result = fetch_traffic_panel(
+        versions=args.versions,
+        limit=args.limit,
+        force=args.force,
+        keep_road_network_raw=args.keep_road_network_raw,
+    )
+    print_json({"domain": "traffic", "stage": "fetch", **result})
+    return 0
+
+
+def command_traffic_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.traffic.preprocess import run_traffic_preprocess
+
+    result = run_traffic_preprocess()
+    print_json({"domain": "traffic", "stage": "preprocess", **result})
+    return 0
+
+
+def command_traffic_assemble(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.traffic.assemble import MAX_MATCH_DIST_M, run_traffic_assemble
+
+    result = run_traffic_assemble(max_dist=args.max_dist if args.max_dist is not None else MAX_MATCH_DIST_M)
+    print_json({"domain": "traffic", "stage": "assemble", **result})
+    return 0
+
+
 def command_assessments_list_years(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.assessments.fetch import list_years
 

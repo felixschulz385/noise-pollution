@@ -14,9 +14,19 @@ covariates; `assemble` — the school <-> barrier match, algorithms 1-5, REQUIRE
 (`list-versions`, `fetch`, `preprocess` — FDOT RCI-derived roadway centerlines
 from FGDL, same archive naming/index scheme as `noise-barriers` but a zipped
 Shapefile, not a Geodatabase; `preprocess` cleans one release into a tidy
-GeoParquet layer), ``panel`` (`assemble` — the final event-study panel,
-joining `assessments` + `schools` into one msid x grade x subject x year
-table; no `fetch`/`preprocess` of its own, REQUIRES both upstream).
+GeoParquet layer), ``traffic`` (`list-versions`, `fetch`, `preprocess` — an
+AADT panel built by fetching *many* `road-network` FGDL releases instead of
+just one, turning that source's per-release `AADT` field into a time-varying
+covariate; `fetch` reuses `road-network`'s download machinery and by default
+discards the geometry it doesn't need; `assemble` — match schools to a
+roadway_id (reusing `schools`' own nearest-road matcher) and attach that
+roadway's AADT time series, REQUIRES `schools preprocess` +
+`road-network preprocess`), ``panel``
+(`assemble` — the final event-study panel, joining `assessments` + `schools`
++ `traffic` into one msid x grade x subject x year table, traffic joined by
+nearest FGDL release year within `MAX_TRAFFIC_YEAR_GAP` years; no
+`fetch`/`preprocess` of its own, REQUIRES `assessments preprocess`,
+`schools {preprocess,assemble}`, and `traffic {fetch,preprocess,assemble}`).
 """
 from __future__ import annotations
 
@@ -36,6 +46,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_assessments(data_domains)
     _register_schools(data_domains)
     _register_road_network(data_domains)
+    _register_traffic(data_domains)
     _register_panel(data_domains)
 
 
@@ -119,6 +130,63 @@ def _register_road_network(domains: argparse._SubParsersAction) -> None:
         help=f"FGDL release tag to read from raw/ (default: {DEFAULT_VERSION}).",
     )
     rn_pre.set_defaults(func=h.command_road_network_preprocess)
+
+
+def _register_traffic(domains: argparse._SubParsersAction) -> None:
+    traffic = domains.add_parser(
+        "traffic", help="FDOT AADT panel, built from many road-network (FGDL rciroads) releases"
+    )
+    cmd = traffic.add_subparsers(dest="stage", required=True)
+
+    tr_versions = cmd.add_parser(
+        "list-versions",
+        help="List traffic-panel candidate versions (same FGDL rciroads archive as road-network)",
+    )
+    tr_versions.set_defaults(func=h.command_traffic_list_versions)
+
+    tr_fetch = cmd.add_parser(
+        "fetch",
+        help="Download one or many FGDL rciroads releases and save their attribute-only AADT tables",
+    )
+    tr_fetch.add_argument(
+        "--version",
+        action="append",
+        dest="versions",
+        help="An FGDL release tag such as 'jul26'; repeat for multiple. Default: every archived release.",
+    )
+    tr_fetch.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Only fetch the N most recent releases (useful for a quick smoke test).",
+    )
+    tr_fetch.add_argument(
+        "--force", action="store_true", help="Re-fetch a version even if its AADT table is already cached."
+    )
+    tr_fetch.add_argument(
+        "--keep-road-network-raw",
+        action="store_true",
+        help="Keep the extracted road-network shapefile for each fetched version instead of deleting it.",
+    )
+    tr_fetch.set_defaults(func=h.command_traffic_fetch)
+
+    tr_pre = cmd.add_parser(
+        "preprocess",
+        help="Stack every fetched release's AADT table into one roadway-segment x release-year panel",
+    )
+    tr_pre.set_defaults(func=h.command_traffic_preprocess)
+
+    tr_assemble = cmd.add_parser(
+        "assemble",
+        help="Match schools to a roadway and attach that roadway's AADT panel, REQUIRES schools + road-network preprocess",
+    )
+    tr_assemble.add_argument(
+        "--max-dist",
+        type=float,
+        default=None,
+        help="Max school-to-roadway match distance in metres (default: 1000).",
+    )
+    tr_assemble.set_defaults(func=h.command_traffic_assemble)
 
 
 def _register_assessments(domains: argparse._SubParsersAction) -> None:
