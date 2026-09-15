@@ -1,0 +1,155 @@
+\documentclass[11pt]{article}
+
+% ---------------------------------------------------------------------------
+% Scratch LaTeX version, hand-converted from sweden_noise_overview.qmd.
+% Not a polished style match for the Quarto/pandoc output -- meant as a base
+% for collaborative editing on Overleaf.
+% ---------------------------------------------------------------------------
+
+\usepackage[margin=0.75in]{geometry}
+\usepackage{pdflscape}
+\usepackage{longtable}
+\usepackage{newunicodechar}
+\newunicodechar{′}{\textquotesingle} % stray prime character in one .bib title
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{titling}
+\usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
+\usepackage[style=authoryear, backend=biber, maxcitenames=2, uniquename=false, uniquelist=false]{biblatex}
+\addbibresource{Noise Pollution.bib}
+
+% Smaller, more compact title block (Armando: title took up too much space)
+\pretitle{\begin{center}\Large\bfseries}
+\posttitle{\end{center}\vspace{-1.5em}}
+
+% Condensed bibliography spacing + smaller font (Armando: condense references)
+\setlength{\bibitemsep}{0.3em}
+\renewcommand*{\bibfont}{\small}
+
+\title{Noise Pollution and Human Capital}
+\author{Armando Meier \qquad Felix Schulz}
+\date{}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+Noise pollution is a widespread environmental externality, but its consequences for human capital formation remain far less studied than those of air pollution or heat. We seek to contribute to the small existing literature on noise and human capital by exploiting the staggered, plausibly exogenous rollout of a nationwide noise-mitigation program in Sweden.
+
+\subsection*{Noise likely deteriorates sleep, well-being, and health}
+
+A set of quasi-experimental studies point to causal effects of noise on health. \textcite{boesAIRCRAFTNOISEHEALTH2013} exploit two unexpected flight-regulation changes in Zurich and find that noise increases sleeping problems and headaches, with naive cross-sectional estimates understating the effect because of sorting. \textcite{henerNoisePollutionViolent2022} use daily variation in Frankfurt landing approaches to instrument noise and finds that a 4.1dB increase in background aircraft noise raises the violent crime rate by 6.6 percent, mostly physical assaults on men. \textcite{beghelliHealthBenefitsReducing2023} exploit an unannounced reallocation of early-morning landings at Heathrow and find that prescription spending on CNS and respiratory medication falls when noise drops; \textcite{argysResidentialNoiseExposure2020} exploit the FAA's NextGen flight-path concentration and find a 1.6 percentage point increase in low birth weight among mothers close to and downwind of flight paths; and \textcite{wangImpactAeroplaneNoise2022} use a difference-in-differences design around a LaGuardia flight-path change and document increases in insomnia, cardiovascular disease, substance use, and mental-health-related healthcare use --- though \textcite{liAircraftNoiseControl2021} find no effect from one Dutch policy change, in part because it failed to durably cut noise. Using a novel seismometer-based noise measure, \textcite{greenhillNoisePollutionInfant2026} finds that nighttime rail-noise increases from wind-direction shifts worsen infant health, and \textcite{lindgrenSoundEnvironmentHealth2021} finds that a Swedish road-noise mitigation program reduced cardiovascular hospitalizations via hypertension. Property values, finally, move in either direction depending on whether noise rises or falls \parencite{allroggenPlanesOverheadHow2025, morettiTrafficNoiseExternality2025} --- evidence we return to below, since noise-barrier construction is itself one of our candidate identification strategies.
+
+A larger epidemiological and public-health literature points the same direction but is generally less well identified, relying more on self-reported exposure and on cross-sectional or purely observational variation: noise is linked to worse subjective well-being and life satisfaction \parencite{vanpraagUsingHappinessSurveys2005, krekelDoesPresenceWind2017}, and sleep disturbance from noise is well replicated across studies \parencite{basnerWHOEnvironmentalNoise2018, basnerNocturnalAircraftNoise2008, griefahnNoiseEmittedRoad2006, bodinAnnoyanceSleepConcentration2015, trimmelEffectsLowIntensity2012}. Wind-turbine evidence is more mixed: some largely correlational studies find reduced life satisfaction and higher suicide risk \parencite{krekelDoesPresenceWind2017, zouWindTurbineSyndrome2017}, while \textcite{krekelWindTurbinesHave2023}, using a quasi-experimental design, find no health effects at all. 
+
+
+\subsection*{Limited causal evidence on noise and human capital}
+
+A small literature studies noise's impact on human capital directly. In this literature, only some studies are able to convincingly account for endogenous self-selection of individuals into neighborhoods and schools in response to noise and rents. To our best knowledge, no study on human capital outcomes has yet successfully separated the effects of noise from co-occurring pollution and traffic exposure. Finally, while the studies discussed below are exceptionally nuanced in their measurement of cognition, all existing studies measure outcomes only in childhood and no study has attempted to estimate long-run outcomes.
+
+Several studies attempt to identify causal effects in extensive cross-sectional tests of schoolchildren. One study finds worse reading comprehension in a sample selected from schools near Heathrow, UK \parencite{hainesChronicAircraftNoise2001}. In the larger, multi-country RANCH study, hand-select schools around three major European airports, measure noise and conduct cognitive tests \parencite{clarkEffectsRoadTraffic2010}. They link aircraft noise linearly to worse recognition memory, but also find a positive relationship between road noise and recall. \textcite{lercherAmbientNoiseCognitive2003} run a similar design and find negative effects on memory. \textcite{klatteEffectsAircraftNoise2017} study primary schoolers around Frankfurt Airport (NORAH) and find that even moderate aircraft noise lowers reading performance. We believe that while sound in measurement, these designs rely too heavily on their control variables to fully identify causal effects.
+
+\textcite{deanNoiseCognitiveFunction2024} shows experimentally that a 7dB increase in workplace noise reduces textile-worker output by about 3 percent and impairs cognitive function, unbeknown to workers. The most convincing existing design is that of \textcite{hyggeProspectiveStudyEffects2002}, who exploit the Munich airport relocation as a natural experiment. Testing schoolchildren matched on socioeconomic characteristics before and after the airport move, they find that children newly exposed to aircraft noise show impaired reading and long-term memory, while those who lost exposure show improvements. \textcite{klatteEffectsAircraftNoise2017} do however note that matching was performed before a significant number of participants were excluded because they did not finish the most difficult test items. Balance after this step was never reported.
+
+We seek to address these gaps by exploiting the staggered, plausibly exogenous timing of Sweden's BoViT insulation and noise-barrier rollout described below.
+
+\begin{landscape}
+\thispagestyle{empty}
+
+\subsection*{Literature overview}
+
+{\footnotesize Table 1: Selected studies on noise pollution, well-being, health, and human capital (full literature discussed in text). Table extends \textcite{nybergAirNoisePollution2025}. Periods in parentheses are approximate where not directly stated in the source and should be double-checked before circulating further.}
+
+\vspace{0.3em}
+\footnotesize
+\renewcommand{\arraystretch}{0.95}
+\setlength{\tabcolsep}{4pt}
+\begin{longtable}{@{}p{1.05in}p{1.5in}p{2.55in}p{2.4in}p{1.05in}@{}}
+\toprule
+Study & Research Question & Methodology \& Sample & Main Result & Country (Period) \\
+\midrule
+\endfirsthead
+\toprule
+Study & Research Question & Methodology \& Sample & Main Result & Country (Period) \\
+\midrule
+\endhead
+\midrule
+\multicolumn{5}{r}{\footnotesize\itshape continued on next page}\\
+\endfoot
+\bottomrule
+\endlastfoot
+\textcite{morettiTrafficNoiseExternality2025} & Are noise externalities capitalized into property prices, and how large is the aggregate cost? & DiD/event study around FDOT noise-barrier construction; hedonic house-price model. FL barrier inventory, 1{,}143 barriers; CoreLogic transactions, 596{,}419 home sales in the estimation sample & Noise barriers raise nearby property values by 6.8\% within 100m; implies \$110bn aggregate U.S.\ cost, \$974/vehicle efficient tax & USA (Florida; barriers 1988--2022, transactions 1990--2022) \\
+\textcite{lindgrenSoundEnvironmentHealth2021} & Does a dwelling noise-mitigation program reduce cardiovascular disease? & DiD around a nationwide program; hospitalization/diagnosis registers, 10{,}113 indiv.\ who stayed at the same address throughout & -10\% cardiovascular disease risk after 7 years, via hypertension (-18--19 cases/1{,}000) & Sweden (mitigation 1998--2008; outcomes 2003--2017) \\
+\textcite{greenhillNoisePollutionInfant2026} & Does nighttime noise harm infant health? & Quasi-exp.\ using idiosyncratic wind-driven rail-noise variation (share of pregnancy spent downwind); seismometer-based noise + confidential birth-certificate microdata & +2dB nighttime noise $\rightarrow$ -4\% SD infant health index & USA (California; births 1999--2021) \\
+\addlinespace
+\textcite{hainesChronicAircraftNoise2001} & Does chronic aircraft noise impair children's reading and mental health? & Quasi-exp.\ (4 matched high-/4 low-noise schools); group-administered cognitive/mental-health tests + salivary cortisol subsample; 340 children, 8--11y (169 high-/171 low-noise) & Worse reading comprehension; no mental-health or cortisol effect & UK (Heathrow; 1991) \\
+\textcite{hyggeProspectiveStudyEffects2002} & Does a change in aircraft-noise exposure affect children's cognition? & Prospective natural experiment around the Munich airport relocation; 3 testing waves (6mo before, 1yr \& 2yr after); 326 children, 8--12y, matched noise/no-noise groups at old \& new sites & Reading and long-term memory impaired at newly-exposed site, improved at newly-quiet site & Germany (Munich; 1991--1994) \\
+\textcite{clarkEffectsRoadTraffic2010} & Does aircraft/road noise affect children's cognition, and is the relationship exposure--response (RANCH)? & Multilevel cross-sectional; cued recall, recognition \& prospective-memory tests; 2{,}844 children, 8;10--12;10y, matched schools around 3 airports & Aircraft noise $\rightarrow$ worse recognition memory (linear); road noise $\rightarrow$ better cued recall (linear, unexpected direction) & UK, Netherlands, Spain ($\sim$1999--2000) \\
+\textcite{klatteEffectsAircraftNoise2017} & Does aircraft noise lower reading performance at moderate exposure levels (NORAH)? & Multilevel cross-sectional, continuous exposure--response design (not just hi/lo groups); reading \& quality-of-life tests + teacher reports (N=84); 1{,}243 2nd graders, 29 schools & Even moderate noise ($<$60dB) lowers reading performance, raises annoyance; no effect on verbal precursors & Germany (Frankfurt; noise May 2011--Apr 2012, testing spring) \\
+\textcite{deanNoiseCognitiveFunction2024} & Does workplace noise reduce productivity and cognition, and do workers realize it? & Two randomized field experiments, textile-training course: randomized engine-noise exposure during a sewing task (N=128), plus a willingness-to-pay-for-quiet elicitation & +7dB noise $\rightarrow$ -3\% output, impaired cognition; no WTP premium for quiet (workers unaware of the cost) & Kenya (Nairobi) \\
+\end{longtable}
+\renewcommand{\arraystretch}{1}
+\setlength{\tabcolsep}{6pt}
+\normalsize
+
+\end{landscape}
+
+\clearpage
+\begin{landscape}
+\thispagestyle{empty}
+
+\subsection*{Data sources}
+
+{\footnotesize Table 2: Data sources for exposure, outcome, and auxiliary variables. Cells marked ``TBD'' need to be confirmed with the data provider before the meeting.\footnotetext[1]{Previously used by \textcite{lindgrenSoundEnvironmentHealth2021}.}\footnotetext[2]{School-level statistics were suppressed, not declassified, from Sept.\ 2020: a Dec.\ 2019 Kammarrätten i Göteborg ruling that independent-school throughput/grade data could be a trade secret led Skolverket to stop publishing any school-unit-level statistics, public or independent. A temporary law (July 2021, initially through June 2023) restored publication retroactively; school-unit-level data is confirmed live today via the PxWeb API, though the permanent legal basis post-2023 was not independently verified. Since spring 2025, small-cell suppression applies specifically to \emph{staff} counts ($<$3 FTE at a school); no equivalent grade/test-result small-cell rule was found.}}
+
+\vspace{0.5em}
+\footnotesize
+\begin{tabular}{@{}p{0.9in}p{1.9in}p{1.7in}p{1.0in}p{0.9in}p{2.2in}@{}}
+\toprule
+Role in analysis & Dataset (Source) & Level of Detail & Years Covered & Open Access? & Access \\
+\midrule
+Exposure & BoViT project data, incl.\ dwelling-level noise insulation (Trafikverket)\footnotemark[1] & Dwelling-level, geocoded & TBD -- confirm with Trafikverket & No & Request from Trafikverket \\
+Exposure & Sound barriers -- roads (Trafikverket) & Barrier-segment level, geocoded (road network); 2{,}172 segments in the current extract & 1950--2025 (51\% unrecorded) & Yes & \href{https://data.trafikverket.se/search/search-data/details?esc_entry=630&esc_context=1}{Lastkajen entry 630} \\
+Exposure & Sound barriers -- railway (Trafikverket) & Barrier-segment level, geocoded (rail network); 1{,}829 segments in the current extract & 1989--2025 (27\% unrecorded) & Yes & \href{https://data.trafikverket.se/search/search-data/details?esc_entry=991&esc_context=1}{Lastkajen entry 991} \\
+\addlinespace
+Outcome & National test \& final-grade results, school-level aggregates (Skolverket)\footnotemark[2] & School-unit level (not individual, not geocoded itself); grade-point average \& national-test pass-rate measures & 1998--2019 + 2022/23--2025/26 (gap $\sim$2020--2022) & Yes & 1998--2019: archived SIRIS exports on Skolverket's S3 (via jplusplus/skolstatistik); 2022/23--: Skolverkets statistikdatabas (PxWeb API) \\
+Outcome & National test \& final-grade results, individual-level microdata (Skolverket) & Individual student-level microdata & TBD & No & Microdata request via Skolverket \\
+Outcome & Labor-market register: earnings, employment status (Statistics Sweden, SCB) & Individual-level microdata & 1990--present (LISA, confirm exact span) & No & Microdata service (MONA) \\
+\addlinespace
+Auxiliary & School location register (Skolenhetsregistret, Skolverket) & School-level, geocoded (address/coordinates) & Current only & Yes & Open API (skolverket.se) \\
+Auxiliary & Geocoded population register: student-dwelling linkage, RTB (Statistics Sweden, SCB) & Individual-level, geocoded dwelling address & TBD & No & Microdata service (MONA) \\
+\bottomrule
+\end{tabular}
+\normalsize
+
+\end{landscape}
+
+\clearpage
+
+\section*{Data}
+
+\subsection*{Exposure}
+
+We identify exposure to noise pollution using the staggered rollout of mitigation technology: Trafikverket, the Swedish transportation authority, provides dwellings and neighborhoods with sound insulation and noise barriers, respectively. The BoViT program covers all provided insulation and barriers, including the exact dwellings treated and the date of provision. Data on insulation are, however, not publicly available and must be requested from Trafikverket. A smaller, publicly available subset covers only noise barriers, and construction dates are missing for many of these. Supplementary, publicly available data on dwelling, road, and rail positions let us determine which dwellings are located close enough to a road or railway to plausibly be eligible for treatment -- i.e., to construct the sample of at-risk dwellings used in the staggered rollout design -- and we can additionally request modeled background noise exposure and historical traffic density to use as controls.
+
+\subsection*{Outcomes}
+
+We plan to draw on outcomes that can be measured with administrative diagnosis or register data rather than self-reports, spanning the life course. In adolescence, National Patient Register diagnosis codes would let us study mental health, sleep disorders, and insomnia. At birth, the Medical Birth Register would provide birthweight and other neonatal health measures for children exposed to noise in utero. In adulthood, the same register would let us study hypertension and, potentially, other diagnosed cardiovascular conditions, following \textcite{lindgrenSoundEnvironmentHealth2021}.
+
+Alongside health, students' learning outcomes will be shaped by noise pollution they are exposed to at school and at home. With publicly available school-level data, we can identify the effects of noise barriers next to school buildings. Individual-level test scores from Skolverket, matched via the geocoded population register (RTB), would let us identify the effects of home noise insulation using a more nuanced control group. Finally, access to the labor-market register would let us identify longer-term outcomes.
+
+\section*{Potential Identification Strategies}
+
+\begin{itemize}
+\item \textbf{Noise barriers (\`a la Moretti \& Wheeler):} exploit the staggered construction of road/rail noise barriers, comparing dwellings and schools just inside vs.\ just outside the newly shielded area -- separately for home exposure (residential DiD) and school exposure (school-level DiD using national test data), following \textcite{morettiTrafficNoiseExternality2025}.
+\item \textbf{Sound insulation (\`a la Lindgren):} exploit the staggered timing of BoViT insulation, comparing treated dwellings to not-yet-treated but eligible dwellings, following \textcite{lindgrenSoundEnvironmentHealth2021}.
+\end{itemize}
+
+In either setting, we may use the timing of insulation or barrier construction relative to a child's birth or school-entry date to construct historical exposure measures to isolate in-utero and early-childhood exposure windows specifically. Across these designs, our main controls are the most important observable confounders: dwelling/school fixed effects, cohort or year-of-birth fixed effects, and family socioeconomic status from the population register.
+
+% We note that the psychometric literature emphasizes a distinction of acute and chronic noise \parencite{klatteEffectsAircraftNoise2017}, which we do not undertake. <Need to write a section the suitability of Sweden's national test data for measuring cognitive outcomes.>
+
+\clearpage
+\printbibliography[title={References}]
+
+\end{document}
