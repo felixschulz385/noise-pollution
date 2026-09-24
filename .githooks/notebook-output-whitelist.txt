@@ -58,3 +58,27 @@ src/experiments/florida/shocks.ipynb
 # maps/plots are the deliverable; reads only public Trafikverket data
 # (ordered via Lastkajen), no confidential content.
 src/experiments/sweden/grid.ipynb
+#
+# sweden/barriers.ipynb: imports `noise_barriers` + `schools/assemble.py` and
+# walks through the Trafikverket noise-barrier inventory (road + rail),
+# its cleaning and the school matching, with real data; the maps/tables are
+# the deliverable; reads only public Trafikverket data, no confidential
+# content.
+src/experiments/sweden/barriers.ipynb
+#
+# sweden/schools.ipynb: checks `schools/assemble.py`'s school<->barrier
+# matching tiers (point/same_route/same_side) against the real persisted
+# output; the tables are the deliverable; reads only public Skolverket and
+# Trafikverket data, no confidential content.
+src/experiments/sweden/schools.ipynb
+#
+# sweden/schools_lineage.ipynb: the school-unit reorg-lineage crosswalk
+# (`schools/lineage.py`) and the vanished pre-registry schools, with real
+# public Skolenhetsregistret and SIRIS data; the tables are the
+# deliverable; no confidential content.
+src/experiments/sweden/schools_lineage.ipynb
+#
+# shared_methodology.ipynb: cross-region (Florida + Sweden) design notes,
+# illustrated with real public data from both pipelines; the figures are the
+# deliverable; no confidential content.
+src/experiments/shared_methodology.ipynb
