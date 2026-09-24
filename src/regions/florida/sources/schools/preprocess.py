@@ -635,8 +635,45 @@ def run_schools_preprocess(
 
     tested_msid = set(assess_school["msid"])
     missing_msid = tested_msid - set(cross_section["msid"])
-    # districts 78/80 = state colleges (dual-enrolment EOCs), not PK-12 — expected absent
-    known_exceptions = {m for m in missing_msid if m[:2] in ("78", "80")}
+    # districts 77/78/80 = state colleges (dual-enrolment EOCs), not PK-12 —
+    # expected absent. Confirmed live 2026-09-17: msid 770000 is "INDIAN
+    # RIVER STATE COLLEGE" under district_name "STATE COLLEGES" (2025-26
+    # assessment rows) — the same category as 78/80, just a district number
+    # the original allowlist missed.
+    state_college_exceptions = {m for m in missing_msid if m[:2] in ("77", "78", "80")}
+    # 2003-2012 pseudo-school reporting codes (home-school cohorts, homebound
+    # instruction, "I CARE"/adult/community programs) plus a handful of real
+    # early-2000s schools since closed/renumbered — surfaced by the 2003-2014
+    # FCAT/FCAT-2.0 backfill (commit 883461e) against `msid`'s *current-only*
+    # snapshot (`schools/README.md`: "a clean current status, but a snapshot,
+    # not per-year" — it keeps closed schools, evidently not ones this old).
+    # Each one individually checked against `load_assessment_schools()`'s own
+    # msid -> school_name/district/year lookup (confirmed 2026-09-17), not
+    # guessed — a hardcoded, verified list rather than a year-based heuristic
+    # so a genuinely new, unexplained gap still fails loudly.
+    pre2015_reporting_code_exceptions = {
+        "051005",  # HORACE MANN, Brevard, 2004
+        "051006",  # FIELDSTON PREP, Brevard, 2004
+        "060952",  # FORT LAUDERDALE COMM, Broward, 2004
+        "063611",  # WESTGLADES MIDDLE, Broward, 2003
+        "063671",  # NEW RENAISSANCE MIDDLE, Broward, 2003
+        "063772",  # MILLENNIUM MIDDLE, Broward, 2003
+        "063831",  # MANATEE BAY ELEM, Broward, 2003
+        "160182",  # YOUTH DEVELOPMENT, Duval, 2005
+        "160220",  # MARTIN LUTHER KING, Duval, 2004
+        "163003",  # HOME SCHOOL STUDENTS, Duval, 2003
+        "170612",  # I CARE PROGRAM, Escambia, 2003-2004
+        "174663",  # HOME SCHOOL, Escambia, 2003
+        "295023",  # ADULT & COMM SPECIAL POPULATIONS, Hillsborough, 2012
+        "359008",  # HOMEBOUND, Lake, 2005
+        "450112",  # YULEE MIDDLE SCHOOL, Nassau, 2003
+        "480763",  # ACS MIDDLE SCHOOL, Orange, 2004-2008
+        "483100",  # HOME SCHOOL, Orange, 2003
+        "485781",  # WESTSIDE, Orange, 2003
+        "619004",  # SUWANNEE HOME SCHOOL, Suwannee, 2003
+        "649039",  # HOME SCHOOL, Volusia, 2003
+    }
+    known_exceptions = missing_msid & (state_college_exceptions | pre2015_reporting_code_exceptions)
     unexplained_missing = sorted(missing_msid - known_exceptions)
     if unexplained_missing:
         raise ValueError(f"assessment msid missing from the spine, unexplained: {unexplained_missing}")
@@ -650,7 +687,10 @@ def run_schools_preprocess(
         "crosswalk": {
             "ncessch_sentinel_share": float(msid_id["ncessch"].isna().mean()),
             "ncessch_shared_rows": int(msid_id["ncessch_shared"].sum()),
-            "assessment_msid_missing_state_colleges": sorted(known_exceptions),
+            "assessment_msid_missing_state_colleges": sorted(missing_msid & state_college_exceptions),
+            "assessment_msid_missing_pre2015_reporting_codes": sorted(
+                missing_msid & pre2015_reporting_code_exceptions
+            ),
         },
         "coordinates": {
             "geom_source": cross_section["geom_source"].value_counts().to_dict(),
