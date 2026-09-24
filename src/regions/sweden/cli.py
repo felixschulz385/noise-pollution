@@ -42,6 +42,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_assessments(data_domains)
     _register_road_network(data_domains)
     _register_osm_walls(data_domains)
+    _register_barrier_protection(data_domains)
     _register_panel(data_domains)
     _register_traffic(data_domains)
     _register_neighbourhood(data_domains)
@@ -214,6 +215,25 @@ def _register_osm_walls(domains: argparse._SubParsersAction) -> None:
 
     ow_pre = cmd.add_parser("preprocess", help="Parse the fetched Overpass JSON into one GeoParquet")
     ow_pre.set_defaults(func=h.command_osm_walls_preprocess)
+
+
+def _register_barrier_protection(domains: argparse._SubParsersAction) -> None:
+    protection = domains.add_parser(
+        "barrier-protection",
+        help="Every noise barrier's road stretch, side and protected area -- computed once, used by schools and grid; "
+        "see docs/data/sweden/barrier_matching.md",
+    )
+    cmd = protection.add_subparsers(dest="stage", required=True)
+
+    bp_build = cmd.add_parser(
+        "build",
+        help="Build and save barrier references + the national protection-zone layer. Requires noise-barriers, "
+        "road-network, network preprocess-tracks and osm-walls preprocess first",
+    )
+    bp_build.add_argument("--kind", choices=["road", "rail"], action="append", help="Default: both")
+    bp_build.add_argument("--budget-m", type=float, default=800.0)
+    bp_build.add_argument("--buffer-m", type=float, default=600.0)
+    bp_build.set_defaults(func=h.command_barrier_protection_build)
 
 
 def _register_panel(domains: argparse._SubParsersAction) -> None:
