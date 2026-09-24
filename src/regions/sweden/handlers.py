@@ -196,6 +196,14 @@ def command_network_assemble(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_network_preprocess_tracks(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.network.preprocess import run_network_tracks_preprocess
+
+    result = run_network_tracks_preprocess(path=args.path)
+    print_json({"domain": "network", "stage": "preprocess-tracks", **result})
+    return 0
+
+
 def command_noise_barriers_list_files(args: argparse.Namespace) -> int:
     from src.regions.sweden.sources.noise_barriers.fetch import list_user_files
 

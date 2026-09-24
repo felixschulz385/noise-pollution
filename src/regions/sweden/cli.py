@@ -109,6 +109,13 @@ def _register_network(domains: argparse._SubParsersAction) -> None:
     net_asm.add_argument("--plot-path", default=str(default_plot))
     net_asm.set_defaults(func=h.command_network_assemble)
 
+    net_tracks = cmd.add_parser(
+        "preprocess-tracks",
+        help="Build the fine-grained open-track candidate network (Bandel/km linear reference) for schools' rail matching",
+    )
+    net_tracks.add_argument("--path", help="Optional explicit path to the grundegenskaper GeoPackage")
+    net_tracks.set_defaults(func=h.command_network_preprocess_tracks)
+
 
 def _register_noise_barriers(domains: argparse._SubParsersAction) -> None:
     noise_barriers = domains.add_parser("noise-barriers", help="Noise barrier download pipeline")
