@@ -39,6 +39,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_stations(data_domains)
     _register_network(data_domains)
     _register_noise_barriers(data_domains)
+    _register_assessments(data_domains)
 
 
 def _register_timetable(domains: argparse._SubParsersAction) -> None:
@@ -133,3 +134,40 @@ def _register_noise_barriers(domains: argparse._SubParsersAction) -> None:
     nb_pre.add_argument("--dataset-name", required=True, help='Dataset stem such as "Sound_Barriers_-_Road"')
     nb_pre.add_argument("--output-stem", help="Optional processed output stem")
     nb_pre.set_defaults(func=h.command_noise_barriers_preprocess)
+
+
+def _register_assessments(domains: argparse._SubParsersAction) -> None:
+    from src.regions.sweden.sources.assessments.siris import SIRIS_SCHOOL_GRAIN_DATASETS
+
+    assessments = domains.add_parser(
+        "assessments",
+        help="School-unit achievement data: live PxWeb kvalitetssystem (2022/23-2025/26) + archived SIRIS (1997/98-2018/19)",
+    )
+    cmd = assessments.add_subparsers(dest="stage", required=True)
+
+    ks_fetch = cmd.add_parser(
+        "fetch-kvalitetssystem",
+        help="Fetch school-unit achievement data from the live PxWeb kvalitetssystem API (2022/23-2025/26)",
+    )
+    ks_fetch.add_argument("--skolform", default="Grundskola")
+    ks_fetch.add_argument("--limit-schools", type=int, help="Query at most this many schools (smoke test)")
+    ks_fetch.add_argument("--batch-size", type=int, default=200)
+    ks_fetch.add_argument("--force", action="store_true", help="Re-fetch metadata/codelist/batches already on disk")
+    ks_fetch.set_defaults(func=h.command_assessments_fetch_kvalitetssystem)
+
+    ks_pre = cmd.add_parser("preprocess-kvalitetssystem", help="Flatten fetched kvalitetssystem batches into a tidy table")
+    ks_pre.add_argument("--skolform", default="Grundskola")
+    ks_pre.set_defaults(func=h.command_assessments_preprocess_kvalitetssystem)
+
+    siris_fetch = cmd.add_parser(
+        "fetch-siris",
+        help="Fetch one historical school-unit-grain SIRIS series (läsår 1997/98-2018/19) from Skolverket's archived S3 exports",
+    )
+    siris_fetch.add_argument("--dataset-key", required=True, choices=sorted(SIRIS_SCHOOL_GRAIN_DATASETS))
+    siris_fetch.add_argument("--year", action="append", dest="years", help="Restrict to this år (repeatable)")
+    siris_fetch.add_argument("--force", action="store_true")
+    siris_fetch.set_defaults(func=h.command_assessments_fetch_siris)
+
+    siris_pre = cmd.add_parser("preprocess-siris", help="Parse every fetched year of one SIRIS series into a tidy table")
+    siris_pre.add_argument("--dataset-key", required=True, choices=sorted(SIRIS_SCHOOL_GRAIN_DATASETS))
+    siris_pre.set_defaults(func=h.command_assessments_preprocess_siris)

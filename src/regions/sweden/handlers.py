@@ -232,3 +232,63 @@ def command_noise_barriers_preprocess(args: argparse.Namespace) -> int:
     )
     print_json({"domain": "noise_barriers", "stage": "preprocess", **result})
     return 0
+
+
+def command_assessments_fetch_kvalitetssystem(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.assessments.kvalitetssystem import fetch_kvalitetssystem
+
+    result = fetch_kvalitetssystem(
+        skolform=args.skolform,
+        limit_schools=args.limit_schools,
+        batch_size=args.batch_size,
+        force=args.force,
+    )
+    print_json({"domain": "assessments", "stage": "fetch-kvalitetssystem", **result})
+    return 0
+
+
+def command_assessments_preprocess_kvalitetssystem(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.assessments.kvalitetssystem import (
+        load_measure_batches,
+        preprocess_kvalitetssystem,
+        save_processed_kvalitetssystem,
+    )
+
+    batches = load_measure_batches(skolform=args.skolform)
+    df = preprocess_kvalitetssystem(batches)
+    saved_path = save_processed_kvalitetssystem(df, parquet_name=f"kvalitetssystem_{args.skolform.lower()}.parquet")
+    print_json(
+        {
+            "domain": "assessments",
+            "stage": "preprocess-kvalitetssystem",
+            "skolform": args.skolform,
+            "rows": int(len(df)),
+            "saved": saved_path,
+        }
+    )
+    return 0
+
+
+def command_assessments_fetch_siris(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.assessments.siris import fetch_siris_dataset
+
+    result = fetch_siris_dataset(args.dataset_key, years=args.years, force=args.force)
+    print_json({"domain": "assessments", "stage": "fetch-siris", **result})
+    return 0
+
+
+def command_assessments_preprocess_siris(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.assessments.siris import preprocess_siris_dataset, save_processed_siris
+
+    df = preprocess_siris_dataset(args.dataset_key)
+    saved_path = save_processed_siris(df, args.dataset_key)
+    print_json(
+        {
+            "domain": "assessments",
+            "stage": "preprocess-siris",
+            "dataset_key": args.dataset_key,
+            "rows": int(len(df)),
+            "saved": saved_path,
+        }
+    )
+    return 0

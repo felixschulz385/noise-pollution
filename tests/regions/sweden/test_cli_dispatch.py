@@ -12,6 +12,10 @@ from src.core.cli.main import build_parser
         ["sweden", "data", "stations", "preprocess"],
         ["sweden", "data", "network", "assemble"],
         ["sweden", "data", "noise-barriers", "fetch", "--source", "railway", "--dataset-name", "X"],
+        ["sweden", "data", "assessments", "fetch-kvalitetssystem"],
+        ["sweden", "data", "assessments", "preprocess-kvalitetssystem"],
+        ["sweden", "data", "assessments", "fetch-siris", "--dataset-key", "salsa"],
+        ["sweden", "data", "assessments", "preprocess-siris", "--dataset-key", "salsa"],
     ],
 )
 def test_known_commands_resolve_to_a_handler(argv):
