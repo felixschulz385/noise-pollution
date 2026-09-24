@@ -302,6 +302,16 @@ def command_assessments_preprocess_siris(args: argparse.Namespace) -> int:
     return 0
 
 
+
+
+def command_road_network_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.road_network.preprocess import run_road_network_preprocess
+
+    result = run_road_network_preprocess(path=args.path, network_type=args.network_type)
+    print_json({"domain": "road_network", "stage": "preprocess", **result})
+    return 0
+
+
 def command_panel_assemble(args: argparse.Namespace) -> int:
     from src.regions.sweden.sources.panel.assemble import run_panel_assemble
 

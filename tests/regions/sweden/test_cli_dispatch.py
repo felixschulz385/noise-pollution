@@ -13,6 +13,7 @@ from src.core.cli.main import build_parser
         ["sweden", "data", "network", "assemble"],
         ["sweden", "data", "noise-barriers", "fetch", "--source", "railway", "--dataset-name", "X"],
         ["sweden", "data", "network", "preprocess-tracks"],
+        ["sweden", "data", "road-network", "preprocess"],
         ["sweden", "data", "assessments", "fetch-kvalitetssystem"],
         ["sweden", "data", "assessments", "preprocess-kvalitetssystem"],
         ["sweden", "data", "assessments", "fetch-siris", "--dataset-key", "salsa"],
