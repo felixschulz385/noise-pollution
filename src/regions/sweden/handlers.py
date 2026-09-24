@@ -401,6 +401,23 @@ def command_panel_recover_vanished_schools(args: argparse.Namespace) -> int:
 
     result = run_recover_vanished_schools(max_dist=args.max_dist)
     print_json({"domain": "panel", "stage": "recover-vanished-schools", **result})
+    return 0
+
+
+def command_skolkoll_fetch(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.skolkoll.fetch import fetch_schools_csv
+
+    result = fetch_schools_csv()
+    print_json({"domain": "skolkoll", "stage": "fetch", **result})
+    return 0
+
+
+def command_skolkoll_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.skolkoll.preprocess import run_skolkoll_preprocess
+
+    result = run_skolkoll_preprocess()
+    print_json({"domain": "skolkoll", "stage": "preprocess", **result})
+    return 0
 
 
 def command_osm_walls_fetch(args: argparse.Namespace) -> int:

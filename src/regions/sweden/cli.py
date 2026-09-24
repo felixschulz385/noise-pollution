@@ -42,6 +42,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_schools(data_domains)
     _register_assessments(data_domains)
     _register_road_network(data_domains)
+    _register_skolkoll(data_domains)
     _register_osm_walls(data_domains)
     _register_barrier_protection(data_domains)
     _register_panel(data_domains)
@@ -245,6 +246,20 @@ def _register_road_network(domains: argparse._SubParsersAction) -> None:
     rn_pre.add_argument("--path", help="Optional explicit path to the GeoPackage")
     rn_pre.add_argument("--network-type", default="bilnät", choices=["bilnät", "cykelnät", "gångnät"])
     rn_pre.set_defaults(func=h.command_road_network_preprocess)
+
+
+def _register_skolkoll(domains: argparse._SubParsersAction) -> None:
+    skolkoll = domains.add_parser(
+        "skolkoll",
+        help="Third-party Skolverket aggregation (skolkoll.se) -- used to recover coordinates for schools purged from the live Skolenhetsregistret, see docs/data/sweden/schools/README.md",
+    )
+    cmd = skolkoll.add_subparsers(dest="stage", required=True)
+
+    sk_fetch = cmd.add_parser("fetch", help="Download Skolkoll's schools.csv")
+    sk_fetch.set_defaults(func=h.command_skolkoll_fetch)
+
+    sk_pre = cmd.add_parser("preprocess", help="Parse the fetched schools.csv into a tidy, geocoded table")
+    sk_pre.set_defaults(func=h.command_skolkoll_preprocess)
 
 
 def _register_osm_walls(domains: argparse._SubParsersAction) -> None:
