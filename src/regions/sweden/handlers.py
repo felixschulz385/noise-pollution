@@ -308,3 +308,90 @@ def command_traffic_assemble(args: argparse.Namespace) -> int:
     result = run_traffic_assemble(max_dist=args.max_dist)
     print_json({"domain": "traffic", "stage": "assemble", **result})
     return 0
+
+
+def command_neighbourhood_fetch_boundaries(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.fetch import fetch_all_deso_boundaries
+
+    result = fetch_all_deso_boundaries(page_size=args.page_size, force=args.force)
+    print_json({"domain": "neighbourhood", "stage": "fetch-boundaries", **result})
+    return 0
+
+
+def command_neighbourhood_preprocess_boundaries(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.preprocess import run_deso_boundaries_preprocess
+
+    result = run_deso_boundaries_preprocess()
+    print_json({"domain": "neighbourhood", "stage": "preprocess-boundaries", **result})
+    return 0
+
+
+def _neighbourhood_deso2018_region_codes(limit: int | None) -> list:
+    from src.regions.sweden.sources.neighbourhood.preprocess import run_deso_boundaries_preprocess
+    from src.regions.sweden.sources.neighbourhood.shared import processed_deso_boundaries_path
+    import geopandas as gpd
+
+    boundaries_path = processed_deso_boundaries_path()
+    if not boundaries_path.exists():
+        run_deso_boundaries_preprocess()
+    region_codes = gpd.read_parquet(boundaries_path)["desokod"].tolist()
+    return region_codes[:limit] if limit is not None else region_codes
+
+
+def command_neighbourhood_fetch_income(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.fetch import fetch_income_values
+
+    region_codes = _neighbourhood_deso2018_region_codes(args.limit)
+    result = fetch_income_values(region_codes, batch_size=args.batch_size, force=args.force)
+    print_json({"domain": "neighbourhood", "stage": "fetch-income", "n_regions_queried": len(region_codes), **result})
+    return 0
+
+
+def command_neighbourhood_preprocess_income(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.preprocess import run_income_preprocess
+
+    result = run_income_preprocess()
+    print_json({"domain": "neighbourhood", "stage": "preprocess-income", **result})
+    return 0
+
+
+def command_neighbourhood_fetch_education(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.fetch import fetch_education_values
+
+    region_codes = _neighbourhood_deso2018_region_codes(args.limit)
+    result = fetch_education_values(region_codes, batch_size=args.batch_size, force=args.force)
+    print_json({"domain": "neighbourhood", "stage": "fetch-education", "n_regions_queried": len(region_codes), **result})
+    return 0
+
+
+def command_neighbourhood_preprocess_education(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.preprocess import run_education_preprocess
+
+    result = run_education_preprocess()
+    print_json({"domain": "neighbourhood", "stage": "preprocess-education", **result})
+    return 0
+
+
+def command_neighbourhood_fetch_employment(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.fetch import fetch_employment_values
+
+    region_codes = _neighbourhood_deso2018_region_codes(args.limit)
+    result = fetch_employment_values(region_codes, batch_size=args.batch_size, force=args.force)
+    print_json({"domain": "neighbourhood", "stage": "fetch-employment", "n_regions_queried": len(region_codes), **result})
+    return 0
+
+
+def command_neighbourhood_preprocess_employment(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.preprocess import run_employment_preprocess
+
+    result = run_employment_preprocess()
+    print_json({"domain": "neighbourhood", "stage": "preprocess-employment", **result})
+    return 0
+
+
+def command_neighbourhood_assemble(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.neighbourhood.assemble import run_neighbourhood_assemble
+
+    result = run_neighbourhood_assemble()
+    print_json({"domain": "neighbourhood", "stage": "assemble", **result})
+    return 0

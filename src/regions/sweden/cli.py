@@ -41,6 +41,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_noise_barriers(data_domains)
     _register_assessments(data_domains)
     _register_traffic(data_domains)
+    _register_neighbourhood(data_domains)
 
 
 def _register_timetable(domains: argparse._SubParsersAction) -> None:
@@ -188,3 +189,57 @@ def _register_traffic(domains: argparse._SubParsersAction) -> None:
     t_assemble = cmd.add_parser("assemble", help="Match schools to their nearest Trafik segment")
     t_assemble.add_argument("--max-dist", type=float, default=1000.0)
     t_assemble.set_defaults(func=h.command_traffic_assemble)
+
+
+def _register_neighbourhood(domains: argparse._SubParsersAction) -> None:
+    neighbourhood = domains.add_parser(
+        "neighbourhood",
+        help="SCB DeSO-grain neighbourhood income (Covariate Cluster F), see docs/data/sweden/covariates.md",
+    )
+    cmd = neighbourhood.add_subparsers(dest="stage", required=True)
+
+    n_fetch_boundaries = cmd.add_parser("fetch-boundaries", help="Fetch DeSO 2018 boundary polygons (SCB WFS)")
+    n_fetch_boundaries.add_argument("--page-size", type=int, default=1000)
+    n_fetch_boundaries.add_argument("--force", action="store_true")
+    n_fetch_boundaries.set_defaults(func=h.command_neighbourhood_fetch_boundaries)
+
+    n_pre_boundaries = cmd.add_parser("preprocess-boundaries", help="Build the tidy DeSO 2018 boundary layer")
+    n_pre_boundaries.set_defaults(func=h.command_neighbourhood_preprocess_boundaries)
+
+    n_fetch_income = cmd.add_parser(
+        "fetch-income", help="Fetch mean net income by DeSO2018 area and year (SCB PxWeb Tab2InkDesoRegso)"
+    )
+    n_fetch_income.add_argument("--batch-size", type=int, default=500)
+    n_fetch_income.add_argument("--limit", type=int, help="Cap the number of DeSO codes queried (smoke test)")
+    n_fetch_income.add_argument("--force", action="store_true")
+    n_fetch_income.set_defaults(func=h.command_neighbourhood_fetch_income)
+
+    n_pre_income = cmd.add_parser("preprocess-income", help="Build the tidy DeSO2018 mean-net-income table")
+    n_pre_income.set_defaults(func=h.command_neighbourhood_preprocess_income)
+
+    n_fetch_education = cmd.add_parser(
+        "fetch-education", help="Fetch population by education level by DeSO2018 area and year (SCB PxWeb UtbSUNBefDesoRegso)"
+    )
+    n_fetch_education.add_argument("--batch-size", type=int, default=500)
+    n_fetch_education.add_argument("--limit", type=int, help="Cap the number of DeSO codes queried (smoke test)")
+    n_fetch_education.add_argument("--force", action="store_true")
+    n_fetch_education.set_defaults(func=h.command_neighbourhood_fetch_education)
+
+    n_pre_education = cmd.add_parser("preprocess-education", help="Build the tidy DeSO2018 education-by-level table")
+    n_pre_education.set_defaults(func=h.command_neighbourhood_preprocess_education)
+
+    n_fetch_employment = cmd.add_parser(
+        "fetch-employment", help="Fetch employment status by DeSO2018 area and year (SCB PxWeb ArRegDesoStatusN)"
+    )
+    n_fetch_employment.add_argument("--batch-size", type=int, default=500)
+    n_fetch_employment.add_argument("--limit", type=int, help="Cap the number of DeSO codes queried (smoke test)")
+    n_fetch_employment.add_argument("--force", action="store_true")
+    n_fetch_employment.set_defaults(func=h.command_neighbourhood_fetch_employment)
+
+    n_pre_employment = cmd.add_parser("preprocess-employment", help="Build the tidy DeSO2018 employment-status table")
+    n_pre_employment.set_defaults(func=h.command_neighbourhood_preprocess_employment)
+
+    n_assemble = cmd.add_parser(
+        "assemble", help="Match schools to their containing DeSO and attach income/education/employment"
+    )
+    n_assemble.set_defaults(func=h.command_neighbourhood_assemble)
