@@ -13,9 +13,11 @@ is in place.
 | `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/regions/florida/sources/schools/` |
 | `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and underpins `traffic`. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, planned `road_projects`) | `src/regions/florida/sources/road_network/` |
 | `traffic` | `list-versions`, `fetch`, `preprocess` (fetch many FGDL `rciroads` releases' `AADT` field and stack into `aadt_panel.parquet`, one row per `roadway_id × release_year`), `assemble` (match schools to a roadway, join its AADT time series → `school_aadt_panel.parquet`, 89.7% match rate) — all implemented, see [`traffic/README.md`](traffic/README.md). Covariate Cluster C. **Joined into `panel`'s final event-study table** (nearest-release-year match, 71.3% of rows matched). | `road_network`'s fetch machinery (reused directly), `schools preprocess` + `road_network preprocess` (`assemble`) | `src/regions/florida/sources/traffic/` |
-| `panel` | `assemble` (join `assessments` + `schools` + `traffic` + `road_projects` + `shocks` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, `traffic` (nearest-release-year match, 71.3% of rows matched), `road_projects` (year-interval-overlap match, 4.5% of rows matched an active project), and now `shocks` (exact county-year match, 44.7% of rows matched a disaster declaration — see the sections below), but doesn't yet carry the two other planned covariate modules (`staff`, `air_quality`, `neighbourhood` — see [`covariates.md`](covariates.md)). | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`), `road_projects` (`fetch` + `preprocess` + `assemble`), `shocks` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
+| `panel` | `assemble` (join `assessments` + `schools` + `traffic` + `road_projects` + `shocks` + `staff` + `neighbourhood` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, `traffic` (nearest-release-year match, 71.3% of rows matched), `road_projects` (year-interval-overlap match, 4.5% of rows matched an active project), `shocks` (exact county-year match, 44.7% of rows matched a disaster declaration), `staff` (two exact-key joins — salary/experience 5.4%, per-pupil expenditure 60.3%, out-of-field 5.3%), and now `neighbourhood` (two exact-key joins — ACS demographics 68.0% matched, ZHVI home values 98.6% matched, see the sections below), but doesn't yet carry the remaining covariate module (`air_quality` — see [`covariates.md`](covariates.md)). | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`), `road_projects` (`fetch` + `preprocess` + `assemble`), `shocks` (`fetch` + `preprocess` + `assemble`), `staff` (`fetch` + `preprocess` + `assemble`), `neighbourhood` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
 | `road_projects` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`road_projects/README.md`](road_projects/README.md). Covariate Cluster D (widening/PD&E/construction projects co-timed with a wall). Pulls FDOT `Work_Program_Current` layers 2/13 + `Active_Construction_Projects` ArcGIS REST services (both keyed by the same `ROADWAY` id format as `road_network.roadway_id`, confirmed live) into `road_projects.parquet` (118,014 project-item rows, 4,676 distinct roadways). `assemble` matches schools to a roadway + milepost and joins nearby projects via milepost-range overlap (5,366/5,984 schools matched, 40,729 school↔project pairs, 2,586 schools with ≥1 nearby project). **Joined into `panel`'s `event_study_panel.parquet`** via a year-interval-overlap match (4.5% of panel rows matched an active project). | `schools` (`preprocess`), `road_network` (`preprocess`) | `src/regions/florida/sources/road_projects/` |
 | `shocks` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`shocks/README.md`](shocks/README.md). Covariate Cluster G (county-level hurricane/disaster declarations). Pulls OpenFEMA `DisasterDeclarationsSummaries` v2 (entire FL history, 2,794 rows, in one request — no pagination needed) into `disaster_declarations.parquet`. `assemble` rolls up to `county_name x assessment_year` (1,774 rows) and validates the join against the real 67-county FLDOE district roster — a name join, not FIPS, since Florida has one district per county. **Joined into `panel`'s `event_study_panel.parquet`** via an exact `(district_name, year)` match (44.7% of panel rows matched a declaration, 35.6% a hurricane). | `schools` (`preprocess`) | `src/regions/florida/sources/shocks/` |
+| `staff` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-17, see [`staff/README.md`](staff/README.md). Covariate Cluster B (teacher salary/experience, in-field/out-of-field teaching, per-pupil expenditure). Two FLDOE workbooks (`teacher_salary` district-level, `out_of_field` SCHOOL-level) fetched via their Wayback Machine archive (`www.fldoe.org` itself blocks scripted clients, same as `assessments`) — FLDOE's own numbering matches `schools`' `district`/`school` fields directly, no crosswalk needed there. `district_finance` (per-pupil expenditure) via NCES CCD F-33, Urban API, 1995-2020, joined through a modal `district->leaid` crosswalk (min 88.5%/median 100% coverage). **Joined into `panel`'s `event_study_panel.parquet`** via two exact-key matches (salary/experience 5.4% of rows — historical backfill paused on a live Internet Archive outage, mechanically ready; per-pupil expenditure 60.3%; out-of-field 5.3%). Teacher turnover / % advanced degree not built (no aggregate FLDOE source found). | `schools` (`preprocess`) | `src/regions/florida/sources/staff/` |
+| `neighbourhood` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-17, see [`neighbourhood/README.md`](neighbourhood/README.md). Covariate Cluster F (tract ACS demographics + Zillow ZHVI home values). The only Florida source doing a point-in-polygon spatial join (school -> Census tract/ZCTA via cartographic boundary files) rather than a linear-referencing one; two tract-boundary vintages (2010/2020) handled since ACS5 switched vintage at its "2020" release. Zillow ZHVI (ZIP-level, no auth) and ACS demographics (Census Data API, key-required since a 2026-05 policy change — `CENSUS_API_KEY` env var, user-supplied) both live: 5,984/5,984 schools matched to both a tract and a ZIP, 16/16 ACS years (2009-2024) fetched clean. **Joined into `panel`'s `event_study_panel.parquet`**: 68.0% of rows matched ACS demographics, 98.6% matched a ZHVI value. | `schools` (`preprocess`) | `src/regions/florida/sources/neighbourhood/` |
 
 On-disk output lands under `data/florida/<domain>/{raw,processed,assembled}/`.
 
@@ -273,12 +275,42 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
   declarations are common, county-wide events rather than tied to a
   specific school's roadway proximity (see
   [`shocks/README.md`](shocks/README.md)).
-- **Known gap:** still a **first-pass panel** for the remaining two
-  covariate modules — see the domain table above and
-  [`covariates.md`](covariates.md) for `staff` and `neighbourhood`
-  (`air_quality` is explicitly non-baseline). Treat it as sufficient for a
+- **Staff (Cluster B) is joined in**: `staff_avg_teacher_salary`,
+  `staff_avg_employment_length_months`, `staff_avg_teacher_experience_years`,
+  `staff_median_teacher_salary`, `staff_per_pupil_expenditure` (all
+  district-broadcast), plus `staff_pct_out_of_field_classes`/
+  `staff_n_classes_total` (school-level, no broadcast), via `attach_staff` —
+  two exact-key left joins (`(district_name, year)` then `(msid, year)`), no
+  tolerance or interval explosion needed. Unlike `shocks`/`road_projects`, an
+  unmatched row is left `NA`, not zero-filled — there's no sensible "zero"
+  for an average salary. **Real run**: **35,453 of 660,681 rows (5.4%)**
+  matched salary/experience, **398,189 (60.3%)** matched per-pupil
+  expenditure, **35,308 (5.3%)** matched out-of-field — the two FLDOE
+  workbooks' low match rate reflects only assessment-year 2025 being loaded
+  so far (a live Internet Archive outage paused the historical backfill
+  mid-verification, see [`staff/README.md`](staff/README.md)), not a join
+  bug; per-pupil expenditure's much higher rate reflects its full 1995-2020
+  CCD coverage.
+- **Neighbourhood (Cluster F) is joined in**: `nbhd_median_household_income`,
+  `nbhd_poverty_rate`, `nbhd_pct_owner_occupied`, `nbhd_pct_bachelors_plus`,
+  `nbhd_pct_moved_last_year` (ACS, tract), `nbhd_zhvi` (Zillow, ZIP), via
+  `attach_neighbourhood` — two exact `(msid, year)` joins, no tolerance
+  needed since `neighbourhood/assemble.py` already resolved the
+  point-in-polygon school->tract/ZIP match ahead of time (the only Florida
+  source using polygon containment rather than a nearest-roadway or name
+  match). **Real run**: **449,178 of 660,681 rows (68.0%)** matched ACS
+  demographics (0% for 2003–2008, before ACS5 existed; 99–100% for
+  2010–2024; 0% for 2025–2026, not yet published — a real coverage shape,
+  not a bug) and **651,266 (98.6%)** matched a ZHVI home-value figure
+  ($25.9k–$3.1M, median $216.6k — realistic Florida range). The Census Data
+  API required a user-supplied key to reach this point (a real 2026-05
+  policy change — see [`neighbourhood/README.md`](neighbourhood/README.md)).
+- **Known gap:** still a **first-pass panel** for the remaining covariate
+  module — see the domain table above and [`covariates.md`](covariates.md)
+  for `air_quality` (explicitly non-baseline, the only Florida covariate
+  cluster with no implementation yet). Treat it as sufficient for a
   first-pass / robustness-limited specification, not the paper's baseline
-  spec, until those exist too.
+  spec, until that exists too.
 
 ## `assessments` — `fetch` (manual) + `preprocess` (merge to a tidy panel)
 
