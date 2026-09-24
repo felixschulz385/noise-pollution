@@ -325,6 +325,22 @@ def command_panel_recover_vanished_schools(args: argparse.Namespace) -> int:
 
     result = run_recover_vanished_schools(max_dist=args.max_dist)
     print_json({"domain": "panel", "stage": "recover-vanished-schools", **result})
+
+
+def command_osm_walls_fetch(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.osm_walls.fetch import run_osm_walls_fetch
+
+    result = run_osm_walls_fetch()
+    print_json({"domain": "osm_walls", "stage": "fetch", **result})
+    return 0
+
+
+def command_osm_walls_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.osm_walls.preprocess import run_osm_walls_preprocess
+
+    result = run_osm_walls_preprocess()
+    print_json({"domain": "osm_walls", "stage": "preprocess", **result})
+    return 0
     return 0
 
 

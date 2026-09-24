@@ -41,6 +41,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_noise_barriers(data_domains)
     _register_assessments(data_domains)
     _register_road_network(data_domains)
+    _register_osm_walls(data_domains)
     _register_panel(data_domains)
     _register_traffic(data_domains)
     _register_neighbourhood(data_domains)
@@ -198,6 +199,21 @@ def _register_road_network(domains: argparse._SubParsersAction) -> None:
     rn_pre.add_argument("--path", help="Optional explicit path to the GeoPackage")
     rn_pre.add_argument("--network-type", default="bilnät", choices=["bilnät", "cykelnät", "gångnät"])
     rn_pre.set_defaults(func=h.command_road_network_preprocess)
+
+
+def _register_osm_walls(domains: argparse._SubParsersAction) -> None:
+    osm_walls = domains.add_parser(
+        "osm-walls",
+        help="OpenStreetMap walls -- the one direct source for which side of its road a barrier stands on, "
+        "see docs/data/sweden/barrier_matching.md",
+    )
+    cmd = osm_walls.add_subparsers(dest="stage", required=True)
+
+    ow_fetch = cmd.add_parser("fetch", help="Download Swedish noise-barrier and untyped walls from Overpass")
+    ow_fetch.set_defaults(func=h.command_osm_walls_fetch)
+
+    ow_pre = cmd.add_parser("preprocess", help="Parse the fetched Overpass JSON into one GeoParquet")
+    ow_pre.set_defaults(func=h.command_osm_walls_preprocess)
 
 
 def _register_panel(domains: argparse._SubParsersAction) -> None:
