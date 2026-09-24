@@ -10,6 +10,7 @@ import shutil
 import time
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 USER_AGENT = "noise-pollution-research/1.0"
@@ -17,6 +18,8 @@ USER_AGENT = "noise-pollution-research/1.0"
 # 429/5xx are worth retrying (rate limiting, transient upstream trouble);
 # anything else (404, 400, ...) is a real error a retry won't fix.
 RETRY_STATUS = frozenset({429, 500, 502, 503, 504})
+
+WAYBACK_CDX_URL = "https://web.archive.org/cdx/search/cdx"
 
 
 def download_to_file(url: str, destination: Path, *, timeout: int = 300) -> Path:
@@ -74,3 +77,54 @@ def get_json(
         if attempt < attempts:
             time.sleep(min(2**attempt, 15))
     raise RuntimeError(f"{last_error}  (gave up after {attempts} attempts)")
+
+
+class WaybackNotArchivedError(RuntimeError):
+    """No Internet Archive snapshot exists for the requested URL."""
+
+
+def wayback_download(
+    original_url: str,
+    destination: Path,
+    *,
+    timeout: int = 300,
+    attempts: int = 4,
+) -> Path:
+    """Download `original_url` via its most recent Internet Archive snapshot.
+
+    Several `fldoe.org` file downloads are blocked outright for scripted
+    clients (Akamai bot protection, confirmed live 2026-09: every direct
+    `curl`/`WebFetch` attempt against `www.fldoe.org/file/...` and
+    `www.fldoe.org/core/fileparse.php/...` returns HTTP 403, matching
+    `assessments/fetch.py`'s long-documented "no unattended fetch" finding)
+    -- but the Wayback Machine has independently crawled and archived many of
+    these exact files, and `web.archive.org` itself has no such block.
+    Confirmed live 2026-09 for `staff`'s FLDOE workbooks: the CDX index
+    (`WAYBACK_CDX_URL`) resolves a capture timestamp, then
+    `web.archive.org/web/<timestamp>id_/<url>` serves the raw archived bytes
+    (the `id_` modifier suppresses Wayback's toolbar/rewrite wrapper).
+
+    Raises :class:`WaybackNotArchivedError` if the CDX index has no capture
+    at all (a real "this file was never archived" outcome, distinct from a
+    transient failure) and ``RuntimeError`` on a retryable/transport failure
+    (the Internet Archive has real, if infrequent, full-service outages --
+    observed directly during this module's own development)."""
+    query = f"{WAYBACK_CDX_URL}?url={quote(original_url, safe='')}&output=json&filter=statuscode:200&limit=-1"
+    last_error = ""
+    rows: list | None = None
+    for attempt in range(1, attempts + 1):
+        try:
+            rows = get_json(query, attempts=1)
+            break
+        except RuntimeError as exc:
+            last_error = str(exc)
+        if attempt < attempts:
+            time.sleep(min(2**attempt, 15))
+    if rows is None:
+        raise RuntimeError(f"Wayback CDX lookup failed for {original_url}: {last_error}  (gave up after {attempts} attempts)")
+    if len(rows) <= 1:
+        raise WaybackNotArchivedError(f"No Wayback Machine snapshot found for {original_url}")
+
+    timestamp = rows[-1][1]
+    snapshot_url = f"https://web.archive.org/web/{timestamp}id_/{original_url}"
+    return download_to_file(snapshot_url, destination, timeout=timeout)
