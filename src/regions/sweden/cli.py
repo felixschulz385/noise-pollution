@@ -40,6 +40,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_network(data_domains)
     _register_noise_barriers(data_domains)
     _register_assessments(data_domains)
+    _register_panel(data_domains)
     _register_traffic(data_domains)
     _register_neighbourhood(data_domains)
 
@@ -173,6 +174,27 @@ def _register_assessments(domains: argparse._SubParsersAction) -> None:
     siris_pre = cmd.add_parser("preprocess-siris", help="Parse every fetched year of one SIRIS series into a tidy table")
     siris_pre.add_argument("--dataset-key", required=True, choices=sorted(SIRIS_SCHOOL_GRAIN_DATASETS))
     siris_pre.set_defaults(func=h.command_assessments_preprocess_siris)
+
+
+def _register_panel(domains: argparse._SubParsersAction) -> None:
+    panel = domains.add_parser(
+        "panel",
+        help="Final event-study panel: joins assessments (both vintages) + schools assemble's treatment timing",
+    )
+    cmd = panel.add_subparsers(dest="stage", required=True)
+
+    p_recover = cmd.add_parser(
+        "recover-vanished-schools",
+        help="Recover coordinates (via Skolkoll) for SIRIS-assessed schools absent from the registry entirely, then match them to barriers. Optional -- requires skolkoll preprocess, schools assemble, barrier-protection build first",
+    )
+    p_recover.add_argument("--max-dist", type=float, default=1000.0)
+    p_recover.set_defaults(func=h.command_panel_recover_vanished_schools)
+
+    p_assemble = cmd.add_parser(
+        "assemble",
+        help="Join assessments + schools assemble's road/rail treatment timing into one long analysis panel",
+    )
+    p_assemble.set_defaults(func=h.command_panel_assemble)
 
 
 def _register_traffic(domains: argparse._SubParsersAction) -> None:

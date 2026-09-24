@@ -294,6 +294,22 @@ def command_assessments_preprocess_siris(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_panel_assemble(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.panel.assemble import run_panel_assemble
+
+    result = run_panel_assemble()
+    print_json({"domain": "panel", "stage": "assemble", **result})
+    return 0
+
+
+def command_panel_recover_vanished_schools(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.panel.vanished_recovery import run_recover_vanished_schools
+
+    result = run_recover_vanished_schools(max_dist=args.max_dist)
+    print_json({"domain": "panel", "stage": "recover-vanished-schools", **result})
+    return 0
+
+
 def command_traffic_preprocess(args: argparse.Namespace) -> int:
     from src.regions.sweden.sources.traffic.preprocess import run_traffic_preprocess
 

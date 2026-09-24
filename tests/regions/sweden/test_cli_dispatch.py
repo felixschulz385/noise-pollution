@@ -16,6 +16,7 @@ from src.core.cli.main import build_parser
         ["sweden", "data", "assessments", "preprocess-kvalitetssystem"],
         ["sweden", "data", "assessments", "fetch-siris", "--dataset-key", "salsa"],
         ["sweden", "data", "assessments", "preprocess-siris", "--dataset-key", "salsa"],
+        ["sweden", "data", "panel", "assemble"],
         ["sweden", "data", "traffic", "preprocess"],
         ["sweden", "data", "traffic", "assemble"],
     ],
