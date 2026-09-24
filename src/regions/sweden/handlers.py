@@ -547,3 +547,21 @@ def command_neighbourhood_assemble(args: argparse.Namespace) -> int:
     result = run_neighbourhood_assemble()
     print_json({"domain": "neighbourhood", "stage": "assemble", **result})
     return 0
+
+
+def command_grid_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.grid.preprocess import run_grid_preprocess
+
+    result = run_grid_preprocess(buffer_m=args.buffer_m, resolution_m=args.resolution_m)
+    print_json({"domain": "grid", "stage": "preprocess", **result})
+    return 0
+
+
+def command_grid_assemble(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.grid.assemble import run_grid_assemble
+    from src.regions.sweden.sources.grid.shared import BAND_RADII_M
+
+    band_radii = tuple(args.band_radii_m) if args.band_radii_m else BAND_RADII_M
+    result = run_grid_assemble(band_radii=band_radii)
+    print_json({"domain": "grid", "stage": "assemble", **result})
+    return 0

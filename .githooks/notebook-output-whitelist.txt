@@ -48,3 +48,13 @@ src/experiments/florida/road_projects.ipynb
 # OpenFEMA data; the validation tables/figures are the deliverable; reads
 # only public OpenFEMA data, no confidential content.
 src/experiments/florida/shocks.ipynb
+#
+# sweden/grid.ipynb: imports `grid/{preprocess,side,assemble}.py` and walks
+# through the source's main data-preparation decisions (why only a
+# barrier-corridor buffer is tiled instead of all of Sweden, per-component
+# tiling overshoot, the nearest-barrier point match, the distance-decay
+# exposure index vs. Moretti & Wheeler's Table A3, a same_route/same_side
+# case study) with real Trafikverket noise-barrier/road-network data; the
+# maps/plots are the deliverable; reads only public Trafikverket data
+# (ordered via Lastkajen), no confidential content.
+src/experiments/sweden/grid.ipynb

@@ -27,6 +27,8 @@ from src.core.cli.main import build_parser
         ["sweden", "data", "panel", "assemble"],
         ["sweden", "data", "traffic", "preprocess"],
         ["sweden", "data", "traffic", "assemble"],
+        ["sweden", "data", "grid", "preprocess"],
+        ["sweden", "data", "grid", "assemble"],
     ],
 )
 def test_known_commands_resolve_to_a_handler(argv):

@@ -48,6 +48,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_panel(data_domains)
     _register_traffic(data_domains)
     _register_neighbourhood(data_domains)
+    _register_grid(data_domains)
 
 
 def _register_timetable(domains: argparse._SubParsersAction) -> None:
@@ -385,3 +386,33 @@ def _register_neighbourhood(domains: argparse._SubParsersAction) -> None:
         "assemble", help="Match schools to their containing DeSO and attach income/education/employment"
     )
     n_assemble.set_defaults(func=h.command_neighbourhood_assemble)
+
+
+def _register_grid(domains: argparse._SubParsersAction) -> None:
+    grid = domains.add_parser(
+        "grid",
+        help="Self-built 100m x 100m analysis grid matched to noise barriers -- second output spec alongside "
+        "`schools`, unit of analysis is a grid cell instead of a school. See docs/data/sweden/grid/README.md",
+    )
+    cmd = grid.add_subparsers(dest="stage", required=True)
+
+    g_pre = cmd.add_parser(
+        "preprocess",
+        help="Build the 100m fishnet within the widest configured band of any road/rail barrier",
+    )
+    g_pre.add_argument("--buffer-m", type=float, default=1000.0)
+    g_pre.add_argument("--resolution-m", type=int, default=100)
+    g_pre.set_defaults(func=h.command_grid_preprocess)
+
+    g_asm = cmd.add_parser(
+        "assemble",
+        help="Match grid cells to nearby road/rail noise barriers, assigning treated/untreated distance-band flags",
+    )
+    g_asm.add_argument(
+        "--band-radius-m",
+        type=int,
+        action="append",
+        dest="band_radii_m",
+        help="Distance band in metres (repeatable; default 100/200/300/400/500/1000)",
+    )
+    g_asm.set_defaults(func=h.command_grid_assemble)
