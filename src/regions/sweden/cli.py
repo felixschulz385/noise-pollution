@@ -40,6 +40,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_network(data_domains)
     _register_noise_barriers(data_domains)
     _register_assessments(data_domains)
+    _register_traffic(data_domains)
 
 
 def _register_timetable(domains: argparse._SubParsersAction) -> None:
@@ -171,3 +172,19 @@ def _register_assessments(domains: argparse._SubParsersAction) -> None:
     siris_pre = cmd.add_parser("preprocess-siris", help="Parse every fetched year of one SIRIS series into a tidy table")
     siris_pre.add_argument("--dataset-key", required=True, choices=sorted(SIRIS_SCHOOL_GRAIN_DATASETS))
     siris_pre.set_defaults(func=h.command_assessments_preprocess_siris)
+
+
+def _register_traffic(domains: argparse._SubParsersAction) -> None:
+    traffic = domains.add_parser(
+        "traffic",
+        help="NVDB Trafik (ÅDT / traffic flow) -- manually downloaded via Lastkajen, see docs/data/sweden/traffic/README.md",
+    )
+    cmd = traffic.add_subparsers(dest="stage", required=True)
+
+    t_pre = cmd.add_parser("preprocess", help="Build the tidy traffic layer from the manually-downloaded Trafik GeoPackage")
+    t_pre.add_argument("--path", help="Optional explicit path to the GeoPackage")
+    t_pre.set_defaults(func=h.command_traffic_preprocess)
+
+    t_assemble = cmd.add_parser("assemble", help="Match schools to their nearest Trafik segment")
+    t_assemble.add_argument("--max-dist", type=float, default=1000.0)
+    t_assemble.set_defaults(func=h.command_traffic_assemble)

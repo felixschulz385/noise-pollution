@@ -292,3 +292,19 @@ def command_assessments_preprocess_siris(args: argparse.Namespace) -> int:
         }
     )
     return 0
+
+
+def command_traffic_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.traffic.preprocess import run_traffic_preprocess
+
+    result = run_traffic_preprocess(path=args.path)
+    print_json({"domain": "traffic", "stage": "preprocess", **result})
+    return 0
+
+
+def command_traffic_assemble(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.traffic.assemble import run_traffic_assemble
+
+    result = run_traffic_assemble(max_dist=args.max_dist)
+    print_json({"domain": "traffic", "stage": "assemble", **result})
+    return 0
