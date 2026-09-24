@@ -4,14 +4,29 @@ import shutil
 from pathlib import Path
 from zipfile import ZipFile
 
+import geopandas as gpd
+
 from src.regions.sweden.sources._layout import domain_dirs
 
 
 NOISE_BARRIER_SOURCES = ("railway", "highway")
+BARRIER_KINDS = ("road", "rail")
 
 
 def noise_barrier_paths(root: Path | None = None) -> dict[str, Path]:
     return domain_dirs("noise_barriers", root)
+
+
+def load_noise_barriers(kind: str, root: Path | None = None) -> gpd.GeoDataFrame:
+    if kind not in BARRIER_KINDS:
+        raise ValueError(f"Unknown barrier kind '{kind}'. Use one of: {BARRIER_KINDS}.")
+    path = noise_barrier_paths(root)["processed"] / f"{kind}_noise_barriers.parquet"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} missing -- run "
+            f"`sweden data noise-barriers preprocess --dataset-name <...> --output-stem {kind}_noise_barriers` first."
+        )
+    return gpd.read_parquet(path)
 
 
 def validate_noise_barrier_source(source: str) -> str:

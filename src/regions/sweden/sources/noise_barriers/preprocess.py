@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 
 from src.regions.sweden.sources.noise_barriers.shared import (
@@ -10,6 +11,11 @@ from src.regions.sweden.sources.noise_barriers.shared import (
     processed_dataset_stem,
 )
 
+
+# Trafikverket's "year not recorded" sentinel, confirmed empirically per
+# dataset kind (not a shared value) -- see the comment at its use site.
+BUILT_YEAR_SENTINEL = {"road": 1900, "rail": 0}
+DISTANCE_SENTINEL_M = 999.0
 
 COMMON_COLUMN_TRANSLATIONS = {
     "ELEMENT_ID": "element_id",
@@ -187,6 +193,17 @@ def preprocess_noise_barriers(gdf: gpd.GeoDataFrame, dataset_kind: str) -> gpd.G
 
     if "built_year" in translated.columns:
         translated["built_year"] = pd.to_numeric(translated["built_year"], errors="coerce").astype("Int64")
+        # Trafikverket's own "year not recorded" sentinel -- differs by
+        # dataset. Confirmed empirically 2026-09-15 while building
+        # `schools/assemble.py`: **51% of road barriers** carry `1900`
+        # (vs. a real non-sentinel range of 1950-2025, min-max) and rail
+        # carries `0` (vs. a real range of 1989-2025) -- both clearly
+        # placeholders, not real construction years. Left as `1900`/`0`
+        # before this fix, which would have silently treated roughly half
+        # of all road barriers as built in the year 1900.
+        sentinel_year = BUILT_YEAR_SENTINEL.get(dataset_kind)
+        if sentinel_year is not None:
+            translated.loc[translated["built_year"] == sentinel_year, "built_year"] = pd.NA
 
     for numeric_column in [
         "start_measure",
@@ -198,6 +215,11 @@ def preprocess_noise_barriers(gdf: gpd.GeoDataFrame, dataset_kind: str) -> gpd.G
     ]:
         if numeric_column in translated.columns:
             translated[numeric_column] = pd.to_numeric(translated[numeric_column], errors="coerce")
+
+    if "distance_from_track_center_m" in translated.columns:
+        # 999 = "not recorded" (>50% of rail rows; real values are single
+        # metres), same kind of sentinel as `built_year`'s above.
+        translated.loc[translated["distance_from_track_center_m"] == DISTANCE_SENTINEL_M, "distance_from_track_center_m"] = np.nan
 
     if "connection_date_text" in translated.columns:
         translated["connection_date_is_before_flag"] = translated["connection_date_text"].astype(str).str.startswith("<")
@@ -261,7 +283,7 @@ def save_processed_noise_barriers(
     dataset_name: str,
     output_stem: str | None = None,
 ) -> dict[str, str]:
-    from data.noise_barriers.shared import noise_barrier_paths
+    from src.regions.sweden.sources.noise_barriers.shared import noise_barrier_paths
 
     paths = noise_barrier_paths()
     stem = processed_dataset_stem(dataset_name, output_stem)
