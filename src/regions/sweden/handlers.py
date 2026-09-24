@@ -242,6 +242,52 @@ def command_noise_barriers_preprocess(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_schools_fetch(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.schools.fetch import fetch_skolenhetsregistret
+
+    result = fetch_skolenhetsregistret(limit=args.limit, status=args.status, force=args.force)
+    print_json(
+        {
+            "domain": "schools",
+            "stage": "fetch",
+            "list_path": result["list_path"],
+            "total_in_register": result["total_in_register"],
+            "requested_details": result["requested_details"],
+            "fetched": len(result["fetched"]),
+            "skipped": len(result["skipped"]),
+            "failed": len(result["failed"]),
+            "failed_codes": result["failed"],
+        }
+    )
+    return 0
+
+
+def command_schools_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.schools.preprocess import (
+        load_all_details,
+        preprocess_schools,
+        save_processed_schools,
+    )
+
+    details = load_all_details()
+    schools_gdf = preprocess_schools(details)
+    saved = save_processed_schools(
+        schools_gdf,
+        geojson_name=args.geojson_filename,
+        csv_name=args.csv_filename,
+    )
+    print_json(
+        {
+            "domain": "schools",
+            "stage": "preprocess",
+            "rows": int(len(schools_gdf)),
+            "geocoded": int(schools_gdf.geometry.notna().sum()),
+            "saved": saved,
+        }
+    )
+    return 0
+
+
 def command_assessments_fetch_kvalitetssystem(args: argparse.Namespace) -> int:
     from src.regions.sweden.sources.assessments.kvalitetssystem import fetch_kvalitetssystem
 
@@ -302,6 +348,36 @@ def command_assessments_preprocess_siris(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_schools_assemble(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.schools.assemble import run_schools_assemble
+
+    result = run_schools_assemble(max_dist=args.max_dist)
+    print_json({"domain": "schools", "stage": "assemble", **result})
+    return 0
+
+
+def command_schools_assemble_rail_network(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.schools.assemble import run_schools_assemble_network
+
+    result = run_schools_assemble_network("rail")
+    print_json({"domain": "schools", "stage": "assemble-rail-network", **result})
+    return 0
+
+
+def command_schools_assemble_road_network(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.schools.assemble import run_schools_assemble_network
+
+    result = run_schools_assemble_network("road")
+    print_json({"domain": "schools", "stage": "assemble-road-network", **result})
+    return 0
+
+
+def command_schools_build_lineage(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.schools.lineage import run_schools_lineage
+
+    result = run_schools_lineage()
+    print_json({"domain": "schools", "stage": "build-lineage", **result})
+    return 0
 
 
 def command_road_network_preprocess(args: argparse.Namespace) -> int:

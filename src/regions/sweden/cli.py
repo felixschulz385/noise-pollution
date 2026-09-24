@@ -39,6 +39,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_stations(data_domains)
     _register_network(data_domains)
     _register_noise_barriers(data_domains)
+    _register_schools(data_domains)
     _register_assessments(data_domains)
     _register_road_network(data_domains)
     _register_osm_walls(data_domains)
@@ -147,6 +148,50 @@ def _register_noise_barriers(domains: argparse._SubParsersAction) -> None:
     nb_pre.add_argument("--dataset-name", required=True, help='Dataset stem such as "Sound_Barriers_-_Road"')
     nb_pre.add_argument("--output-stem", help="Optional processed output stem")
     nb_pre.set_defaults(func=h.command_noise_barriers_preprocess)
+
+
+def _register_schools(domains: argparse._SubParsersAction) -> None:
+    schools = domains.add_parser(
+        "schools",
+        help="School-unit register (Skolenhetsregistret): identity, geocoding, grade span",
+    )
+    cmd = schools.add_subparsers(dest="stage", required=True)
+
+    sc_fetch = cmd.add_parser(
+        "fetch",
+        help="Fetch the school-unit list, then per-school detail records (geocoded)",
+    )
+    sc_fetch.add_argument("--limit", type=int, help="Fetch detail for at most this many schools (smoke test)")
+    sc_fetch.add_argument("--status", choices=["Aktiv", "Vilande", "Planerad"], help="Only fetch this Status")
+    sc_fetch.add_argument("--force", action="store_true", help="Refetch detail records already on disk")
+    sc_fetch.set_defaults(func=h.command_schools_fetch)
+
+    sc_pre = cmd.add_parser("preprocess", help="Build a tidy, geocoded school-unit table from fetched detail records")
+    sc_pre.add_argument("--geojson-filename", default="schools.geojson")
+    sc_pre.add_argument("--csv-filename", default="schools.csv")
+    sc_pre.set_defaults(func=h.command_schools_preprocess)
+
+    sc_asm = cmd.add_parser("assemble", help="Match geocoded schools to nearby road/rail noise barriers")
+    sc_asm.add_argument("--max-dist", type=float, default=1000.0)
+    sc_asm.set_defaults(func=h.command_schools_assemble)
+
+    sc_rail_net = cmd.add_parser(
+        "assemble-rail-network",
+        help="Algorithms 4+5 (same_route/same_side/protected): annotate the rail match with the saved barrier references. Requires assemble + barrier-protection build first",
+    )
+    sc_rail_net.set_defaults(func=h.command_schools_assemble_rail_network)
+
+    sc_road_net = cmd.add_parser(
+        "assemble-road-network",
+        help="Algorithms 4+5 (same_route/same_side/protected): annotate the road match with the saved barrier references. Requires assemble + barrier-protection build first",
+    )
+    sc_road_net.set_defaults(func=h.command_schools_assemble_road_network)
+
+    sc_lineage = cmd.add_parser(
+        "build-lineage",
+        help="Build the high-confidence skolenhetskod reorg-lineage crosswalk (retired unit -> its successor at the same site). Requires preprocess first",
+    )
+    sc_lineage.set_defaults(func=h.command_schools_build_lineage)
 
 
 def _register_assessments(domains: argparse._SubParsersAction) -> None:
