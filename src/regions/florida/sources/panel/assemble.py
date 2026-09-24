@@ -80,6 +80,33 @@ that year (or in one of the ~20 special, non-county FLDOE districts) gets
 ``shock_n_declarations=0`` / ``shock_any_major_disaster=False`` — a real "no
 shock" value, matching the ``ever_treated_*``/``n_road_projects_active``
 convention, not ``NA``.
+
+**Staff (Cluster B) is two joins, one per sub-source grain.**
+``staff/assemble.py``'s ``district_staff_panel.parquet`` (teacher salary/
+experience + per-pupil expenditure, one row per ``(district, year)``) is
+joined exactly like ``shocks``' county-year table — exact ``(district_name,
+year)``, no tolerance — since every school in a district sees the same
+district-wide salary/spending figure. ``school_staff_panel.parquet``
+(in-field/out-of-field teaching) is already at the ``(msid, year)`` grain,
+so it needs a plain exact-key join with no broadcast at all — the only
+Cluster B/C/D/G source with a genuinely school-level FLDOE workbook. Unlike
+``shocks``/``road_projects``, a missing staff match is left ``NA``, not
+zeroed — there is no sensible "zero" for an average salary or an
+out-of-field percentage the way there is for a declaration count or an
+active-project count.
+
+**Neighbourhood (Cluster F) is two exact ``(msid, year)`` joins onto panels
+``neighbourhood/assemble.py`` already resolved via a static spatial match.**
+Unlike every other covariate module here, the school-side match
+(``school_tract_match.parquet``/``school_zip_match.parquet``) is a
+point-in-polygon spatial join, not a nearest-roadway or name match — but by
+the time it reaches ``panel/assemble.py`` it has already been reduced to a
+plain ``(msid, year)`` table (``school_acs_panel.parquet``/
+``school_zhvi_panel.parquet``), so ``attach_neighbourhood`` needs no spatial
+logic of its own, just two more exact-key left joins, same shape as
+``attach_staff``'s school-level join. An unmatched row is left ``NA`` —
+there is no sensible "zero" for median household income or a home-value
+index.
 """
 from __future__ import annotations
 
@@ -98,7 +125,9 @@ from src.regions.florida.sources.schools.shared import (
     processed_cross_section_path,
     processed_panel_path,
 )
+from src.regions.florida.sources.neighbourhood.shared import school_acs_panel_path, school_zhvi_panel_path
 from src.regions.florida.sources.shocks.shared import school_shocks_panel_path
+from src.regions.florida.sources.staff.shared import district_staff_panel_path, school_staff_panel_path
 from src.regions.florida.sources.traffic.shared import school_aadt_panel_path
 
 TREATMENT_DEFINITIONS = ("point", "same_route", "same_side")
@@ -198,6 +227,34 @@ def load_shocks_county_year_panel(root: Path | None = None) -> pd.DataFrame:
     path = school_shocks_panel_path(root)
     if not path.exists():
         raise FileNotFoundError(f"{path} missing — run `... florida data shocks assemble` first.")
+    return pd.read_parquet(path)
+
+
+def load_district_staff_panel(root: Path | None = None) -> pd.DataFrame:
+    path = district_staff_panel_path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing — run `... florida data staff assemble` first.")
+    return pd.read_parquet(path)
+
+
+def load_school_staff_panel(root: Path | None = None) -> pd.DataFrame:
+    path = school_staff_panel_path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing — run `... florida data staff assemble` first.")
+    return pd.read_parquet(path)
+
+
+def load_school_acs_panel(root: Path | None = None) -> pd.DataFrame:
+    path = school_acs_panel_path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing — run `... florida data neighbourhood assemble` first.")
+    return pd.read_parquet(path)
+
+
+def load_school_zhvi_panel(root: Path | None = None) -> pd.DataFrame:
+    path = school_zhvi_panel_path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing — run `... florida data neighbourhood assemble` first.")
     return pd.read_parquet(path)
 
 
@@ -352,6 +409,65 @@ def attach_shocks(panel: pd.DataFrame, shocks_county_year_panel: pd.DataFrame) -
     return out
 
 
+STAFF_DISTRICT_RENAME = {
+    "avg_salary": "staff_avg_teacher_salary",
+    "avg_employment_length_months": "staff_avg_employment_length_months",
+    "avg_years_experience": "staff_avg_teacher_experience_years",
+    "median_salary": "staff_median_teacher_salary",
+    "per_pupil_expenditure": "staff_per_pupil_expenditure",
+}
+STAFF_SCHOOL_RENAME = {
+    "pct_out_of_field": "staff_pct_out_of_field_classes",
+    "n_classes_total": "staff_n_classes_total",
+}
+
+
+def attach_staff(
+    panel: pd.DataFrame, district_staff_panel: pd.DataFrame, school_staff_panel: pd.DataFrame
+) -> pd.DataFrame:
+    """Two exact-key left joins, no tolerance and no zero-fill (see module
+    docstring): `district_staff_panel.parquet` by `(district_name, year)`,
+    broadcasting a district's salary/experience/per-pupil figures to every
+    school in it, then `school_staff_panel.parquet` by `(msid, year)` — the
+    only Cluster B/C/D/G source with a genuinely school-level FLDOE
+    workbook, so no broadcast is needed for it."""
+    district_present = [c for c in STAFF_DISTRICT_RENAME if c in district_staff_panel.columns]
+    district_renamed = district_staff_panel[["district_name", "year", *district_present]].rename(columns=STAFF_DISTRICT_RENAME)
+    out = panel.merge(district_renamed, on=["district_name", "year"], how="left")
+
+    school_present = [c for c in STAFF_SCHOOL_RENAME if c in school_staff_panel.columns]
+    school_renamed = school_staff_panel[["msid", "year", *school_present]].rename(columns=STAFF_SCHOOL_RENAME)
+    out = out.merge(school_renamed, on=["msid", "year"], how="left")
+    return out
+
+
+NEIGHBOURHOOD_ACS_RENAME = {
+    "median_household_income": "nbhd_median_household_income",
+    "poverty_rate": "nbhd_poverty_rate",
+    "pct_owner_occupied": "nbhd_pct_owner_occupied",
+    "pct_bachelors_plus": "nbhd_pct_bachelors_plus",
+    "pct_moved_last_year": "nbhd_pct_moved_last_year",
+}
+NEIGHBOURHOOD_ZHVI_RENAME = {"zhvi": "nbhd_zhvi"}
+
+
+def attach_neighbourhood(
+    panel: pd.DataFrame, school_acs_panel: pd.DataFrame, school_zhvi_panel: pd.DataFrame
+) -> pd.DataFrame:
+    """Two exact ``(msid, year)`` left joins — `school_acs_panel.parquet`/
+    `school_zhvi_panel.parquet` are already at the panel's own grain
+    (`neighbourhood/assemble.py` resolved the spatial school->tract/ZIP
+    match ahead of time), so no tolerance or broadcast is needed here."""
+    acs_present = [c for c in NEIGHBOURHOOD_ACS_RENAME if c in school_acs_panel.columns]
+    acs_renamed = school_acs_panel[["msid", "year", *acs_present]].rename(columns=NEIGHBOURHOOD_ACS_RENAME)
+    out = panel.merge(acs_renamed, on=["msid", "year"], how="left")
+
+    zhvi_present = [c for c in NEIGHBOURHOOD_ZHVI_RENAME if c in school_zhvi_panel.columns]
+    zhvi_renamed = school_zhvi_panel[["msid", "year", *zhvi_present]].rename(columns=NEIGHBOURHOOD_ZHVI_RENAME)
+    out = out.merge(zhvi_renamed, on=["msid", "year"], how="left")
+    return out
+
+
 def build_event_study_panel(
     assessments: pd.DataFrame,
     school_year_panel: gpd.GeoDataFrame,
@@ -360,6 +476,10 @@ def build_event_study_panel(
     school_aadt_panel: pd.DataFrame,
     school_road_projects: pd.DataFrame,
     shocks_county_year_panel: pd.DataFrame,
+    district_staff_panel: pd.DataFrame,
+    school_staff_panel: pd.DataFrame,
+    school_acs_panel: pd.DataFrame,
+    school_zhvi_panel: pd.DataFrame,
     max_traffic_year_gap: int = MAX_TRAFFIC_YEAR_GAP,
 ) -> gpd.GeoDataFrame:
     """One row per ``(msid, grade, subject, year)`` — the ``assessments``
@@ -378,6 +498,8 @@ def build_event_study_panel(
     panel = attach_traffic(panel, school_aadt_panel, max_traffic_year_gap)
     panel = attach_road_projects(panel, school_road_projects)
     panel = attach_shocks(panel, shocks_county_year_panel)
+    panel = attach_staff(panel, district_staff_panel, school_staff_panel)
+    panel = attach_neighbourhood(panel, school_acs_panel, school_zhvi_panel)
 
     for definition in TREATMENT_DEFINITIONS:
         # No wall nearby -> genuinely never treated / no unknown-timing wall,
@@ -409,6 +531,10 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
     school_aadt_panel = load_school_aadt_panel(root)
     school_road_projects = load_school_road_projects(root)
     shocks_county_year_panel = load_shocks_county_year_panel(root)
+    district_staff_panel = load_district_staff_panel(root)
+    school_staff_panel = load_school_staff_panel(root)
+    school_acs_panel = load_school_acs_panel(root)
+    school_zhvi_panel = load_school_zhvi_panel(root)
 
     panel = build_event_study_panel(
         assessments,
@@ -418,6 +544,10 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
         school_aadt_panel,
         school_road_projects,
         shocks_county_year_panel,
+        district_staff_panel,
+        school_staff_panel,
+        school_acs_panel,
+        school_zhvi_panel,
     )
 
     report: dict[str, object] = {
@@ -450,6 +580,11 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
         "rows_with_a_shock_declaration": int((panel["shock_n_declarations"] > 0).sum()),
         "rows_with_a_hurricane_shock": int((panel["shock_n_hurricane_declarations"] > 0).sum()),
         "rows_with_a_major_disaster_shock": int(panel["shock_any_major_disaster"].sum()),
+        "rows_with_staff_salary_match": int(panel["staff_avg_teacher_salary"].notna().sum()),
+        "rows_with_staff_per_pupil_expenditure_match": int(panel["staff_per_pupil_expenditure"].notna().sum()),
+        "rows_with_staff_out_of_field_match": int(panel["staff_pct_out_of_field_classes"].notna().sum()),
+        "rows_with_nbhd_acs_match": int(panel["nbhd_median_household_income"].notna().sum()),
+        "rows_with_nbhd_zhvi_match": int(panel["nbhd_zhvi"].notna().sum()),
     }
     saved = save_panel(panel, report, root)
     report["saved"] = saved

@@ -10,8 +10,10 @@ from src.regions.florida.sources.panel.assemble import (
     STATIC_SCHOOL_COLUMNS,
     TREATMENT_COLUMNS,
     TREATMENT_DEFINITIONS,
+    attach_neighbourhood,
     attach_road_projects,
     attach_shocks,
+    attach_staff,
     attach_traffic,
     build_event_study_panel,
     build_road_projects_year_panel,
@@ -143,6 +145,64 @@ def _shocks_panel(rows):
     )
 
 
+EMPTY_DISTRICT_STAFF_PANEL = pd.DataFrame(
+    columns=["district_name", "year", "avg_salary", "avg_years_experience", "median_salary", "per_pupil_expenditure"]
+)
+EMPTY_SCHOOL_STAFF_PANEL = pd.DataFrame(columns=["msid", "year", "pct_out_of_field", "n_classes_total"])
+
+
+def _district_staff_panel(rows):
+    # rows: (district_name, year, avg_salary, avg_years_experience, per_pupil_expenditure)
+    if not rows:
+        return EMPTY_DISTRICT_STAFF_PANEL.copy()
+    return pd.DataFrame(
+        [
+            {
+                "district_name": d, "year": y, "avg_salary": sal,
+                "avg_years_experience": exp, "median_salary": np.nan, "per_pupil_expenditure": ppe,
+            }
+            for d, y, sal, exp, ppe in rows
+        ]
+    )
+
+
+def _school_staff_panel(rows):
+    # rows: (msid, year, pct_out_of_field, n_classes_total)
+    if not rows:
+        return EMPTY_SCHOOL_STAFF_PANEL.copy()
+    return pd.DataFrame(
+        [{"msid": m, "year": y, "pct_out_of_field": p, "n_classes_total": n} for m, y, p, n in rows]
+    )
+
+
+EMPTY_ACS_PANEL = pd.DataFrame(
+    columns=["msid", "year", "median_household_income", "poverty_rate", "pct_owner_occupied", "pct_bachelors_plus", "pct_moved_last_year"]
+)
+EMPTY_ZHVI_PANEL = pd.DataFrame(columns=["msid", "year", "zhvi"])
+
+
+def _acs_panel(rows):
+    # rows: (msid, year, median_household_income, poverty_rate)
+    if not rows:
+        return EMPTY_ACS_PANEL.copy()
+    return pd.DataFrame(
+        [
+            {
+                "msid": m, "year": y, "median_household_income": inc, "poverty_rate": pov,
+                "pct_owner_occupied": 0.6, "pct_bachelors_plus": 0.3, "pct_moved_last_year": 0.1,
+            }
+            for m, y, inc, pov in rows
+        ]
+    )
+
+
+def _zhvi_panel(rows):
+    # rows: (msid, year, zhvi)
+    if not rows:
+        return EMPTY_ZHVI_PANEL.copy()
+    return pd.DataFrame([{"msid": m, "year": y, "zhvi": z} for m, y, z in rows])
+
+
 def test_grain_is_one_row_per_assessment_row_no_duplication():
     assessments = _assessments([
         ("a", "03", "ELA", 2020, {}),
@@ -154,7 +214,7 @@ def test_grain_is_one_row_per_assessment_row_no_duplication():
     cross_section = _cross_section([("a", 0, 0), ("b", 100, 0)])
     rollup = _rollup([("a", {}), ("b", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL)
     assert len(panel) == 4
     assert panel.drop_duplicates(["msid", "grade", "subject", "year"]).shape[0] == 4
 
@@ -168,7 +228,7 @@ def test_state_total_rows_are_dropped():
     cross_section = _cross_section([("a", 0, 0)])
     rollup = _rollup([("a", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL)
     assert list(panel["msid"]) == ["a"]
 
 
@@ -180,7 +240,7 @@ def test_school_missing_from_rollup_is_never_treated_not_missing():
     # unrelated school "z" is in the rollup at all).
     rollup = _rollup([("z", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL)
     row = panel.iloc[0]
     for definition in TREATMENT_DEFINITIONS:
         assert row[f"ever_treated_{definition}"] == False   # noqa: E712 -- not NaN
@@ -197,7 +257,7 @@ def test_event_time_is_year_minus_first_treat_year():
     cross_section = _cross_section([("a", 0, 0)])
     rollup = _rollup([("a", {"first_treat_year_same_side": 2018.0, "ever_treated_same_side": True})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL).set_index("year")
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL).set_index("year")
     assert panel.loc[2015, "event_time_same_side"] == pytest.approx(-3.0)
     assert panel.loc[2020, "event_time_same_side"] == pytest.approx(2.0)
 
@@ -208,7 +268,7 @@ def test_static_columns_renamed_to_avoid_collision_with_assessments():
     cross_section = _cross_section([("a", 0, 0)])
     rollup = _rollup([("a", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL)
     assert "msid_school_name" in panel.columns and "msid_district_name" in panel.columns
     assert panel.iloc[0]["msid_school_name"] == "MSID Name"
     # assessments' own district_name / school_name survive un-suffixed.
@@ -225,7 +285,7 @@ def test_missing_covariate_row_keeps_the_assessment_row():
     cross_section = _cross_section([("b", 0, 0)])
     rollup = _rollup([("b", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL)
     assert len(panel) == 1
     assert pd.isna(panel.iloc[0]["enrollment"])
 
@@ -236,7 +296,7 @@ def test_treatment_and_static_columns_present():
     cross_section = _cross_section([("a", 0, 0)])
     rollup = _rollup([("a", {})])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL)
     for col in TREATMENT_COLUMNS:
         if col == "msid":
             continue
@@ -295,7 +355,7 @@ def test_build_event_study_panel_includes_traffic_columns():
     rollup = _rollup([("a", {})])
     aadt = _aadt_panel([("a", "r1", 2019, 12000.0, 10.0)])
 
-    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, aadt, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL)
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, aadt, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL)
     assert panel.iloc[0]["traffic_aadt"] == 12000.0
     assert panel.iloc[0]["traffic_roadway_id"] == "r1"
 
@@ -389,7 +449,8 @@ def test_build_event_study_panel_includes_road_project_columns():
     projects = _road_projects([("a", "r1", 2024, None, None, "ADD LANES & RECONSTR", False)])
 
     panel = build_event_study_panel(
-        assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, projects, EMPTY_SHOCKS_PANEL
+        assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, projects, EMPTY_SHOCKS_PANEL,
+        EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL,
     )
     assert panel.iloc[0]["n_road_projects_active"] == 1
     assert bool(panel.iloc[0]["road_project_is_widening"]) is True
@@ -434,7 +495,83 @@ def test_build_event_study_panel_includes_shock_columns():
     shocks_panel = _shocks_panel([("BROWARD", 2018, 1, 1, True)])
 
     panel = build_event_study_panel(
-        assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, shocks_panel
+        assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, shocks_panel,
+        EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL,
     )
     assert panel.iloc[0]["shock_n_declarations"] == 1
     assert bool(panel.iloc[0]["shock_any_major_disaster"]) is True
+
+
+def test_attach_staff_district_broadcast_and_school_exact_match():
+    panel = pd.DataFrame({"msid": ["a", "b"], "district_name": ["BROWARD", "BROWARD"], "year": [2018, 2018]})
+    district_panel = _district_staff_panel([("BROWARD", 2018, 55000.0, 12.0, 9500.0)])
+    school_panel = _school_staff_panel([("a", 2018, 0.1, 100)])
+
+    out = attach_staff(panel, district_panel, school_panel)
+
+    # both schools in the district get the same salary/per-pupil figures...
+    assert (out["staff_avg_teacher_salary"] == 55000.0).all()
+    assert (out["staff_per_pupil_expenditure"] == 9500.0).all()
+    # ...but only "a" has its own out-of-field match; "b" is NA, not zeroed.
+    a_row = out[out["msid"] == "a"].iloc[0]
+    b_row = out[out["msid"] == "b"].iloc[0]
+    assert a_row["staff_pct_out_of_field_classes"] == 0.1
+    assert pd.isna(b_row["staff_pct_out_of_field_classes"])
+
+
+def test_attach_staff_unmatched_district_and_school_are_na():
+    panel = pd.DataFrame({"msid": ["z"], "district_name": ["FSU LAB SCHOOL"], "year": [2018]})
+    district_panel = _district_staff_panel([("BROWARD", 2018, 55000.0, 12.0, 9500.0)])
+    school_panel = _school_staff_panel([("a", 2018, 0.1, 100)])
+
+    out = attach_staff(panel, district_panel, school_panel)
+    assert pd.isna(out.loc[0, "staff_avg_teacher_salary"])
+    assert pd.isna(out.loc[0, "staff_pct_out_of_field_classes"])
+
+
+def test_build_event_study_panel_includes_staff_columns():
+    assessments = _assessments([("a", "03", "ELA", 2018, {"district_name": "BROWARD"})])
+    school_year_panel = _school_year_panel([("a", 2018, 500)])
+    cross_section = _cross_section([("a", 0, 0)])
+    rollup = _rollup([("a", {})])
+    district_panel = _district_staff_panel([("BROWARD", 2018, 55000.0, 12.0, 9500.0)])
+    school_panel = _school_staff_panel([("a", 2018, 0.1, 100)])
+
+    panel = build_event_study_panel(
+        assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS,
+        EMPTY_SHOCKS_PANEL, district_panel, school_panel, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL,
+    )
+    assert panel.iloc[0]["staff_avg_teacher_salary"] == 55000.0
+    assert panel.iloc[0]["staff_pct_out_of_field_classes"] == 0.1
+
+
+def test_attach_neighbourhood_exact_msid_year_match():
+    panel = pd.DataFrame({"msid": ["a", "b"], "year": [2020, 2020]})
+    acs_panel = _acs_panel([("a", 2020, 55000.0, 0.15)])
+    zhvi_panel = _zhvi_panel([("a", 2020, 210000.0)])
+
+    out = attach_neighbourhood(panel, acs_panel, zhvi_panel)
+
+    a_row = out[out["msid"] == "a"].iloc[0]
+    assert a_row["nbhd_median_household_income"] == 55000.0
+    assert a_row["nbhd_poverty_rate"] == 0.15
+    assert a_row["nbhd_zhvi"] == 210000.0
+    b_row = out[out["msid"] == "b"].iloc[0]
+    assert pd.isna(b_row["nbhd_median_household_income"])
+    assert pd.isna(b_row["nbhd_zhvi"])
+
+
+def test_build_event_study_panel_includes_neighbourhood_columns():
+    assessments = _assessments([("a", "03", "ELA", 2020, {})])
+    school_year_panel = _school_year_panel([("a", 2020, 500)])
+    cross_section = _cross_section([("a", 0, 0)])
+    rollup = _rollup([("a", {})])
+    acs_panel = _acs_panel([("a", 2020, 55000.0, 0.15)])
+    zhvi_panel = _zhvi_panel([("a", 2020, 210000.0)])
+
+    panel = build_event_study_panel(
+        assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS,
+        EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, acs_panel, zhvi_panel,
+    )
+    assert panel.iloc[0]["nbhd_median_household_income"] == 55000.0
+    assert panel.iloc[0]["nbhd_zhvi"] == 210000.0

@@ -45,7 +45,24 @@ v2, the entire FL history fetched in one request; `assemble` rolls up to
 `county_name x assessment_year` and joins onto the real FLDOE county-
 district roster (a name join, not FIPS — Florida has one district per
 county), REQUIRES `schools preprocess`, see
-`docs/data/florida/shocks/README.md`).
+`docs/data/florida/shocks/README.md`), ``staff`` (`fetch`, `preprocess`,
+`assemble` — teacher salary/experience + in-field/out-of-field teaching,
+covariate Cluster B; two FLDOE workbooks pulled via their Wayback Machine
+archive (`www.fldoe.org` itself blocks scripted clients, same as
+`assessments`) plus NCES CCD F-33 per-pupil expenditure via the Urban API;
+FLDOE's own `DISTRICT #`/`SCHOOL #` numbering matches `schools`' `district`/
+`school` fields directly, no crosswalk needed there — only the CCD join
+needs one (a modal `district -> leaid` map), REQUIRES `schools preprocess`,
+see `docs/data/florida/staff/README.md`), ``neighbourhood`` (`fetch`,
+`preprocess`, `assemble` — tract-level ACS demographics (income, poverty,
+tenure, education, mobility) + Zillow ZHVI home values, covariate Cluster F;
+the ONLY Florida source doing a point-in-polygon spatial join (school ->
+Census tract / ZCTA) rather than a linear-referencing one; the Census Data
+API now requires a key for every request (`CENSUS_API_KEY` env var, a 2026-05
+policy change) while Zillow's ZHVI CSV and the TIGER cartographic boundary
+files need none; two tract-boundary vintages (2010/2020) handled since ACS5
+switched vintage at its "2020" release, REQUIRES `schools preprocess`, see
+`docs/data/florida/neighbourhood/README.md`).
 """
 from __future__ import annotations
 
@@ -68,6 +85,8 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_traffic(data_domains)
     _register_road_projects(data_domains)
     _register_shocks(data_domains)
+    _register_staff(data_domains)
+    _register_neighbourhood(data_domains)
     _register_panel(data_domains)
 
 
@@ -275,6 +294,77 @@ def _register_shocks(domains: argparse._SubParsersAction) -> None:
         help="Roll declarations up to county x assessment-year, REQUIRES schools preprocess",
     )
     sh_assemble.set_defaults(func=h.command_shocks_assemble)
+
+
+def _register_staff(domains: argparse._SubParsersAction) -> None:
+    staff = domains.add_parser(
+        "staff", help="Teacher salary/experience, in-field/out-of-field teaching, per-pupil expenditure"
+    )
+    cmd = staff.add_subparsers(dest="stage", required=True)
+
+    st_fetch = cmd.add_parser(
+        "fetch",
+        help="Download each sub-source's per-year workbook (via Wayback) / call the Urban CCD-finance API",
+    )
+    st_fetch.add_argument(
+        "--subsource", choices=["teacher-salary", "out-of-field", "district-finance"],
+        help="Fetch only this sub-source. Default: all three.",
+    )
+    st_fetch.add_argument(
+        "--year", type=int, action="append",
+        help="Assessment year (repeatable). Default: every registered/confirmed year for the subsource.",
+    )
+    st_fetch.add_argument(
+        "--from-file", help="Path to a workbook you downloaded; needs exactly one --year and --subsource."
+    )
+    st_fetch.add_argument(
+        "--file-url",
+        help="Direct file URL to try (best effort; www.fldoe.org normally 403s). Needs exactly one --year and --subsource.",
+    )
+    st_fetch.set_defaults(func=h.command_staff_fetch)
+
+    st_pre = cmd.add_parser(
+        "preprocess", help="Tidy each sub-source's cached raw files to its own native grain"
+    )
+    st_pre.set_defaults(func=h.command_staff_preprocess)
+
+    st_assemble = cmd.add_parser(
+        "assemble",
+        help="Build the district->leaid crosswalk and the district/school staff panels, REQUIRES schools preprocess",
+    )
+    st_assemble.set_defaults(func=h.command_staff_assemble)
+
+
+def _register_neighbourhood(domains: argparse._SubParsersAction) -> None:
+    neighbourhood = domains.add_parser(
+        "neighbourhood", help="Tract-level ACS demographics + Zillow ZHVI home values"
+    )
+    cmd = neighbourhood.add_subparsers(dest="stage", required=True)
+
+    n_fetch = cmd.add_parser(
+        "fetch",
+        help="Download tract/ZCTA boundaries, Zillow ZHVI, and per-year ACS 5-year data (needs CENSUS_API_KEY)",
+    )
+    n_fetch.add_argument(
+        "--subsource", choices=["tract-boundaries", "zcta-boundaries", "zhvi", "acs"],
+        help="Fetch only this sub-source. Default: all four.",
+    )
+    n_fetch.add_argument(
+        "--year", type=int, action="append",
+        help="ACS 5-year vintage (repeatable, --subsource acs only). Default: every year from 2009 to the current year.",
+    )
+    n_fetch.set_defaults(func=h.command_neighbourhood_fetch)
+
+    n_pre = cmd.add_parser(
+        "preprocess", help="Tidy boundaries to GeoParquet, derive ACS rates, collapse ZHVI to one row per ZIP x year"
+    )
+    n_pre.set_defaults(func=h.command_neighbourhood_preprocess)
+
+    n_assemble = cmd.add_parser(
+        "assemble",
+        help="Spatial school->tract/ZIP match + the two time-varying panels, REQUIRES schools preprocess",
+    )
+    n_assemble.set_defaults(func=h.command_neighbourhood_assemble)
 
 
 def _register_assessments(domains: argparse._SubParsersAction) -> None:

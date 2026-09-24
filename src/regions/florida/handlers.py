@@ -155,6 +155,78 @@ def command_shocks_assemble(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_staff_fetch(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.staff.fetch import fetch_district_finance, fetch_out_of_field, fetch_teacher_salary
+
+    result: dict[str, object] = {}
+    if args.subsource in (None, "teacher-salary"):
+        result["teacher_salary"] = fetch_teacher_salary(
+            years=args.year, from_file=args.from_file, file_url=args.file_url
+        )
+    if args.subsource in (None, "out-of-field"):
+        result["out_of_field"] = fetch_out_of_field(
+            years=args.year, from_file=args.from_file, file_url=args.file_url
+        )
+    if args.subsource in (None, "district-finance"):
+        result["district_finance"] = fetch_district_finance(years=args.year)
+    print_json({"domain": "staff", "stage": "fetch", **result})
+    return 0
+
+
+def command_staff_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.staff.preprocess import run_staff_preprocess
+
+    result = run_staff_preprocess()
+    print_json({"domain": "staff", "stage": "preprocess", **result})
+    return 0
+
+
+def command_staff_assemble(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.staff.assemble import run_staff_assemble
+
+    result = run_staff_assemble()
+    print_json({"domain": "staff", "stage": "assemble", **result})
+    return 0
+
+
+def command_neighbourhood_fetch(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.neighbourhood.fetch import (
+        fetch_acs,
+        fetch_tract_boundaries,
+        fetch_zcta_boundaries,
+        fetch_zhvi,
+    )
+    from src.regions.florida.sources.neighbourhood.shared import TRACT_BOUNDARY_URLS
+
+    result: dict[str, object] = {}
+    if args.subsource in (None, "tract-boundaries"):
+        result["tract_boundaries"] = {v: fetch_tract_boundaries(v) for v in TRACT_BOUNDARY_URLS}
+    if args.subsource in (None, "zcta-boundaries"):
+        result["zcta_boundaries"] = fetch_zcta_boundaries()
+    if args.subsource in (None, "zhvi"):
+        result["zhvi"] = fetch_zhvi()
+    if args.subsource in (None, "acs"):
+        result["acs"] = fetch_acs(years=args.year)
+    print_json({"domain": "neighbourhood", "stage": "fetch", **result})
+    return 0
+
+
+def command_neighbourhood_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.neighbourhood.preprocess import run_neighbourhood_preprocess
+
+    result = run_neighbourhood_preprocess()
+    print_json({"domain": "neighbourhood", "stage": "preprocess", **result})
+    return 0
+
+
+def command_neighbourhood_assemble(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.neighbourhood.assemble import run_neighbourhood_assemble
+
+    result = run_neighbourhood_assemble()
+    print_json({"domain": "neighbourhood", "stage": "assemble", **result})
+    return 0
+
+
 def command_assessments_list_years(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.assessments.fetch import list_years
 

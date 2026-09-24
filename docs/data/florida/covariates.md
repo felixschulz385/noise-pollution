@@ -79,18 +79,32 @@ exports and messier to panel.
 
 ## Cluster B — Staff & fiscal resources
 
+**Status: `teacher_salary` (avg salary + avg years' experience + median
+salary, district-level) + `out_of_field` (in-field/out-of-field teaching,
+SCHOOL-level) + `district_finance` (per-pupil expenditure, via NCES CCD F-33)
+implemented and joined into `panel` 2026-09-17** — the two FLDOE workbooks
+downloaded via their Wayback Machine archive (`www.fldoe.org` itself blocks
+scripted clients, same as `assessments`), the CCD finance pull a plain
+no-auth API call (26/26 years fetched cleanly). Real numbers: 35,453/660,681
+panel rows (5.4%, effectively all of assessment-year-2025 — the two FLDOE
+workbooks' historical backfill is mechanically ready but paused on a live
+Internet Archive outage) matched salary/experience, 398,189 (60.3%, spanning
+1995–2020) matched per-pupil expenditure, 35,308 (5.3%) matched
+out-of-field. Teacher turnover and % advanced degree remain unbuilt (see
+below). Full implementation brief: [`staff/README.md`](staff/README.md).
+
 | Variable | Role | TV? | Why it matters | Source | Access |
 |---|---|---|---|---|---|
-| Teacher experience distribution, % advanced degree, % out-of-field | selection / keep-out | Y | teacher quality shifts; partly a mediator (noise → turnover) | FLDOE **Staff Information System** ("Staff in Florida's Public Schools") | FLDOE Staff pubs (per-year Excel) |
-| Teacher turnover / share new to school | keep-out | Y | mechanism channel | FLDOE Staff SIS (year-over-year match) | derived |
-| Average teacher salary | selection | Y | resource level / labour market | FLDOE **Teacher Salary Data** | direct XLSX: `fldoe.org/core/fileparse.php/7584/urlt/<yy>TeacherSalaryData.xlsx` |
-| Per-pupil expenditure | selection / keep-out | Y | resource response | NCES CCD fiscal (F-33); FLDOE district financial reports | Urban API `school-districts/ccd/finance`; NCES |
+| Teacher experience (mean, district-level), % out-of-field (SCHOOL-level) | selection / keep-out | Y | teacher quality shifts; partly a mediator (noise → turnover) | FLDOE **Staff Information System** ("Staff in Florida's Public Schools") | FLDOE Staff pubs (per-year Excel), fetched via Wayback Machine archive |
+| Teacher turnover / share new to school | keep-out | Y | mechanism channel — **not built**, needs individual-level year-over-year staff matching FLDOE's aggregate publications don't support | FLDOE Staff SIS (year-over-year match) | derived |
+| Average / median teacher salary | selection | Y | resource level / labour market | FLDOE **Teacher Salary Data** | real confirmed link pattern: `fldoe.org/core/fileparse.php/7584/urlt/<yy><yy+1>TeacherSalaryData.xlsx` (irregular before ~2017), fetched via Wayback Machine archive |
+| Per-pupil expenditure | selection / keep-out | Y | resource response | NCES CCD fiscal (F-33) | Urban API `school-districts/ccd/finance`, confirmed live 1995-2020 |
 
 Turnover and spending can respond *to* the barrier (or to the disruption that
 precedes it), so they belong in the mechanism spec, not the baseline. CCD staff
 FTE is a fallback where FLDOE SIS panels are hard to assemble.
 
-- FLDOE Staff: <https://www.fldoe.org/accountability/data-sys/edu-info-accountability-services/pk-12-public-school-data-pubs-reports/staff.stml>
+- FLDOE Staff: <https://www.fldoe.org/accountability/data-sys/edu-info-accountability-services/pk-12-public-school-data-pubs-reports/staff.stml> (blocks scripted access directly — see `staff/README.md` for the Wayback Machine workaround)
 
 ---
 
@@ -168,11 +182,19 @@ raises prices makes these mediators). Also: a **pre-trend in home values** at
 to-be-treated vs not-yet-treated roads is a direct test of barrier-siting
 endogeneity → `selection`.
 
+**Status: ACS tract demographics + Zillow ZHVI fully implemented and joined
+into `panel` 2026-09-17** — the spatial school→tract/ZIP match, ZHVI, and
+ACS (once the user supplied a `CENSUS_API_KEY` — the Census Data API now
+requires one for every request, a real 2026-05 policy change unlike when
+this table was first written) are all live: 449,178/660,681 rows (68.0%)
+matched ACS demographics, 651,266 (98.6%) matched a ZHVI home-value figure.
+Full brief: [`neighbourhood/README.md`](neighbourhood/README.md).
+
 | Variable | Role | TV? | Why it matters | Source | Access |
 |---|---|---|---|---|---|
-| Tract median household income, poverty rate, % owner-occ., educ. attainment, % moved in last year | selection / keep-out | Y | gentrification / sorting | Census **Decennial 2000** + **ACS 5-year** (2005–09 →) | Census API <https://api.census.gov/data.html> |
-| Typical home value (monthly, 2000→) | selection | Y | capitalisation & siting pre-trend | **Zillow ZHVI** (ZIP / neighbourhood / tract) | public CSV, no key: <https://www.zillow.com/research/data/> |
-| Packaged tract SES / greenspace / walkability | selection | Y | convenience bundle | **NaNDA** (National Neighborhood Data Archive) | ICPSR openICPSR |
+| Tract median household income, poverty rate, % owner-occ., % bachelor's+, % moved in last year | selection / keep-out | Y | gentrification / sorting | Census **ACS 5-year** (2005–09 →, `B19013`/`B17001`/`B25003`/`B15003` or `B15002` pre-2012/`B07003`, all confirmed live) | Census API, **now requires a free key** (`CENSUS_API_KEY` env var) — <https://api.census.gov/data/key_signup.html> |
+| Typical home value (annual snapshot, 2000→) | selection | Y | capitalisation & siting pre-trend | **Zillow ZHVI** (ZIP-level, mid-tier SFR+condo) | public CSV, no key, confirmed live: <https://www.zillow.com/research/data/> |
+| Packaged tract SES / greenspace / walkability | selection | Y | convenience bundle — **not built**, ships via ICPSR openICPSR (needs an account, not a plain URL fetch) | **NaNDA** (National Neighborhood Data Archive) | ICPSR openICPSR |
 
 ---
 
@@ -232,10 +254,10 @@ needed). Ordered roughly by priority for the main analysis.
 | `panel` **(implemented, first-pass)** | Final `msid × grade × subject × year` join of `assessments` + `schools` — **not** yet a covariate module itself, just the assembly point the other modules below would feed into once built | `assessments`, `schools` | pure local join, no fetch. See [`README.md`](README.md#panel--the-final-event-study-join-assemble-only) |
 | `traffic` **(implemented: fetch, preprocess, assemble; joined into `panel`)** | AADT panel (`roadway_id × release_year`, length-weighted across segments pooled from every FGDL release sharing a year), from many `road-network` FGDL `rciroads` releases rather than a new provider; schools matched to a roadway and joined to its AADT time series (`school_aadt_panel.parquet`, 89.7% match rate) — plus `aadt_local`, a current-snapshot local-intensity-scaled, school-specific estimate (median 13% deviation from the roadway-wide mean); now left-joined into `event_study_panel.parquet` by nearest release year as both `traffic_aadt`/`traffic_aadt_local` (71.3% of rows matched, markedly lower in 2003–2010 than 2014+ — flagged, not yet explained). Truck AADT still open. Full design: [`traffic/README.md`](traffic/README.md) | C | `road_network` (fetch machinery reused directly), `schools` (`assemble`) | FGDL `rciroads` archive (57 releases, `jun04`→`jul26`) — public, no auth |
 | `road_projects` | Work-Program construction/widening/PD&E projects with dates, roadway-linked | D | `noise_barriers`, `road_network` | FDOT Open Data Hub (`Work Program Current`, `Current Active Construction Projects`) + FM database; possible manual pull for pre-2010 |
-| `staff` | Teacher experience / degree / out-of-field / turnover / salary; per-pupil spend | B | `schools` | FLDOE Staff SIS + Teacher Salary Data (per-year XLSX); CCD fiscal via Urban API |
+| `staff` **(implemented: fetch, preprocess, assemble; joined into `panel`)** | Teacher salary/experience/median-salary (district) + in-field/out-of-field teaching (SCHOOL-level) from two FLDOE workbooks fetched via their Wayback Machine archive (`www.fldoe.org` itself blocks scripted clients); per-pupil expenditure (district, via NCES CCD F-33, Urban API, 1995-2020) joined through a modal `district->leaid` crosswalk (min 88.5%/median 100% coverage). Turnover and % advanced degree not built (no aggregate FLDOE source found). Full design: [`staff/README.md`](staff/README.md) | B | `schools` | FLDOE Staff/Salary workbooks via Wayback Machine; Urban API `school-districts/ccd/finance` (no auth) |
 | `shocks` | Hurricane declarations (county×year), class-size compliance, school grades | G | — | OpenFEMA API (no auth); FLDOE per-year Excel |
 | `air_quality` | Tract/1-km PM2.5, O3, NO2 daily+annual, matched to school buffers | E | `schools` | EPA FAQSD + Requia SEDAC/Dataverse downloads; EPA AQS files |
-| `neighbourhood` | Tract ACS/decennial SES + Zillow ZHVI, matched to school tracts/ZIPs | F | `schools` | Census API + Zillow public CSV |
+| `neighbourhood` **(implemented: fetch, preprocess, assemble; joined into `panel`)** | Tract ACS demographics (income/poverty/tenure/education/mobility, 16 years 2009-2024) + Zillow ZHVI home values, matched to schools via a point-in-polygon spatial join (the only Florida source doing polygon containment, not linear referencing) against two tract-boundary vintages (2010/2020, since ACS5 switched vintage at its "2020" release) + one ZCTA layer. 68.0% of panel rows matched ACS, 98.6% matched ZHVI. Full design: [`neighbourhood/README.md`](neighbourhood/README.md) | F | `schools` | Census API (key required, user-supplied) + Zillow public CSV + Census TIGER cartographic boundaries (no auth) |
 
 **`panel` is a join point, not a covariate cluster of its own** — it exists
 so `traffic`/`road_projects`/`staff`/`shocks`/`air_quality`/`neighbourhood`
