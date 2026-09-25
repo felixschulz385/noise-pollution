@@ -94,6 +94,32 @@ def _export_inputs():
     return data, walls, schools, selection
 
 
+def test_stub_records_are_never_chosen():
+    """A record under 1 m (pilot task 9376dc21: 2 cm) is an invisible line:
+    neither a target nor a validation task."""
+    lines = [LineString([(X0, Y0 + 100 * i), (X0 + 300, Y0 + 100 * i)]) for i in range(2)]
+    lines += [LineString([(X0, Y0 + 100 * i), (X0 + 0.02, Y0 + 100 * i)]) for i in range(2, 4)]
+    barriers_m = gpd.GeoDataFrame(
+        {"element_id": [f"E{i}" for i in range(4)], "start_measure": 0.0, "end_measure": 1.0, "extent_length_m": 300.0},
+        geometry=lines, crs=CRS,
+    )
+    references = pd.DataFrame(
+        {"side_method": ["unknown", "track_offset", "unknown", "track_offset"], "osm_id": pd.array([pd.NA] * 4, dtype="Int64")}
+    )
+    pairs = pd.DataFrame({
+        "barrier_row": range(4), "skolenhetskod": "S1", "dist_m": 100.0, "same_route": True,
+        "protected_unknown": [True, False, True, False], "same_side_unknown": [True, False, True, False],
+    })
+    data = {"rail": {"barriers": barriers_m.to_crs(4326), "barriers_m": barriers_m, "references": references, "pairs": pairs}}
+    spec = {**ex.BATCHES["protected"], "n_practice": 0}
+    no_walls = gpd.GeoDataFrame({"osm_id": [], "wall_type": []}, geometry=[], crs=CRS)
+    selection = ex.select_barriers(
+        "protected", spec, data=data, previous=pd.DataFrame(columns=["kind", *sh.KEY_COLUMNS, "group"]),
+        osm_walls=no_walls, context_m=ex.context_layer(data), rng=np.random.default_rng(0),
+    )
+    assert selection[["barrier_row", "group"]].values.tolist() == [[0, "target"], [1, "validation"]]
+
+
 def test_build_tasks_blinds_the_tasks_and_keeps_the_answers_in_the_key():
     data, walls, schools, selection = _export_inputs()
     document, key = ex.build_tasks(
@@ -121,6 +147,83 @@ def test_build_tasks_blinds_the_tasks_and_keeps_the_answers_in_the_key():
     assert [t["area"]["position"] for t in tasks[1:]] == list(range(1, 8))
     rows = key["barrier_row"].tolist()[1:]
     assert sum(abs(a - b) for a, b in zip(rows, rows[1:])) == 6  # a nearest-neighbour walk up or down the rows
+
+
+def _wall_in_pieces():
+    """One wall along y = Y0 in three register pieces (the last digitised
+    backwards, the first an earth berm), and a separate record 100 m north."""
+    lines = [
+        LineString([(X0, Y0), (X0 + 100, Y0)]),
+        LineString([(X0 + 101, Y0), (X0 + 200, Y0)]),
+        LineString([(X0 + 300, Y0), (X0 + 201, Y0)]),
+        LineString([(X0, Y0 + 100), (X0 + 300, Y0 + 100)]),
+    ]
+    barriers_m = gpd.GeoDataFrame(
+        {
+            "element_id": ["E0", "E1", "E2", "E3"],
+            "start_measure": 0.0,
+            "end_measure": 1.0,
+            "material_type": ["earth_berm", "wood", "wood", "wood"],
+            "height_m": [2.0, 3.0, 3.5, 3.0],
+            "extent_length_m": [100.0, 99.0, 99.0, 300.0],
+        },
+        geometry=lines,
+        crs=CRS,
+    )
+    barriers_m["material_type"] = barriers_m["material_type"].str.replace("earth_berm", "earth berm")
+    references = pd.DataFrame(
+        {"side_method": ["unknown", "parallel_road", "unknown", "parallel_road"], "barrier_sign": [0.0, -1.0, 0.0, -1.0],
+         "osm_id": pd.array([pd.NA] * 4, dtype="Int64")}
+    )
+    data = {"road": {"barriers": barriers_m.to_crs(4326), "barriers_m": barriers_m, "references": references}}
+    walls = gpd.GeoDataFrame({"osm_id": pd.array([], dtype="int64"), "wall_type": []}, geometry=[], crs=CRS)
+    schools = gpd.GeoSeries([Point(X0 + 150, Y0 - 50)], index=["S1"], crs=CRS)
+    selection = pd.DataFrame({"kind": "road", "barrier_row": [1, 2, 3], "group": ["target", "validation", "validation"],
+                              "skolenhetskod": ["S1", None, None]})
+    return data, walls, schools, selection
+
+
+def test_a_wall_split_into_pieces_is_one_task_whose_answer_places_every_piece():
+    data, walls, schools, selection = _wall_in_pieces()
+    document, key = ex.build_tasks(
+        "protected", selection, data=data, schools_m=schools, osm_walls_m=walls, context_m=ex.context_layer(data),
+        reviewer="tester", double_code_share=0.0, rng=np.random.default_rng(1),
+    )
+    tasks = {t["task_id"]: t for t in document["tasks"]}
+    assert len(tasks) == 2 and len(key) == 4
+    wall = key[key["element_id"].isin(["E0", "E1", "E2"])]
+    assert wall["task_id"].nunique() == 1
+    task = tasks[wall["task_id"].iat[0]]
+    # The whole wall is the overlay, centred at the school's nearest point; the other pieces aren't "other barriers".
+    assert task["n_records"] == 3 and task["length_m"] == 298
+    assert task["line_m"][0] == pytest.approx([-150, 0]) and task["line_m"][-1] == pytest.approx([150, 0])
+    assert len(task["others_lonlat"]) == 1  # only E3
+    assert (task["type_group"], task["material"]) == ("mixed", "wood, earth berm")
+    assert task["height_m"] == [2.0, 3.5]
+    # Each record keeps its own group: the unchosen piece joins as `chain`; the task is a target task.
+    assert wall.set_index("element_id")["group"].to_dict() == {"E0": "chain", "E1": "target", "E2": "validation"}
+    assert set(wall["task_group"]) == {"target"}
+    assert wall.set_index("element_id")["chain_orient"].to_dict() == {"E0": 1, "E1": 1, "E2": -1}
+
+    # One answer, 6 m to the task's left (north): every piece's wall lands north of the road.
+    answers = pd.DataFrame(key.drop(columns="geometry")).assign(
+        status="aligned", reason=None, note=None, lateral_m=6.0, reviewer="r", batch="protected"
+    )
+    answers["category"] = pp.categorize(answers)
+    lines = key.set_index(["task_id", "kind", "element_id", "start_measure", "end_measure"]).geometry
+    sides = pp.manual_sides(answers[answers["element_id"] != "E3"], lines).set_index("element_id")
+    assert sides["decision"].tolist() == ["side"] * 3
+    assert sides["aligned_y"].to_numpy() == pytest.approx([Y0 + 6] * 3)
+    for element_id, row in sides.iterrows():
+        assert row.geometry.centroid.y == pytest.approx(Y0 + 6), element_id
+
+
+@pytest.mark.parametrize(
+    "material,expected",
+    [("earth berm", "berm"), ("earth berm and wood", "berm_screen"), ("glass or plexiglass", "glass"), ("wood", "wall"), (None, None)],
+)
+def test_type_groups_tell_the_reviewer_what_to_look_for(material, expected):
+    assert ex.type_group(material) == expected
 
 
 def test_cluster_order_keeps_each_area_together():
@@ -226,14 +329,14 @@ def _repo_root(tmp_path):
 def _write_answers(root, batch, reviewer, rows):
     path = sh.answers_dir(batch, root) / f"answers_{reviewer}.jsonl"
     with open(path, "w") as f:
-        for task_id, status, lateral, reason, *streetview in rows:
+        for task_id, status, lateral, reason, *aids in rows:
             record = {
                 "task_id": task_id, "status": status, "reason": reason, "note": None, "lateral_m": lateral,
                 "along_residual_m": 0.0, "zoom": 19.0, "seconds_on_task": 10.0, "answered_at": "2026-09-24T12:00:00Z",
                 "batch": batch, "reviewer": reviewer, "app_version": "0.1.0",
             }
-            if streetview:  # app 0.3.0 records it; older answers have no count
-                record.update(app_version="0.3.0", streetview_opens=streetview[0])
+            if aids:  # app 0.4.0 records them; older answers have none
+                record.update(app_version="0.4.0", **aids[0])
             f.write(json.dumps(record) + "\n")
     return path
 
@@ -271,7 +374,7 @@ def test_preprocess_decides_each_barrier_and_reports(tmp_path, monkeypatch):
         ("t_side", "aligned", 3.0, None),
         ("t_side", "aligned", 6.0, None),  # re-answered: the last line wins
         ("t_novis", "unsure", 0.0, "not_visible"),
-        ("t_valid", "aligned", -7.0, None, 1),
+        ("t_valid", "aligned", -7.0, None, {"streetview_opens": 1, "satellite_opens": 0, "imagery": "infrared"}),
         ("t_conf", "aligned", 6.0, None),
         ("t_prac", "aligned", -5.0, None),
         ("t_occl", "unsure", 0.0, "occluded"),
@@ -292,8 +395,11 @@ def test_preprocess_decides_each_barrier_and_reports(tmp_path, monkeypatch):
 
     assert result["used_by_build"] == 2  # E0 and E2; E6 is stale
     assert result["validation"]["parallel_road"] == {
-        "n_barriers": 1, "decisions": {"side": 1}, "n_sided": 1, "agree": 1, "share_agree": 1.0, "wilson_95": [0.207, 1.0],
+        "n_barriers": 1, "decisions": {"side": 1}, "n_sided": 1, "n_walls_sided": 1, "agree": 1, "share_agree": 1.0,
+        "wilson_95": [0.207, 1.0],
         "with_streetview": {"n_sided": 1, "agree": 1},
+        "with_satellite": {"n_sided": 0, "agree": 0},
+        "with_infrared": {"n_sided": 1, "agree": 1},
     }
     assert result["double_coding"]["n_tasks"] == 2 and result["double_coding"]["share_same_category"] == 0.5
     assert result["double_coding"]["median_abs_lateral_diff_m"] == pytest.approx(1.0)
@@ -301,6 +407,8 @@ def test_preprocess_decides_each_barrier_and_reports(tmp_path, monkeypatch):
     answers = pd.read_parquet(sh.barrier_audit_paths(root)["processed"] / "audit_answers.parquet").set_index(["reviewer", "task_id"])
     assert answers.loc[("assistant", "t_valid"), "streetview_opens"] == 1
     assert answers.loc[("assistant", "t_side"), "streetview_opens"] == 0  # absent before app 0.3.0
+    assert answers.loc[("assistant", "t_side"), "satellite_opens"] == 0 and answers.loc[("assistant", "t_side"), "imagery"] == "colour"
+    assert answers.loc[("assistant", "t_valid"), "imagery"] == "infrared"
     report = json.loads((sh.barrier_audit_paths(root)["processed"] / "audit_report.json").read_text())
     assert [r["element_id"] for r in report["not_visible"]] == ["E1"]
     assert [r["element_id"] for r in report["conflict"]] == ["E3"]

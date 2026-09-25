@@ -5,5 +5,5 @@ alone (a test enforces that). See docs/data/sweden/barrier_audit/README.md.
 Run from the unzipped folder: ``python -m barrier_audit``.
 """
 
-APP_VERSION = "0.3.0"
+APP_VERSION = "0.6.0"
 MAPLIBRE_VERSION = "5.24.0"

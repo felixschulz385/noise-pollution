@@ -16,6 +16,8 @@
   <span id="area"></span>
   <span id="others-legend" hidden><span class="swatch others"></span> other barriers</span>
   <span id="previous"></span>
+  <button type="button" id="btn-imagery" class="toggle" disabled title="Switch between the colour and the infrared photo"><span id="imagery-label">colour photo</span> <kbd>I</kbd></button>
+  <button type="button" id="btn-wall" class="toggle" disabled title="Zoom out to the whole wall, or back">whole wall <kbd>F</kbd></button>
   <span id="offset"></span>
 </header>
 <main id="workspace">
@@ -23,9 +25,12 @@
     <button type="button" id="btn-unsure" class="side-button unsure" disabled><span>Unsure</span><kbd>U</kbd></button>
     <button type="button" id="btn-both" class="side-button both" disabled><span>Both sides</span><kbd>B</kbd></button>
     <button type="button" id="btn-streetview" class="side-button streetview" disabled hidden><span>Street View</span><kbd>G</kbd></button>
+    <button type="button" id="btn-satellite" class="side-button satellite" disabled><span>Satellite</span><kbd>M</kbd></button>
   </div>
   <div id="map-wrap">
     <div id="map"></div>
+    <div class="north-wrap" title="North (Google Maps shows north up)"><div id="north" class="north">&#9650;<br>N</div></div>
+    <div class="type-card"><span id="type-badge" class="type-badge"></span><span id="type-hint" class="type-hint"></span></div>
 
     <section id="start" class="panel">
       <h2>Barrier audit</h2>
@@ -38,11 +43,17 @@
           Match the wall's foot or its shadow line, not its top. Then press <strong>Submit</strong> (<kbd>Enter</kbd>).</p>
         <p>If there is a wall on <em>both</em> sides of the road or railway along this stretch, press
           <strong>Both sides</strong> (<kbd>B</kbd>) instead of choosing one.</p>
+        <p>The box at the top left of the map says <strong>what kind of barrier</strong> to look for: an earth
+          berm is a grassy bank, not a wall. Long barriers are shown whole, even where the register splits them
+          into pieces. The map starts zoomed to show the whole wall where it can do so at full detail;
+          <kbd>F</kbd> zooms out to the whole wall and back.</p>
         <p><span class="swatch others"></span> lines are other barriers in the register, also drawn at their road or
           track centre. They are for orientation only; answer for the pink line.</p>
-        <p>For a road barrier, <strong>Street View</strong> (<kbd>G</kbd>) opens Google Street View in another tab,
-          looking along the barrier: its left is up in this map. Use it when the photo leaves you unsure, then come
-          back and line up the wall here.</p>
+        <p>If the photo leaves you unsure: <kbd>I</kbd> switches to the <strong>infrared photo</strong> (plants show
+          red, walls don't). <strong>Satellite</strong> (<kbd>M</kbd>) opens Google's satellite view in a second tab, with
+          north up (see the arrow on the map). For a road barrier, <strong>Street View</strong> (<kbd>G</kbd>) opens there
+          too, looking along the barrier: its left is up in this map. Use them to see which side the wall is on, then
+          come back and line up the wall here.</p>
         <p>If you can't place it, press <strong>Unsure</strong> (<kbd>U</kbd>) and choose a reason.
           Nearby tasks come one after another. The first tasks are practice: afterwards the app shows where the
           wall really is.</p>
@@ -56,9 +67,9 @@
         <li><button type="button" data-reason="occluded"><kbd>1</kbd> Hidden: trees, shadow or an image seam</button></li>
         <li><button type="button" data-reason="not_visible"><kbd>2</kbd> No wall visible along this stretch</button></li>
         <li><button type="button" data-reason="other"><kbd>3</kbd> Something else (write a note)</button></li>
+        <li id="reason-changes-side" hidden><button type="button" data-reason="changes_side"><kbd>4</kbd> The wall switches to the other side along this stretch</button></li>
       </ol>
-      <p id="streetview-hint" class="hint" hidden>Not sure? Press <kbd>G</kbd> to look at the road in Street View
-        first.</p>
+      <p id="look-hint" class="hint"></p>
       <div id="note-wrap" hidden>
         <textarea id="note" rows="3" placeholder="What did you see?"></textarea>
         <button type="button" id="btn-note" class="primary">Save <kbd>Enter</kbd></button>
@@ -91,7 +102,7 @@
   <button type="button" id="btn-submit" class="side-button submit" disabled><span>Submit</span><kbd>Enter</kbd></button>
 </main>
 <footer id="keys">
-  <kbd>&uarr;</kbd><kbd>&darr;</kbd> nudge 0.25 m (<kbd>Shift</kbd> 2 m) · <kbd>Enter</kbd> submit · <kbd>B</kbd> both sides · <kbd>G</kbd> Street View (roads) · <kbd>U</kbd> unsure ·
+  <kbd>&uarr;</kbd><kbd>&darr;</kbd> nudge 0.25 m (<kbd>Shift</kbd> 2 m) · <kbd>Enter</kbd> submit · <kbd>B</kbd> both sides · <kbd>I</kbd> infrared · <kbd>F</kbd> whole wall · <kbd>M</kbd> satellite · <kbd>G</kbd> Street View (roads) · <kbd>U</kbd> unsure ·
   <kbd>R</kbd> reset · <kbd>Space</kbd> hold to hide the line · <kbd>Backspace</kbd> previous task · scroll to zoom
 </footer>
 <script src="/static/vendor/maplibre-gl.js"></script>

@@ -21,6 +21,27 @@ reviewer solves one place after the other. Each task shows the other barrier
 records (both kinds) within `CONTEXT_RADIUS_M` of its view in a second
 colour, at their recorded (centreline) positions.
 
+**One task per wall.** The register splits a wall into pieces wherever an
+attribute or the road link / track element changes (a quarter of all
+records are under 30 m). A chosen record's task therefore covers every
+piece of its wall (`linear_ref.chain_lines`: ends within 2 m, continuing
+within 30 degrees, simple paths only), drawn as one line; the pieces that
+weren't chosen join the key as group `chain`, and the answer applies to
+all of them. The key has one row per record; `task_group` is the task's
+highest group (target > validation > chain > practice). Practice tasks stay
+single records.
+
+**Type badge.** Each task carries its materials (by length) and a
+`type_group` -- `berm`, `berm_screen`, `glass`, `wall` or `mixed` -- that the
+app shows as a badge with what to look for: an earth berm is a grassy bank,
+not a wall.
+
+**No stubs.** A record whose geometry is under 1 m (`is_stub`; 63 rail
+records) is never chosen as a target, validation or practice task: its
+line is invisible (pilot task `9376dc21`, 2 cm). Such a record takes its
+side from its BIS object's other records instead (`bis_sibling` in
+`_barrier_reference.py`), and may still ride along as a `chain` piece.
+
 A random `double_code_share` of the non-practice tasks is flagged in the key
 for double-coding (`serve --double-coded`). Barriers already in another
 batch's key are not drawn again (targets of `protected` excepted).
@@ -53,6 +74,8 @@ from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 from shapely.geometry import LineString, Point
 
+from src.core.barrier_geometry.linear_ref import chain_lines, join_chain
+from src.regions.sweden.sources._barrier_reference import is_stub
 from src.regions.sweden.sources._layout import METRIC_CRS
 from src.regions.sweden.sources.barrier_audit.shared import KEY_COLUMNS, barrier_audit_paths, key_path, tasks_path
 from src.regions.sweden.sources.barrier_protection.shared import references_path
@@ -141,14 +164,15 @@ def task_geometry(line: LineString, center: Point, view_m: float = VIEW_M) -> di
     }
 
 
-def context_barriers(context_m: gpd.GeoDataFrame, kind: str, row: int, center: Point, radius_m: float = CONTEXT_RADIUS_M) -> list:
+def context_barriers(context_m: gpd.GeoDataFrame, kind: str, rows, center: Point, radius_m: float = CONTEXT_RADIUS_M) -> list:
     """The other barrier records (`context_m`: `kind`, `barrier_row`,
-    metric geometry) within `radius_m` of `center`, clipped to that circle,
-    as lon/lat lines."""
+    metric geometry) within `radius_m` of `center` -- all but the task's own
+    `rows` (one row or a set) -- clipped to that circle, as lon/lat lines."""
+    own = {int(rows)} if np.isscalar(rows) else {int(r) for r in rows}
     circle = center.buffer(radius_m)
     lines = []
     for i in context_m.sindex.query(circle, predicate="intersects"):
-        if context_m["kind"].iat[i] == kind and context_m["barrier_row"].iat[i] == row:
+        if context_m["kind"].iat[i] == kind and int(context_m["barrier_row"].iat[i]) in own:
             continue
         part = force_2d(context_m.geometry.iat[i]).intersection(circle).simplify(0.5)
         for g in getattr(part, "geoms", [part]):
@@ -214,6 +238,16 @@ def practice_answer(line: LineString, center: Point, normal: np.ndarray, wall) -
     lateral = float(np.dot([nearest.x - center.x, nearest.y - center.y], normal))
     lon, lat = _TO_LONLAT.transform(*np.asarray(part.coords).T)
     return {"lateral_m": round(lateral, 2), "wall_lonlat": [[round(a, 8), round(b, 8)] for a, b in zip(lon, lat)]}
+
+
+# The app's type badge: what to look for on the photo.
+TYPE_GROUPS = {"earth berm": "berm", "earth berm and wood": "berm_screen", "glass or plexiglass": "glass"}
+
+
+def type_group(material: str | None) -> str | None:
+    """`berm` / `berm_screen` / `glass` / `wall` for a display material, None
+    when the register has no type."""
+    return None if not material else TYPE_GROUPS.get(material, "wall")
 
 
 def display_metadata(row: pd.Series, kind: str) -> dict:
@@ -288,7 +322,9 @@ def select_barriers(
         return set(rows["barrier_row"])
 
     chosen = []
+    # Stubs are never shown: nothing to see (see the module docstring).
     taken: dict[str, set[int]] = {kind: set() for kind in data}
+    stubs = {kind: set(np.flatnonzero(is_stub(d["barriers_m"])).tolist()) for kind, d in data.items()}
 
     # Targets.
     for kind, d in data.items():
@@ -300,6 +336,7 @@ def select_barriers(
         else:  # pilot: side unknown, but not the protected targets
             rows = set(pairs.loc[pairs["same_side_unknown"], "barrier_row"]) - set(pairs.loc[pairs["protected_unknown"], "barrier_row"])
             rows -= excluded(kind, ("target", "validation"))
+        rows -= stubs[kind]
         taken[kind] |= rows
         chosen += [{"kind": kind, "barrier_row": int(r), "group": "target"} for r in sorted(rows)]
     if spec["n_targets"] is not None:
@@ -315,12 +352,12 @@ def select_barriers(
         if not spec["validation_per_method"]:
             break
         pool = []
-        for kind in kinds:
+        for kind in (k for k in kinds if k in data):
             d = data[kind]
             known = set(d["pairs"].loc[d["pairs"]["same_route"] & ~d["pairs"]["same_side_unknown"], "barrier_row"])
             refs = d["references"]
             rows = set(refs.index[refs["side_method"] == method]) & known
-            rows -= taken[kind] | excluded(kind, ("validation", "target"))
+            rows -= taken[kind] | excluded(kind, ("validation", "target")) | stubs[kind]
             pool += [(kind, int(r)) for r in sorted(rows)]
         picks = rng.choice(len(pool), size=min(spec["validation_per_method"], len(pool)), replace=False) if pool else []
         for i in sorted(picks):
@@ -339,7 +376,7 @@ def select_barriers(
             & refs["osm_id"].isin(tagged)
             & (barriers["extent_length_m"].to_numpy() >= PRACTICE_MIN_LENGTH_M)
         )
-        pool = sorted(set(refs.index[ok]) - taken[kind] - set(d["pairs"]["barrier_row"]))
+        pool = sorted(set(refs.index[ok]) - taken[kind] - set(d["pairs"]["barrier_row"]) - stubs[kind])
         pool = [r for r in pool if not has_twin(_line_2d(d["barriers_m"].geometry.iat[r]), kind, r, context_m)]
         picks = rng.choice(len(pool), size=min(per_kind.get(kind, 0), len(pool)), replace=False) if pool else []
         chosen += [{"kind": kind, "barrier_row": int(pool[i]), "group": "practice"} for i in sorted(picks)]
@@ -380,6 +417,64 @@ def context_layer(data: dict[str, dict]) -> gpd.GeoDataFrame:
     return gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), geometry="geometry", crs=METRIC_CRS)
 
 
+GROUP_PRIORITY = ("target", "validation", "chain", "practice")
+
+
+def _chains(d: dict) -> pd.DataFrame:
+    """`chain_lines` over one kind's barriers (cached in `d`)."""
+    if "chains" not in d:
+        d["chains"] = chain_lines([_line_2d(g) for g in d["barriers_m"].geometry])
+    return d["chains"]
+
+
+def task_units(selection: pd.DataFrame, data: dict[str, dict]) -> list[pd.DataFrame]:
+    """The records each task covers, in chain order: a practice record on its
+    own, any other chosen record together with every piece of its wall's
+    chain (`chain_lines`). Records of the chain that weren't chosen join as
+    group `chain`: the reviewer sees them in the overlay, so the answer
+    applies to them too. Columns: `kind`, `barrier_row`, `group`,
+    `skolenhetskod`, `chain_orient`."""
+    units = []
+    practice = selection[selection["group"] == "practice"]
+    for r in practice.itertuples():
+        units.append(pd.DataFrame([{"kind": r.kind, "barrier_row": int(r.barrier_row), "group": "practice",
+                                    "skolenhetskod": None, "chain_orient": 1}]))
+    rest = selection[selection["group"] != "practice"].copy()
+    rest["chain_id"] = [int(_chains(data[r.kind])["chain_id"].iat[r.barrier_row]) for r in rest.itertuples()]
+    for (kind, chain_id), chosen in rest.groupby(["kind", "chain_id"], sort=False):
+        chains = _chains(data[kind])
+        members = chains.index[chains["chain_id"] == chain_id]
+        unit = chains.loc[members].sort_values("chain_pos")
+        unit = pd.DataFrame({"kind": kind, "barrier_row": unit.index.astype(int), "chain_orient": unit["chain_orient"].to_numpy()})
+        unit = unit.merge(chosen[["barrier_row", "group", "skolenhetskod"]], on="barrier_row", how="left")
+        unit["group"] = unit["group"].fillna("chain")
+        units.append(unit)
+    return units
+
+
+def unit_metadata(unit: pd.DataFrame, d: dict, kind: str) -> dict:
+    """The top-bar metadata of a task covering `unit`'s records: the barrier
+    type (materials ordered by length; `type_group` for the app's badge), the
+    height (or its range) and the total length."""
+    rows = [d["barriers"].iloc[r] for r in unit["barrier_row"]]
+    meta = [display_metadata(row, kind) for row in rows]
+    lengths = [_line_2d(d["barriers_m"].geometry.iat[r]).length for r in unit["barrier_row"]]
+    by_material: dict[str, float] = {}
+    for m, length in zip(meta, lengths):
+        if m["material"]:
+            by_material[m["material"]] = by_material.get(m["material"], 0.0) + length
+    materials = sorted(by_material, key=lambda k: -by_material[k])
+    groups = {type_group(m) for m in materials}
+    heights = [m["height_m"] for m in meta if m["height_m"] is not None]
+    return {
+        "material": ", ".join(materials) or None,
+        "type_group": None if not groups else groups.pop() if len(groups) == 1 else "mixed",
+        "height_m": None if not heights else [min(heights), max(heights)],
+        "length_m": round(sum(lengths)),
+        "n_records": len(unit),
+    }
+
+
 def build_tasks(
     batch: str,
     selection: pd.DataFrame,
@@ -394,19 +489,33 @@ def build_tasks(
     view_m: float = VIEW_M,
 ) -> tuple[dict, gpd.GeoDataFrame]:
     """The blinded tasks document and the key, in task order: practice
-    first (shuffled), then everything else area by area (`cluster_order`)."""
+    first (shuffled), then everything else area by area (`cluster_order`).
+    One task per wall (`task_units`); the key has one row per record, each
+    with the point of its own piece nearest the view (`center_x/y`) and the
+    task's left normal there (`n_x/y`), so an answer's offset places every
+    piece's wall."""
     walls_by_id = osm_walls_m.set_index(osm_walls_m["osm_id"].astype("int64")).geometry
-    selection = selection.reset_index(drop=True)
+    units = task_units(selection.reset_index(drop=True), data)
     lines, centers = [], []
-    for r in selection.itertuples():
-        line = _line_2d(data[r.kind]["barriers_m"].geometry.iat[r.barrier_row])
-        if isinstance(r.skolenhetskod, str) and r.skolenhetskod in schools_m.index:
-            centers.append(line.interpolate(line.project(schools_m.loc[r.skolenhetskod])))
-        else:
-            centers.append(line.interpolate(0.5, normalized=True))
+    for unit in units:
+        d = data[unit["kind"].iat[0]]
+        pieces = [_line_2d(d["barriers_m"].geometry.iat[r]) for r in unit["barrier_row"]]
+        line = pieces[0] if len(pieces) == 1 else join_chain(pieces, unit["chain_orient"].tolist())
+        chosen = unit[unit["group"] != "chain"].copy()
+        chosen["_rank"] = chosen["group"].map(GROUP_PRIORITY.index)
+        center = None
+        for r in chosen.sort_values(["_rank", "barrier_row"]).itertuples():
+            if isinstance(r.skolenhetskod, str) and r.skolenhetskod in schools_m.index:
+                center = line.interpolate(line.project(schools_m.loc[r.skolenhetskod]))
+                break
+        if center is None:
+            first = _line_2d(d["barriers_m"].geometry.iat[int(chosen.sort_values("_rank")["barrier_row"].iat[0])])
+            center = line.interpolate(line.project(first.interpolate(0.5, normalized=True)))
         lines.append(line)
-    practice = list(rng.permutation(np.flatnonzero(selection["group"].to_numpy() == "practice")))
-    rest = np.flatnonzero(selection["group"].to_numpy() != "practice")
+        centers.append(center)
+    is_practice = np.array([u["group"].iat[0] == "practice" for u in units])
+    practice = list(rng.permutation(np.flatnonzero(is_practice)))
+    rest = np.flatnonzero(~is_practice)
     walk, areas = cluster_order(np.array([[centers[i].x, centers[i].y] for i in rest]).reshape(-1, 2), rng)
     ordered = [int(i) for i in practice] + [int(rest[j]) for j in walk]
     area_of = dict(zip(ordered[len(practice):], areas))
@@ -416,12 +525,11 @@ def build_tasks(
     ids: set[str] = set()
     tasks, keys = [], []
     for order, i in enumerate(ordered):
-        r = selection.iloc[i]
-        d = data[r.kind]
-        barrier = d["barriers"].iloc[r.barrier_row]
-        line, center = lines[i], centers[i]
+        unit, line, center = units[i], lines[i], centers[i]
+        kind = unit["kind"].iat[0]
+        d = data[kind]
         geometry = task_geometry(line, center, view_m)
-        ref = d["references"].loc[r.barrier_row]
+        task_group = min(unit["group"], key=GROUP_PRIORITY.index)
 
         task_id = None
         while task_id is None or task_id in ids:
@@ -430,41 +538,53 @@ def build_tasks(
 
         task = {
             "task_id": task_id,
-            "kind": r.kind,
-            **display_metadata(barrier, r.kind),
+            "kind": kind,
+            **unit_metadata(unit, d, kind),
             **geometry,
-            "others_lonlat": context_barriers(context_m, r.kind, int(r.barrier_row), center),
+            "others_lonlat": context_barriers(context_m, kind, set(unit["barrier_row"]), center),
             "area": area_of.get(i),
-            "practice": r.group == "practice",
+            "practice": task_group == "practice",
         }
         answer = None
-        if r.group == "practice":
+        if task_group == "practice":
+            ref = d["references"].loc[int(unit["barrier_row"].iat[0])]
             answer = practice_answer(line, center, np.array(geometry["normal"]), walls_by_id.loc[int(ref["osm_id"])])
             task["practice_answer"] = answer
         tasks.append(task)
-        keys.append(
-            {
-                "task_id": task_id,
-                "batch": batch,
-                "order": order,
-                "group": r.group,
-                "double_code": order in double,
-                "kind": r.kind,
-                "barrier_row": int(r.barrier_row),
-                **{c: barrier[c] for c in KEY_COLUMNS},
-                "side_method": ref["side_method"],
-                "barrier_sign": float(ref["barrier_sign"]),
-                "osm_id": ref["osm_id"],
-                "outer_track_sign": float(ref.get("outer_track_sign", np.nan)),
-                "skolenhetskod": r.skolenhetskod,
-                "center_x": center.x,
-                "center_y": center.y,
-                "n_x": geometry["normal"][0],
-                "n_y": geometry["normal"][1],
-                "practice_lateral_m": np.nan if answer is None else answer["lateral_m"],
-                "geometry": line,
-            }
-        )
+        for r in unit.itertuples():
+            barrier = d["barriers"].iloc[r.barrier_row]
+            ref = d["references"].loc[r.barrier_row]
+            piece = _line_2d(d["barriers_m"].geometry.iat[r.barrier_row])
+            point = piece.interpolate(piece.project(center))
+            _, normal = window_frame(line, line.interpolate(line.project(point)), view_m)
+            if len(unit) == 1:
+                normal = np.array(geometry["normal"])
+            keys.append(
+                {
+                    "task_id": task_id,
+                    "batch": batch,
+                    "order": order,
+                    "group": r.group,
+                    "task_group": task_group,
+                    "double_code": order in double,
+                    "kind": kind,
+                    "barrier_row": int(r.barrier_row),
+                    **{c: barrier[c] for c in KEY_COLUMNS},
+                    "side_method": ref["side_method"],
+                    "barrier_sign": float(ref["barrier_sign"]),
+                    "osm_id": ref["osm_id"],
+                    "outer_track_sign": float(ref.get("outer_track_sign", np.nan)),
+                    "skolenhetskod": r.skolenhetskod if isinstance(r.skolenhetskod, str) else None,
+                    "n_records": len(unit),
+                    "chain_orient": int(r.chain_orient),
+                    "center_x": point.x,
+                    "center_y": point.y,
+                    "n_x": float(normal[0]),
+                    "n_y": float(normal[1]),
+                    "practice_lateral_m": np.nan if answer is None else answer["lateral_m"],
+                    "geometry": piece,
+                }
+            )
     document = {
         "batch": batch,
         "reviewer": reviewer,
@@ -519,14 +639,17 @@ def run_barrier_audit_export(
     tasks_file.write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     key.to_parquet(key_file, index=False)
     counts = key.groupby(["group", "kind"]).size()
+    tasks_by_group = key.drop_duplicates("task_id").groupby(["task_group", "kind"]).size()
     return {
         "batch": batch,
         "reviewer": reviewer,
-        "n_tasks": len(key),
+        "n_tasks": int(key["task_id"].nunique()),
+        "n_records": len(key),
+        "tasks": {f"{g}/{k}": int(n) for (g, k), n in tasks_by_group.items()},
         "groups": {f"{g}/{k}": int(n) for (g, k), n in counts.items()},
         "validation_methods": {m: int(n) for m, n in key.loc[key["group"] == "validation", "side_method"].value_counts().items()},
-        "n_double_coded": int(key["double_code"].sum()),
-        "tasks": str(tasks_file),
+        "n_double_coded": int(key.drop_duplicates("task_id")["double_code"].sum()),
+        "tasks_file": str(tasks_file),
         "key": str(key_file),
         "spec": spec,
         "seed": seed,

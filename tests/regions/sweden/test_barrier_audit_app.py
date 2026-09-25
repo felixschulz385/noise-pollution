@@ -145,6 +145,10 @@ def test_walls_on_both_sides_is_its_own_answer(audit):
         {"streetview_opens": 1.5},
         {"streetview_opens": "2"},
         {"streetview_opens": True},
+        {"satellite_opens": -1},
+        {"satellite_opens": 2.0},
+        {"imagery": "sepia"},
+        {"imagery": None},
     ],
 )
 def test_invalid_answers_are_rejected_and_not_written(audit, bad):
@@ -158,12 +162,14 @@ def test_invalid_answers_are_rejected_and_not_written(audit, bad):
     assert not (root / "answers" / "answers_tester.jsonl").exists()
 
 
-def test_streetview_opens_are_recorded_and_default_to_zero(audit):
+def test_lookaround_aids_are_recorded_with_defaults_for_older_answers(audit):
     base, root = audit
-    assert _post(base + "/api/answer", _answer(streetview_opens=2))[0] == 200
-    assert _post(base + "/api/answer", _answer("aaaa0002"))[0] == 200  # an app 0.2.0 answer has no count
+    assert _post(base + "/api/answer", _answer(streetview_opens=2, satellite_opens=1, imagery="infrared"))[0] == 200
+    assert _post(base + "/api/answer", _answer("aaaa0002"))[0] == 200  # an app 0.2.0 answer has none of them
     lines = [json.loads(line) for line in (root / "answers" / "answers_tester.jsonl").read_text().splitlines()]
-    assert [line["streetview_opens"] for line in lines] == [2, 0]
+    assert [(line["streetview_opens"], line["satellite_opens"], line["imagery"]) for line in lines] == [
+        (2, 1, "infrared"), (0, 0, "colour"),
+    ]
 
 
 def test_a_torn_last_line_is_skipped_and_not_glued_to_the_next(audit):
@@ -330,7 +336,8 @@ def test_streetview_looks_along_the_barrier_from_its_nearest_point(coords):
     script = """
 const G = require(process.argv[1]);
 const task = JSON.parse(process.argv[2]);
-const out = [-60, 0, 45].map(a => ({ along: a, sv: G.streetView(task, a), url: G.streetViewUrl(G.streetView(task, a)) }));
+const out = [-60, 0, 45].map(a => ({ along: a, sv: G.streetView(task, a), url: G.streetViewUrl(G.streetView(task, a)),
+  satellite: G.satelliteUrl(G.streetView(task, a)) }));
 console.log(JSON.stringify(out));
 """
     geometry_js = str(APP_DIR / "barrier_audit" / "static" / "geometry.js")
@@ -352,6 +359,41 @@ console.log(JSON.stringify(out));
             f"https://www.google.com/maps/@?api=1&map_action=pano&viewpoint={case['sv']['lat']:.6f},{case['sv']['lon']:.6f}"
             f"&heading={round(case['sv']['heading']) % 360}"
         )
+        assert case["satellite"] == (
+            f"https://www.google.com/maps/@?api=1&map_action=map&center={case['sv']['lat']:.6f},{case['sv']['lon']:.6f}"
+            "&zoom=20&basemap=satellite"
+        )
+
+
+@pytest.mark.skipif(NODE is None, reason="needs node")
+@pytest.mark.parametrize(("d", "along"), [(0, 0), (5, -40)])
+def test_whole_wall_zoom_fits_the_line_on_the_rotated_map(d, along):
+    """fitZoom (geometry.js, key F) fits every vertex of the line on the
+    screen, with t across and n up, around the current centre, and is tight
+    on one axis."""
+    from shapely.geometry import LineString
+
+    from src.regions.sweden.sources.barrier_audit.export import task_geometry
+
+    x0, y0 = 674_000.0, 6_580_000.0
+    line = LineString([(x0 + x, y0 + y) for x, y in [(0, 0), (300, 20), (600, 150), (700, 400)]])
+    task = task_geometry(line, line.interpolate(150))  # off-centre, so the fit is lopsided
+    width, height, pad = 1900, 1000, 48
+    script = """
+const G = require(process.argv[1]);
+const [task, w, h, d, along, pad] = JSON.parse(process.argv[2]);
+console.log(JSON.stringify(G.fitZoom(task, w, h, d, along, pad)));
+"""
+    geometry_js = str(APP_DIR / "barrier_audit" / "static" / "geometry.js")
+    args = json.dumps([task, width, height, d, along, pad])
+    zoom = json.loads(subprocess.run([NODE, "-e", script, geometry_js, args], capture_output=True, text=True, check=True).stdout)
+    m_per_px = 40075016.686 * np.cos(np.radians(task["center"][1])) / 512 / 2**zoom
+    pts = np.asarray(task["line_m"])
+    half_t = np.abs(pts @ np.asarray(task["tangent"]) - along).max() / m_per_px
+    half_n = np.abs(pts @ np.asarray(task["normal"]) - d).max() / m_per_px
+    room_t, room_n = width / 2 - pad, height / 2 - pad
+    assert half_t <= room_t + 1e-6 and half_n <= room_n + 1e-6
+    assert max(half_t / room_t, half_n / room_n) == pytest.approx(1)
 
 
 def test_unzipped_package_starts_without_the_repo(tmp_path):

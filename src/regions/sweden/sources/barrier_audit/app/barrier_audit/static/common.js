@@ -6,10 +6,17 @@
 
   var WMS_BASE = "https://minkarta.lantmateriet.se/map/ortofoto/";
   var WMS_LAYERS = "Ortofoto_0.5,Ortofoto_0.4,Ortofoto_0.25,Ortofoto_0.16";
-  var WMS_TILES = WMS_BASE + "?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=" + WMS_LAYERS +
-    "&STYLES=&SRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg";
+  function wmsTiles(layers) {
+    return WMS_BASE + "?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=" + layers +
+      "&STYLES=&SRS=EPSG:3857&BBOX={bbox-epsg-3857}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg";
+  }
+  var WMS_TILES = wmsTiles(WMS_LAYERS);
   // Finest imagery is 0.16 m/px: a 256 px tile at z19 is 0.15 m/px at 59°N.
   var WMS_MAXZOOM = 19;
+  // Colour-infrared (0.5 m): vegetation shows bright red, so a wall beside or
+  // under trees stands out. Same flights' geometry as the colour layers.
+  var WMS_IR_TILES = wmsTiles("Ortofoto_IR");
+  var WMS_IR_MAXZOOM = 18;
 
   function mercator(lon, lat) {
     var r = 6378137;
@@ -97,6 +104,8 @@
   root.AuditCommon = {
     WMS_TILES: WMS_TILES,
     WMS_MAXZOOM: WMS_MAXZOOM,
+    WMS_IR_TILES: WMS_IR_TILES,
+    WMS_IR_MAXZOOM: WMS_IR_MAXZOOM,
     mercator: mercator,
     webglInfo: webglInfo,
     withTimeout: withTimeout,

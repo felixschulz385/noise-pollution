@@ -7,11 +7,17 @@
   var C = window.AuditCommon, G = window.AuditGeometry;
   var NUDGE_M = 0.25, NUDGE_SHIFT_M = 2, MIN_SIDE_OFFSET_M = 2;
   var MIN_ZOOM = 14, MAX_ZOOM = 21;
+  // The start view fits the whole wall, but no coarser than this (the
+  // finest photo is 0.16 m, served at ~0.15 m/px) and no finer than the
+  // task's `view_m` window. F fits the whole wall at any scale.
+  var START_MAX_M_PER_PX = 0.3, FIT_PAD_PX = 48;
   var EMPTY = { type: "FeatureCollection", features: [] };
 
   var tasks = [], answers = {}, index = -1, task = null;
   var phase = "loading";  // loading | start | task | unsure | note | confirm | feedback | done
-  var shownAt = 0, current = { d: 0, along: 0 }, pendingReason = null, streetViewOpens = 0;
+  var shownAt = 0, current = { d: 0, along: 0 }, pendingReason = null;
+  var streetViewOpens = 0, satelliteOpens = 0, imagery = "colour";  // imagery: colour | infrared
+  var LOOK_TAB = "barrier_lookaround";  // one side tab, shared by Street View and satellite
   var map = null, answersFile = "", sending = false;
 
   function el(id) { return document.getElementById(id); }
@@ -33,7 +39,11 @@
     el("btn-submit").disabled = !working;
     el("btn-unsure").disabled = !working;
     el("btn-both").disabled = !working;
-    el("btn-streetview").disabled = !(p === "task" || p === "unsure");
+    var looking = p === "task" || p === "unsure";
+    el("btn-streetview").disabled = !looking;
+    el("btn-satellite").disabled = !looking;
+    el("btn-imagery").disabled = !looking;
+    el("btn-wall").disabled = !looking;
     if (p === "note") el("note").focus();
     else if (document.activeElement && document.activeElement.id === "note") document.activeElement.blur();
   }
@@ -70,6 +80,7 @@
         version: 8,
         sources: {
           ortho: { type: "raster", tiles: [C.WMS_TILES], tileSize: 256, maxzoom: C.WMS_MAXZOOM, attribution: "© Lantmäteriet" },
+          ortho_ir: { type: "raster", tiles: [C.WMS_IR_TILES], tileSize: 256, maxzoom: C.WMS_IR_MAXZOOM, attribution: "© Lantmäteriet" },
           ghost: { type: "geojson", data: EMPTY },
           others: { type: "geojson", data: EMPTY },
           overlay: { type: "geojson", data: EMPTY },
@@ -78,6 +89,7 @@
         layers: [
           { id: "bg", type: "background", paint: { "background-color": "#d9d9d4" } },
           { id: "ortho", type: "raster", source: "ortho" },
+          { id: "ortho_ir", type: "raster", source: "ortho_ir", layout: { visibility: "none" } },
           { id: "ghost", type: "line", source: "ghost",
             paint: { "line-color": "#ffffff", "line-opacity": 0.75, "line-width": 1.5, "line-dasharray": [3, 3] } },
           { id: "others", type: "line", source: "others",
@@ -105,26 +117,84 @@
     el("offset").textContent = "offset " + arrow(current.d);
   }
 
+  function mapSize() {
+    return { width: el("map").clientWidth || 1000, height: el("map").clientHeight || 700 };
+  }
+
+  function clampZoom(z) { return Math.max(MIN_ZOOM, Math.min(20, z)); }
+
+  // Zoom showing the whole wall around the current view centre.
+  function wallZoom(t, d, along) {
+    var size = mapSize();
+    return clampZoom(G.fitZoom(t, size.width, size.height, d, along, FIT_PAD_PX));
+  }
+
+  function startZoom(t) {
+    var width = mapSize().width, lat = t.center[1];
+    var finest = G.zoomFor(lat, width, t.view_m), coarsest = G.zoomFor(lat, width, START_MAX_M_PER_PX * width);
+    return clampZoom(Math.min(finest, Math.max(coarsest, wallZoom(t, 0, 0))));
+  }
+
   function startView(t) {
-    var width = el("map").clientWidth || 1000;
-    var zoom = Math.max(MIN_ZOOM, Math.min(20, G.zoomFor(t.center[1], width, t.view_m)));
-    return { center: t.center, zoom: zoom, bearing: t.bearing, pitch: 0 };
+    return { center: t.center, zoom: startZoom(t), bearing: t.bearing, pitch: 0 };
+  }
+
+  // F: the whole wall, or back to the start zoom if it's already shown.
+  // The centre stays, so the offset doesn't change.
+  function toggleWholeWall() {
+    if (!task) return;
+    var whole = wallZoom(task, current.d, current.along);
+    map.jumpTo({ zoom: map.getZoom() > whole + 0.05 ? whole : startZoom(task) });
   }
 
   // -- tasks -------------------------------------------------------------
 
+  // What to look for, per barrier type (`type_group` from the exporter; older
+  // tasks carry only `material`).
+  var TYPES = {
+    berm: { label: "Earth berm", hint: "Look for a grassy bank, not a wall. Line up the top of the bank." },
+    berm_screen: { label: "Earth berm + screen", hint: "A bank with a screen on top: line up the screen." },
+    glass: { label: "Glass screen", hint: "Hard to see from above: look for its foundation line or shadow. Try I or M." },
+    wall: { label: "Wall", hint: "Line up the foot of the wall or its shadow line." },
+    mixed: { label: "Mixed", hint: "The type changes along this barrier." },
+    none: { label: "Type not recorded", hint: "It may be a wall or an earth bank." }
+  };
+
+  function typeGroup(t) {
+    if (t.type_group !== undefined) return t.type_group || "none";
+    if (!t.material) return "none";
+    if (t.material === "earth berm") return "berm";
+    if (t.material === "earth berm and wood") return "berm_screen";
+    if (t.material === "glass or plexiglass") return "glass";
+    return "wall";
+  }
+
+  function showType(t) {
+    var group = typeGroup(t), type = TYPES[group];
+    var label = type.label + (t.material && group !== "berm" && group !== "berm_screen" ? ": " + t.material : "");
+    el("type-badge").textContent = label;
+    el("type-badge").className = "type-badge type-" + group;
+    el("type-hint").textContent = type.hint;
+  }
+
+  function heightText(h) {
+    if (h === null || h === undefined) return "";
+    if (!Array.isArray(h)) return fmt(h, 1) + " m high";
+    return (h[0] === h[1] ? fmt(h[0], 1) : fmt(h[0], 1) + "–" + fmt(h[1], 1)) + " m high";
+  }
+
   function metaText(t) {
     var parts = [t.kind];
-    if (t.material) parts.push(t.material);
-    if (t.height_m) parts.push(fmt(t.height_m, 1) + " m high");
+    if (t.height_m) parts.push(heightText(t.height_m));
     if (t.length_m) parts.push(t.length_m + " m long");
+    if (t.n_records > 1) parts.push("one barrier in " + t.n_records + " register pieces");
     return parts.join(" · ");
   }
 
   function answerText(a) {
     if (!a) return "";
     if (a.status === "both_sides") return "your answer: both sides";
-    return "your answer: " + (a.status === "aligned" ? arrow(a.lateral_m) : "unsure (" + a.reason.replace("_", " ") + ")");
+    return "your answer: " + (a.status === "aligned" ? arrow(a.lateral_m) : "unsure (" + a.reason.replace(/_/g, " ") + ")");
   }
 
   function linesFeature(lines) {
@@ -144,6 +214,8 @@
     error("");
     el("progress").textContent = (i + 1) + " / " + tasks.length;
     el("meta").textContent = metaText(task);
+    showType(task);
+    show("reason-changes-side", task.n_records > 1);
     show("badge", !!task.practice);
     el("area").textContent = areaText(task);
     show("others-legend", !!(task.others_lonlat && task.others_lonlat.length));
@@ -154,8 +226,13 @@
     map.jumpTo(startView(task));
     onMove();
     show("btn-streetview", hasStreetView());
-    show("streetview-hint", hasStreetView());
+    el("look-hint").innerHTML = hasStreetView()
+      ? "Not sure? Try <kbd>I</kbd> infrared, <kbd>G</kbd> Street View or <kbd>M</kbd> satellite first."
+      : "Not sure? Try <kbd>I</kbd> infrared or <kbd>M</kbd> satellite first.";
+    // North on screen: MapLibre's bearing is the compass direction of screen-up.
+    el("north").style.transform = "rotate(" + (-task.bearing) + "deg)";
     streetViewOpens = 0;
+    satelliteOpens = 0;
     shownAt = performance.now();
     setPhase("task");
   }
@@ -164,14 +241,37 @@
   // roads, so a rail wall is rarely in view.
   function hasStreetView() { return !!task && task.kind === "road"; }
 
+  // Street View and satellite open in the same named tab, reused on every
+  // press, so the reviewer has one place to look besides the app.
+  function openLook(url, what, key) {
+    var tab = window.open(url, LOOK_TAB);
+    if (tab) tab.focus();
+    else error("The browser blocked the " + what + " tab. Allow pop-ups for this page and press " + key + " again.");
+  }
+
   function openStreetView() {
     if (!hasStreetView()) return;
     streetViewOpens += 1;
-    // One named tab, reused on every press, so tabs don't pile up.
-    var tab = window.open(G.streetViewUrl(G.streetView(task, current.along)), "barrier_streetview");
-    if (tab) tab.focus();
-    else error("The browser blocked the Street View tab. Allow pop-ups for this page and press G again.");
+    openLook(G.streetViewUrl(G.streetView(task, current.along)), "Street View", "G");
   }
+
+  // Google's satellite imagery helps decide the side (or whether there is a
+  // wall); the line is still placed on the Lantmäteriet photo, since
+  // Google's terms don't allow deriving positions from its imagery.
+  function openSatellite() {
+    if (!task) return;
+    satelliteOpens += 1;
+    openLook(G.satelliteUrl(G.streetView(task, current.along)), "satellite", "M");
+  }
+
+  function setImagery(value) {
+    imagery = value;
+    map.setLayoutProperty("ortho_ir", "visibility", imagery === "infrared" ? "visible" : "none");
+    el("imagery-label").textContent = imagery === "infrared" ? "infrared photo" : "colour photo";
+    el("btn-imagery").classList.toggle("on", imagery === "infrared");
+  }
+
+  function toggleImagery() { setImagery(imagery === "infrared" ? "colour" : "infrared"); }
 
   function nextIndex(from) {
     for (var k = 1; k <= tasks.length; k++) {
@@ -206,7 +306,9 @@
       zoom: map.getZoom(),
       seconds_on_task: (performance.now() - shownAt) / 1000,
       answered_at: new Date().toISOString(),
-      streetview_opens: streetViewOpens
+      streetview_opens: streetViewOpens,
+      satellite_opens: satelliteOpens,
+      imagery: imagery
     };
     fetch("/api/answer", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(record) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "HTTP " + r.status); return j; }); })
@@ -303,8 +405,12 @@
     }
     if (phase === "unsure") {
       var reasons = { "1": "occluded", "2": "not_visible", "3": "other" };
+      if (task.n_records > 1) reasons["4"] = "changes_side";
       if (reasons[e.key]) { e.preventDefault(); chooseReason(reasons[e.key]); }
       else if (e.key === "g" || e.key === "G") { e.preventDefault(); openStreetView(); }
+      else if (e.key === "m" || e.key === "M") { e.preventDefault(); openSatellite(); }
+      else if (e.key === "i" || e.key === "I") { e.preventDefault(); toggleImagery(); }
+      else if (e.key === "f" || e.key === "F") { e.preventDefault(); toggleWholeWall(); }
       else if (e.key === "Escape") { e.preventDefault(); setPhase("task"); }
       return;
     }
@@ -329,6 +435,9 @@
       case "u": case "U": e.preventDefault(); setPhase("unsure"); break;
       case "b": case "B": e.preventDefault(); send("both_sides", null, null); break;
       case "g": case "G": e.preventDefault(); openStreetView(); break;
+      case "m": case "M": e.preventDefault(); openSatellite(); break;
+      case "i": case "I": e.preventDefault(); toggleImagery(); break;
+      case "f": case "F": e.preventDefault(); toggleWholeWall(); break;
       case "r": case "R": e.preventDefault(); reset(); break;
       case "Backspace": e.preventDefault(); previous(); break;
       case " ":
@@ -349,6 +458,9 @@
   el("btn-unsure").addEventListener("click", function () { setPhase("unsure"); });
   el("btn-both").addEventListener("click", function () { if (phase === "task") send("both_sides", null, null); });
   el("btn-streetview").addEventListener("click", function () { if (phase === "task" || phase === "unsure") openStreetView(); });
+  el("btn-satellite").addEventListener("click", function () { if (phase === "task" || phase === "unsure") openSatellite(); });
+  el("btn-imagery").addEventListener("click", function () { if (phase === "task" || phase === "unsure") toggleImagery(); });
+  el("btn-wall").addEventListener("click", function () { if (phase === "task" || phase === "unsure") toggleWholeWall(); });
   el("btn-start").addEventListener("click", begin);
   el("btn-note").addEventListener("click", saveNote);
   el("btn-continue").addEventListener("click", goNext);
@@ -411,7 +523,9 @@
   // Read-only view of the state, for automated browser checks.
   window.auditState = function () {
     return { phase: phase, index: index, task_id: task && task.task_id, d: current.d, along: current.along,
-      kind: task && task.kind, streetview_opens: streetViewOpens,
+      kind: task && task.kind, streetview_opens: streetViewOpens, satellite_opens: satelliteOpens, imagery: imagery,
+      ir_visible: map && map.getLayoutProperty("ortho_ir", "visibility") === "visible",
+      north_rotation: el("north").style.transform,
       zoom: map && map.getZoom(), bearing: map && map.getBearing(),
       screen: task && map ? [map.project(task.line_lonlat[0]), map.project(task.line_lonlat[task.line_lonlat.length - 1])] : null };
   };

@@ -112,10 +112,33 @@
       sv.lon.toFixed(6) + "&heading=" + (Math.round(sv.heading) % 360);
   }
 
+  // Google Maps satellite view (Maps URLs, no API key), north-up and centred
+  // on the same point of the barrier as `streetView`.
+  function satelliteUrl(sv) {
+    return "https://www.google.com/maps/@?api=1&map_action=map&center=" + sv.lat.toFixed(6) + "," +
+      sv.lon.toFixed(6) + "&zoom=20&basemap=satellite";
+  }
+
   // MapLibre zoom (512 px world at z0) showing `viewM` metres across `widthPx`.
   function zoomFor(lat, widthPx, viewM) {
     var metresPerPxAtZ0 = 40075016.686 * Math.cos(lat * Math.PI / 180) / 512;
     return Math.log(metresPerPxAtZ0 * widthPx / viewM) / Math.LN2;
+  }
+
+  // Zoom that fits the whole barrier line on a `widthPx` × `heightPx` map
+  // centred at offset d, `along` metres from the start centre. The map is
+  // rotated so t is screen-right and n screen-up, so the line's extent along
+  // t and n is its extent on screen. The centre stays put (moving it would
+  // move the offset), so the fit is symmetric about it; `padPx` is left free
+  // on every edge.
+  function fitZoom(task, widthPx, heightPx, d, along, padPx) {
+    var pad = padPx || 0, halfT = 1, halfN = 1;
+    task.line_m.forEach(function (p) {
+      halfT = Math.max(halfT, Math.abs(dot(p, task.tangent) - (along || 0)));
+      halfN = Math.max(halfN, Math.abs(dot(p, task.normal) - (d || 0)));
+    });
+    return Math.min(zoomFor(task.center[1], Math.max(widthPx - 2 * pad, 1), 2 * halfT),
+      zoomFor(task.center[1], Math.max(heightPx - 2 * pad, 1), 2 * halfN));
   }
 
   var api = {
@@ -126,7 +149,9 @@
     overlayLonLat: overlayLonLat,
     streetView: streetView,
     streetViewUrl: streetViewUrl,
-    zoomFor: zoomFor
+    satelliteUrl: satelliteUrl,
+    zoomFor: zoomFor,
+    fitZoom: fitZoom
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   root.AuditGeometry = api;

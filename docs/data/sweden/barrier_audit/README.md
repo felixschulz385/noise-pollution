@@ -2,12 +2,24 @@
 
 **Status (2026-09-25): phases 0-2 done.**
 - The device check passed on the reviewer's laptop.
-- The app (0.3.0), exporter, `import`, `preprocess` and the `manual` side
-  method are built and tested. Since 0.3.0, road tasks can open Google
-  Street View (key G, see [below](#street-view-for-road-barriers-app-030-built-2026-09-25)).
-- The pilot is complete: 35 answers, 16 manual sides, in the build.
-- The batch-A zip (`protected`, 229 tasks) was re-exported after the §7.6
-  rebuild, then rebuilt with app 0.3.0 from the same tasks:
+- The app (0.6.0), exporter, `import`, `preprocess` and the `manual` side
+  method are built and tested. When the photo isn't clear enough, the
+  reviewer can switch to the infrared photo (I) or open Google satellite
+  (M) or, on road tasks, Street View (G). See
+  [below](#beyond-the-aerial-photo-app-030040-2026-09-25).
+- Since 0.5.0, a wall the register splits into pieces is one task, and a
+  badge on the map says what type of barrier to look for. See
+  [below](#one-task-per-wall-and-the-type-badge-app-050-2026-09-25).
+- Since 0.6.0, the map starts with the whole wall in view where that fits
+  at 0.3 m/px, and F shows the whole wall at any scale. See
+  [below](#whole-wall-view-app-060-2026-09-25).
+- The pilot is complete: 59 answers on 42 barriers, 34 records with a
+  manual side (road 14, rail 20), in the build.
+- Records under 1 m (rail "stubs") are no longer shown, and take their
+  side from their BIS object's other records. See
+  [below](#stub-records-2026-09-25).
+- The batch-A zip (`protected`) was re-exported on 2026-09-25 after the
+  stub fix, with app 0.6.0: 199 tasks covering 421 records,
   `barrier_audit_protected_20260925.zip`. It has not been sent yet.
 - Next: phase 3, batch A.
 
@@ -92,7 +104,10 @@ has 596 barriers to sample from.
    | ↑ / ↓ | nudge 0.25 m (Shift: 2 m) |
    | Enter | Submit |
    | B | Both sides (walls on both sides of this stretch) |
-   | G | Street View in a second tab (road tasks only, since 0.3.0) |
+   | I | switch between the colour and the infrared photo (since 0.4.0) |
+   | F | whole wall in view, and back (since 0.6.0) |
+   | M | Google satellite in a second tab, north up (since 0.4.0) |
+   | G | Street View in the same tab (road tasks only, since 0.3.0) |
    | U | Unsure |
    | 1–3 | pick an Unsure reason |
    | Backspace | back to the previous task |
@@ -118,10 +133,13 @@ has 596 barriers to sample from.
 9. **Align the wall's foot or shadow line, not its top.** The imagery is
    not a true orthophoto, so a 3 m wall appears to lean by up to about 1 m
    near image edges. This affects `lateral_m`, not the side.
-10. **Long barriers.** The start view is a window of about 150 m, at full
-   resolution, around the part of the stretch nearest the paired school.
-   A whole 1 km barrier at once makes the wall too thin to see. The
-   reviewer can zoom out for context.
+10. **Long barriers.** The start view is centred on the part of the
+   stretch nearest the paired school and fits the whole wall, but no
+   coarser than 0.3 m per screen pixel and no finer than a 150 m window
+   (since 0.6.0; before, always the 150 m window). A whole 1 km barrier at
+   once makes the wall too thin to see, so longer walls start partly in
+   view; F shows all of it. See
+   [below](#whole-wall-view-app-060-2026-09-25).
 
 ### What the reviewer sees in the top bar
 
@@ -175,7 +193,7 @@ can't tell the groups apart.
 | group | batch A (`protected`) | later batch B (`same_side`) |
 |---|---|---|
 | practice (with feedback, excluded from results) | 10 | — |
-| target: side unknown | 99 (16 road + 83 rail) | the remaining ~635 |
+| target: side unknown | 96 records (16 road + 80 rail) in 82 tasks | the remaining ~635 |
 | validation: blind sample of auto-sided barriers | 40 each of `parallel_road`, `track_offset`, `osm_offset` | top-up if needed |
 | double-coded by Felix (for agreement) | 15% random overlap | 15% |
 
@@ -185,7 +203,7 @@ can't tell the groups apart.
   can't be the other record's wall. After each practice task, the app shows
   the OSM wall's position. Practice barriers are excluded from the
   validation sample.
-- **Time.** At about 20–30 s per task, batch A (about 230 tasks) is 1.5–2
+- **Time.** At about 20–30 s per task, batch A (199 tasks) is 1.5–2
   hours of work.
 - **Scope.** The exporter builds the set from `schools_{kind}_pairs_network`
   restricted to panel schools. Whether to also include the recovered
@@ -276,13 +294,14 @@ and never goes into the zip.
 
 | field | meaning |
 |---|---|
-| `task_id`, `batch`, `reviewer` | identity |
-| `status` | `aligned` / `both_sides` / `unsure` |
+| `task_id`, `batch`, `reviewer` | identity (one task can cover several records of one wall) |
+| `status` | `aligned` / `both_sides` / `unsure` (reasons `occluded`, `not_visible`, `other`, and since 0.5.0 `changes_side`) |
 | `reason`, `note` | only for `unsure` (`note` is optional elsewhere) |
 | `lateral_m` | signed offset; + = left of the barrier's digitised direction |
 | `along_residual_m` | along-road part of the drag (quality check) |
 | `zoom`, `seconds_on_task`, `answered_at` | effort and timing |
-| `streetview_opens` | times Street View was opened on the task (0.3.0; 0 when absent) |
+| `streetview_opens`, `satellite_opens` | times Street View / Google satellite was opened on the task (0.3.0 / 0.4.0; 0 when absent) |
+| `imagery` | the photo shown at submit: `colour` or `infrared` (0.4.0; `colour` when absent) |
 | `app_version` | so answers stay interpretable if the app changes |
 
 ## Pipeline integration
@@ -374,8 +393,9 @@ conformal, so screen-up is `n`.
 - **Validation output** (`audit_report.json`):
   - for each automatic method: how its validation barriers were decided,
     and agreement with the manual side (n, share, Wilson 95% interval), plus
-    the same for the barriers where Street View was opened
-    (`with_streetview`)
+    the same for the barriers where Street View or Google satellite was
+    opened, or the answer was given on the infrared photo
+    (`with_streetview`, `with_satellite`, `with_infrared`)
   - for double-coded tasks: share of identical categories, Cohen's κ on
     the category, and the median |Δ `lateral_m`|
   - practice results per reviewer
@@ -470,71 +490,264 @@ conformal, so screen-up is `n`.
      the 24 answers already given would have been dropped. They were
      restored into the key from `audit_answers.parquet` (2026-09-25).
      Re-exporting a batch is safe only before any answers come back.
+   - **Accidental resubmit (2026-09-25).** `2a7479a1` (rail, 315 m) was
+     answered −4.6 m with 0.5.0, then again "aligned" at exactly 0.00 m
+     in 6.6 s with 0.6.0, while trying out the whole-wall view. The
+     latest answer wins, and 0.00 m counts as side unknown. The −4.6 m
+     answer was appended again (same fields, new `answered_at`), so it is
+     the latest; the file stays append-only and keeps both.
 3. **Batch A.** The reviewer onboards with the practice tasks, then does
    the batch. Import the answers, check agreement, re-run
    `barrier-protection build` and downstream.
 4. **Decide on batch B**, based on how much the `protected` results moved
    and on the validation accuracy.
 
-## Street View for road barriers (app 0.3.0, built 2026-09-25)
+## Beyond the aerial photo (app 0.3.0–0.4.0, 2026-09-25)
 
 **Why.** Aerial imagery hides a wall under trees, a bridge or its own
 shadow (`occluded`), and a thin screen or glass panel can be invisible from
-above (`not_visible`). From the road, the same wall is usually obvious.
+above (`not_visible`). The pilot showed the photo is sometimes simply too
+coarse to make out the wall. The app therefore offers three more views,
+all one key away, in the task view and in the Unsure panel. The Unsure
+panel's hint lists the ones that apply to the task.
 
-**What the reviewer gets.** On **road** tasks only there is a **Street
-View** button under Both sides (key **G**). It works in the task view and
-in the Unsure panel, where a hint suggests it. It opens Google Maps in a
-second tab:
-`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=<lat>,<lon>&heading=<h>`.
-- **No API key, nothing embedded.** This is the public Maps URLs scheme,
-  so the app stays standard-library only. Google shows the panorama
-  nearest the viewpoint, which for a road barrier is on the road itself.
-- **Viewpoint:** the point of the recorded line nearest the current view
-  centre, without the reviewer's sideways shift. Panning along a long
-  barrier moves it too.
-- **Heading:** the line's digitised direction there, as a true azimuth
-  (converted through the task's Jacobian, since EPSG:3006 grid north is
-  not true north). Looking that way, the wall is on the camera's left
-  exactly when it is up in the app.
-- **One tab.** `window.open(url, "barrier_streetview")` reuses the same
-  tab on every press. A keypress counts as a user gesture, so popup
-  blockers allow it. If the tab is blocked anyway, the app says so.
+| key | view | where | tasks |
+|---|---|---|---|
+| I | **infrared photo** (`Ortofoto_IR`, 0.5 m, same service) | in the app, in place of the colour photo | all |
+| M | **Google satellite**, north up, zoom 20 | second browser tab | all |
+| G | **Google Street View**, looking along the barrier | the same second tab | road only |
 
-**Rail is left out.** Panoramas are taken from roads, so a rail wall is
-rarely in view, or only at an angle from a crossing road.
+- **Infrared stays in the app,** so the overlay, the offset and the
+  answer remain valid on it. Vegetation shows bright red and walls don't,
+  so a wall along a hedge or under trees stands out. It is coarser than
+  the colour photo (0.5 m vs down to 0.16 m). The top-bar toggle shows
+  which photo is on (red when infrared), and the choice carries over to
+  the next task.
+- **Google views are look-only.** They tell the reviewer which side the
+  wall is on, or whether there is one. The line is always placed on
+  Lantmäteriet's photo, because Google's terms don't allow deriving
+  positions from its imagery. Where the wall shows only in Google's views,
+  the reviewer moves the line roughly to it and submits.
+  - The links are the public Maps URLs scheme, needing no API key and
+    embedding nothing, so the app stays standard-library only.
+  - Satellite:
+    `https://www.google.com/maps/@?api=1&map_action=map&center=<lat>,<lon>&zoom=20&basemap=satellite`.
+  - Street View:
+    `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=<lat>,<lon>&heading=<h>`.
+- **Viewpoint:** both links use the point of the recorded line nearest the
+  current view centre, without the reviewer's sideways shift, so the
+  barrier is at the centre of Google's satellite view. Panning along a
+  long barrier moves it too.
+- **Heading (Street View):** the line's digitised direction there, as a
+  true azimuth (converted through the task's Jacobian, since EPSG:3006
+  grid north is not true north). Looking that way, the wall is on the
+  camera's left exactly when it is up in the app.
+- **North arrow.** Google's satellite view is north-up, while the app
+  rotates each barrier to run left to right. An arrow in the map's corner
+  (rotated by −bearing) shows where north is.
+- **One side tab.** `window.open(url, "barrier_lookaround")` reuses the
+  same tab for both links on every press, so tabs don't pile up. A
+  keypress counts as a user gesture, so popup blockers allow it. If the
+  tab is blocked anyway, the app says so.
+- **Street View is road only.** Panoramas are taken from roads, so a rail
+  wall is rarely in view. Satellite helps rail as much as road.
+- **Zoom stays at 19 for the colour photo.** A tile at z19 is ~0.15 m/px at
+  59°N, which already matches the finest imagery (0.16 m); z20 would only
+  make the server upscale.
+- **The reviewer README** says when to use each view and to check Street
+  View's capture date before concluding `not_visible`.
 
-**How answers use it.** Street View never answers the task by itself. It
-tells the reviewer which side the wall is on, and they still line the
-overlay up on the aerial photo, or press Both sides. If the wall shows
-only in Street View, they move the line to roughly where it stands and
-submit. The reviewer README tells them to check the capture date before
-concluding that a wall is `not_visible`.
-
-**Record.** Every answer carries `streetview_opens`, how many times G was
-pressed on that task.
-- `server.validate_answer` checks it: a whole number ≥ 0, and 0 when
-  absent, as in 0.2.0 answers.
-- `preprocess` keeps it in `audit_answers.parquet`, with 0 for older
-  answers.
-- Each method in `audit_report.json` → `validation` gets a
-  `with_streetview` count (`n_sided`, `agree`).
+**Record.** Every answer carries `streetview_opens`, `satellite_opens` and
+`imagery`.
+- `server.validate_answer` checks them: whole numbers ≥ 0, `imagery` one of
+  `colour`/`infrared`. Defaults when absent: 0, 0, `colour`.
+- `preprocess` keeps them in `audit_answers.parquet`, with the same
+  defaults for older answers.
+- Each method in `audit_report.json` → `validation` gets `with_streetview`,
+  `with_satellite` and `with_infrared` counts (`n_sided`, `agree`).
 - Decision rules are unchanged.
 
 **Tests.**
-- The `geometry.js` viewpoint and heading are checked in Node against
-  shapely and pyproj on real task geometry near Stockholm. The cases are
-  east- and west-digitised lines, one just west of grid north (the
-  heading wraps to ~359°), and a curve.
-- The server tests cover the new field, its default, and invalid values.
-- The preprocess test covers the count and the report split.
+- The `geometry.js` viewpoint, heading and both URLs are checked in Node
+  against shapely and pyproj on real task geometry near Stockholm. The
+  cases are east- and west-digitised lines, one just west of grid north
+  (the heading wraps to ~359°), and a curve.
+- The server tests cover the new fields, their defaults, and invalid
+  values.
+- The preprocess test covers the columns and the report split.
 - **Headless Chrome, unzipped batch-A package on Python 3.9, with
-  `window.open` stubbed:**
-  - on road tasks, G and the button open the expected URL in the named
-    tab, and the heading matches the map bearing + 90° (40.0° vs 40.2°)
-  - G works from the Unsure panel, where the hint shows
-  - on rail tasks, the button and hint are hidden and G does nothing
-  - the count reaches the answer line
+  `window.open` stubbed (0.4.0):**
+  - I shows the infrared layer, and the choice carries over to the next
+    task
+  - M and G open the expected URLs in the one named tab; on rail, G does
+    nothing and M works
+  - the Unsure hint adapts to the kind of task
+  - the north arrow turns with the bearing
+  - the answer lines carry the counts and `imagery`
+
+## One task per wall, and the type badge (app 0.5.0, 2026-09-25)
+
+**Why.** The register splits a wall into pieces wherever an attribute
+(height, material) or the road link / track element changes. So a
+quarter of all records are under 30 m: 450 of 2,172 road and 496 of 1,829
+rail records. In batch A, 54 of 219 tasks were such pieces, 35 of them
+under 15 m, hard to make out and each asked separately. Separately, the
+pilot showed the reviewer searching for a wall where the record is an
+earth berm. Earth berms are 510 road and 219 rail records.
+
+**Chains.** `linear_ref.chain_lines` joins records whose ends meet (within
+2 m) and continue in the same direction (turning less than 30°).
+- A chain runs the way most of its length is digitised. Each piece
+  records its position and whether it is digitised along or against it
+  (`chain_orient`).
+- Only simple paths are chained. Where a record end meets two others (e.g.
+  two records co-located on one stretch) or the pieces close a loop, the
+  records stay apart. That is deliberate: co-located records are the
+  ambiguous case of the outer-track review
+  ([`../barrier_matching.md`](../barrier_matching.md) §7.6).
+- **Result:** 896 road records form 305 chains, and 947 rail records form
+  295 (up to 23 pieces).
+- `barrier-protection build` stores `chain_id` and `chain_orient` in the
+  references for later use. Nothing downstream uses them yet.
+- **Evidence the pieces share a side:** wherever both pieces at a joint
+  have a side from an OSM wall, a manual answer or their own geometry, the
+  sides agree, 58/58 road and 35/35 rail joints. That includes 13 joints
+  matched to two different OSM walls. Built year agrees at 98% of road and
+  92% of rail joints.
+
+**Tasks.** A chosen record's task covers its whole wall, drawn as one line
+(`join_chain`).
+- The view starts at the point nearest the school of the task's
+  highest-ranked record: target, then validation.
+- The other pieces aren't drawn in orange, since they are the overlay.
+- The key has one row per record. The pieces that weren't chosen join as
+  group `chain`, and `task_group` is the task's highest group.
+- Each key row carries the point of its own piece nearest the view
+  (`center_x/y`) and the task's left normal there (`n_x/y`). The answer's
+  offset therefore places every piece's wall.
+- `preprocess` draws each piece's offset line on its own left, or on its
+  right when it runs against the chain (`chain_orient` −1).
+- Practice tasks stay single records.
+- **Batch A:** 229 tasks became 195 (185 non-practice), covering 443
+  records. The 214 added records are unchosen pieces of the same walls,
+  which now get a manual side too. Tasks under 30 m dropped from 54 to 24,
+  records with no piece to join. 85 tasks cover several records (up to 23
+  pieces, 1.4 km).
+
+**"The wall switches sides."** Adjacent records given sides from the
+neighbouring carriageway disagree at 26 of 428 joints, some of which may
+be walls that really switch sides. Multi-piece tasks therefore offer Unsure
+reason 4, `changes_side`.
+- It is its own decision, `changes_side`, not an abstention.
+- `preprocess` lists those barriers under `audit_report.json` →
+  `changes_side`. They are not used by the build, and go back to one task
+  per record in a later batch.
+
+**Validation.** Records answered in one task aren't independent. Each
+method in the report therefore also has `n_walls_sided`: the number of
+tasks behind its `n_sided` records.
+
+**Type badge.** Each task carries its materials, ordered by length, and a
+`type_group`. The app shows the group as a badge at the top left of the
+map, with what to look for:
+
+| `type_group` | badge | hint |
+|---|---|---|
+| `berm` | Earth berm (brown) | Look for a grassy bank, not a wall. Line up the top of the bank. |
+| `berm_screen` | Earth berm + screen (brown) | A bank with a screen on top: line up the screen. |
+| `glass` | Glass screen (blue) | Hard to see from above: look for its foundation line or shadow. Try I or M. |
+| `wall` | Wall: wood / concrete / … (grey) | Line up the foot of the wall or its shadow line. |
+| `mixed` | Mixed: … (purple) | The type changes along this barrier. |
+| none | Type not recorded | It may be a wall or an earth bank. |
+
+The material moved from the top bar into the badge. The top bar shows the
+height (a range for a multi-piece task), the length, and "one barrier in
+N register pieces". Tasks exported before 0.5.0 carry only `material`; the
+app derives the group from it.
+
+**Tests.**
+- `chain_lines`: pieces with a gap and one digitised backwards join in
+  order; a 90° turn doesn't join; the chain follows the majority
+  direction; co-located records stay apart. `join_chain` gives one
+  continuous line.
+- Export and preprocess: a wall in three pieces (one backwards) is one
+  task with key rows in the right groups, the other record is the only
+  orange one, and the type is `mixed` with a height range. One +6 m answer
+  puts every piece's aligned point and offset line on the same side.
+- The report: `n_walls_sided`.
+- **Headless Chrome, unzipped batch-A package on Python 3.9:**
+  - the badge and hint for wall, earth berm, glass and mixed
+  - a 759 m rail barrier in 18 pieces drawn as one line
+  - reason 4 only on multi-piece tasks, and its answer saved
+
+## Whole-wall view (app 0.6.0, 2026-09-25)
+
+**Why.** The 150 m start window showed only part of most walls: in batch
+A, 119 of 195 tasks are longer than 150 m (median 221 m, 90th percentile
+758 m, longest 1.39 km). The reviewer couldn't see where a wall ends, or
+whether it changes sides, without zooming out by hand. The window was also
+finer than the photo: 150 m over the ~1,700 px map is 0.09 m/px, while the
+imagery tops out at z19, about 0.15 m/px (0.16 m photo).
+
+**What changed.**
+- The start zoom fits the whole wall around the start centre
+  (`geometry.js` `fitZoom`: the line's extent along t across the screen
+  and along n up it, 48 px padding), clamped between the old 150 m window
+  and 0.3 m/px. The centre stays on the point nearest the school, since
+  moving it would move the offset.
+- F (or the "whole wall" button in the top bar) zooms to fit the whole
+  wall around the current centre at any scale, and pressed again returns
+  to the start zoom. The centre and offset don't change.
+- Bent walls look tilted away from the centre: the map is rotated by the
+  wall's direction at the centre. The overlay still follows the wall.
+- In batch A, 112 of 195 tasks start with the whole wall in view (at that
+  map size). The fit is around the start centre, not the wall's middle, so
+  an off-centre wall needs a wider view.
+- The answer already records `zoom`, so whether zoomed-out answers are
+  less reliable can be checked in the validation sample.
+
+**Tests.**
+- `fitZoom` (Node): every vertex fits and one axis is tight, for a bent
+  wall off-centre, at the start and after a pan.
+- **Headless Chrome, unzipped batch-A package, map 1,712 × 972 px:** on
+  the first 30 tasks, the 23 walls up to 270 m start fully in view
+  (0.09–0.29 m/px); the seven longer ones (490–939 m) start at 0.3 m/px with 35–88%
+  in view, F shows 100% (0.44–0.95 m/px), and F again returns to the start
+  zoom exactly.
+
+## Stub records (2026-09-25)
+
+**Why.** Pilot task `9376dc21` showed no line at all: its record is 2 cm
+long. It is not an export error. The rail register has 63 records whose
+geometry is under 1 m (road: none), most spanning a whole micro-link
+(measures 0–1). Their kilometre posts often span a real wall: 11+785 to
+12+920 for this one, 1.1 km. That wall's geometry sits on four other
+records with the same `bis_object_number` (121 + 42 + 621 + 315 m).
+40 of the 63 share their object with longer records. The one-task-per-wall
+grouping doesn't join them, because a 2 cm line has no direction.
+
+**What changed.**
+- The exporter never picks a record under 1 m as a target, validation or
+  practice task (`_barrier_reference.is_stub`). It can still ride along as
+  a `chain` piece of a longer wall.
+- New side method `bis_sibling` (rail, after every other method, before
+  `unknown`): a stub takes the side of its BIS object's other records
+  within 50 m if they all agree. Each decided record puts a probe 5 m out
+  on its protected side, beside the stub, and the probe's side of the
+  stub's own through-line is its vote. A record with walls on both sides,
+  or any disagreement, leaves the stub unknown.
+- **After the rebuild:** 2 stubs got `bis_sibling`, including the pilot's
+  (from `2a7479a1`'s manual side). Of the other 30 unknown stubs, 23 have
+  same-object records that are themselves still unknown. Most of those
+  are audit targets, so the stubs follow once the answers are in. 7 have
+  no same-object record within 50 m. Of the 63, 28 are `track_offset`
+  and 3 `osm_offset`, both kept.
+- **Batch A re-exported** (no answers yet, so safe): 195 → 199 tasks, 443 → 421 records.
+  - 3 stub targets and 2 stub validation tasks are gone.
+  - A new draw of validation barriers gives 107 validation tasks (was
+    100).
+  - Rail targets with an `outer_track_sign`: 66 records in 58 tasks (was
+    68 in 60).
 
 ## Decisions (2026-09-24)
 

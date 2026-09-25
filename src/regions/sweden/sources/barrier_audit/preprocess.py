@@ -60,10 +60,15 @@ from src.regions.sweden.sources.barrier_protection.shared import references_path
 from src.regions.sweden.sources.noise_barriers.shared import load_noise_barriers
 
 ABSTAIN = ("occluded", "other")
-DECISIONS = {"left": "side", "right": "side", "both_sides": "both_sides", "centre": "centre", "not_visible": "not_visible"}
+# Aids beyond the aerial photo a reviewer used on a barrier (app 0.3.0+).
+AID_COLUMNS = ("with_streetview", "with_satellite", "with_infrared")
+DECISIONS = {
+    "left": "side", "right": "side", "both_sides": "both_sides", "centre": "centre", "not_visible": "not_visible",
+    "changes_side": "changes_side",  # the wall switches sides along a chain task: back to one task per record
+}
 ANSWER_COLUMNS = [
     "batch", "reviewer", "task_id", "status", "reason", "note", "lateral_m", "along_residual_m",
-    "zoom", "seconds_on_task", "answered_at", "app_version", "streetview_opens",
+    "zoom", "seconds_on_task", "answered_at", "app_version", "streetview_opens", "satellite_opens", "imagery",
 ]
 
 
@@ -75,16 +80,21 @@ def load_answers(root: Path | None = None) -> pd.DataFrame:
         files = sorted(batch_dir.glob("answers_*.jsonl"))
         if not files:
             continue
-        key = load_key(batch_dir.name, root)
+        key = pd.DataFrame(load_key(batch_dir.name, root).drop(columns="geometry"))
+        if "chain_orient" not in key.columns:  # keys exported before chain tasks: one record per task
+            key["chain_orient"] = 1
         for file in files:
             records, _ = read_answer_lines(file)
             if not records:
                 continue
             answers = pd.DataFrame(records).reindex(columns=ANSWER_COLUMNS)
-            answers["streetview_opens"] = answers["streetview_opens"].fillna(0).astype(int)  # absent before app 0.3.0
+            # Absent before app 0.3.0 (Street View) / 0.4.0 (satellite, imagery).
+            for column in ("streetview_opens", "satellite_opens"):
+                answers[column] = answers[column].fillna(0).astype(int)
+            answers["imagery"] = answers["imagery"].fillna("colour")
             answers["batch"] = batch_dir.name
             answers = answers.drop_duplicates(["reviewer", "task_id"], keep="last")
-            frames.append(answers.merge(pd.DataFrame(key.drop(columns="geometry")), on=["task_id", "batch"], how="inner"))
+            frames.append(answers.merge(key, on=["task_id", "batch"], how="inner"))
     if not frames:
         return pd.DataFrame(columns=ANSWER_COLUMNS)
     answers = pd.concat(frames, ignore_index=True)
@@ -120,7 +130,10 @@ def decide(categories: list[str]) -> tuple[str, str | None]:
 
 def manual_sides(answers: pd.DataFrame, lines: gpd.GeoSeries) -> gpd.GeoDataFrame:
     """One row per barrier with a non-practice answer. `lines` maps a key
-    task_id to the barrier line (EPSG:3006) stored in the batch key."""
+    row's (`task_id`, `kind`, *KEY_COLUMNS) to that record's line (EPSG:3006)
+    stored in the batch key. In a task covering several records of one wall,
+    the offset is along the task's left normal, so a record digitised against
+    the chain (`chain_orient` -1) gets its offset line on its own right."""
     work = answers[answers["group"] != "practice"]
     rows = []
     for (kind, *key), group in work.groupby(["kind", *KEY_COLUMNS], sort=True):
@@ -148,7 +161,7 @@ def manual_sides(answers: pd.DataFrame, lines: gpd.GeoSeries) -> gpd.GeoDataFram
                 lateral_m=lateral,
                 aligned_x=first["center_x"] + lateral * first["n_x"],
                 aligned_y=first["center_y"] + lateral * first["n_y"],
-                geometry=lines.loc[first["task_id"]].offset_curve(lateral),
+                geometry=lines.loc[(first["task_id"], kind, *key)].offset_curve(lateral * first["chain_orient"]),
             )
         rows.append(record)
     return gpd.GeoDataFrame(rows, columns=list(rows[0]) if rows else ["kind", *KEY_COLUMNS, "decision", "geometry"],
@@ -193,26 +206,36 @@ def cohens_kappa(a: list[str], b: list[str]) -> float | None:
 def validation_report(answers: pd.DataFrame, sides: pd.DataFrame) -> dict:
     """Per automatic method: how the validation barriers were decided, and
     how often a manual side agrees with the automatic one -- overall and for
-    the barriers where a reviewer opened Street View."""
-    validated = answers.loc[answers["group"] == "validation", ["kind", *KEY_COLUMNS, "side_method", "barrier_sign"]]
-    streetview = answers.groupby(["kind", *KEY_COLUMNS])["streetview_opens"].max().gt(0).rename("streetview").reset_index()
+    the barriers where a reviewer opened Street View, opened Google
+    satellite, or answered on the infrared photo."""
+    validated = answers.loc[answers["group"] == "validation", ["kind", *KEY_COLUMNS, "side_method", "barrier_sign", "task_id"]]
+    used = answers.assign(
+        with_streetview=answers["streetview_opens"] > 0,
+        with_satellite=answers["satellite_opens"] > 0,
+        with_infrared=answers["imagery"] == "infrared",
+    ).groupby(["kind", *KEY_COLUMNS])[list(AID_COLUMNS)].any().reset_index()
     validated = validated.drop_duplicates(["kind", *KEY_COLUMNS]).merge(sides, on=["kind", *KEY_COLUMNS])
-    validated = validated.merge(streetview, on=["kind", *KEY_COLUMNS], how="left")
+    validated = validated.merge(used, on=["kind", *KEY_COLUMNS], how="left")
     report = {}
     for method, group in validated.groupby("side_method"):
         sided = group[(group["decision"] == "side") & group["manual_sign"].notna()]
         agree = int((sided["manual_sign"] == sided["barrier_sign"]).sum())
-        with_streetview = sided[sided["streetview"].fillna(False).astype(bool)]
         report[method] = {
             "n_barriers": len(group),
             "decisions": {k: int(v) for k, v in group["decision"].value_counts().items()},
             "n_sided": len(sided),
+            # Records of one wall answered in one task aren't independent.
+            "n_walls_sided": int(sided["task_id"].nunique()),
             "agree": agree,
             "share_agree": round(agree / len(sided), 3) if len(sided) else None,
             "wilson_95": wilson(agree, len(sided)),
-            "with_streetview": {
-                "n_sided": len(with_streetview),
-                "agree": int((with_streetview["manual_sign"] == with_streetview["barrier_sign"]).sum()),
+            **{
+                aid: {
+                    "n_sided": int(flag.sum()),
+                    "agree": int((sided.loc[flag, "manual_sign"] == sided.loc[flag, "barrier_sign"]).sum()),
+                }
+                for aid in AID_COLUMNS
+                for flag in [sided[aid].fillna(False).astype(bool)]
             },
         }
     return report
@@ -244,7 +267,8 @@ def outer_track_report(answers: pd.DataFrame, sides: pd.DataFrame) -> dict:
 
 def double_coding_report(answers: pd.DataFrame) -> dict:
     """Agreement between reviewers on the tasks both answered."""
-    work = answers[answers["group"] != "practice"]
+    # One row per reviewer and task: a chain task has a key row per record.
+    work = answers[answers["group"] != "practice"].drop_duplicates(["batch", "reviewer", "task_id"])
     pairs = work.merge(work, on=["batch", "task_id"], suffixes=("_a", "_b"))
     pairs = pairs[pairs["reviewer_a"] < pairs["reviewer_b"]]
     if pairs.empty:
@@ -290,7 +314,7 @@ def run_barrier_audit_preprocess(root: Path | None = None) -> dict:
     if answers.empty:
         raise ValueError("No answers imported yet: run `barrier-audit import` (or `serve`) first.")
     lines = pd.concat(
-        [load_key(b, root).set_index("task_id").geometry for b in sorted(answers["batch"].unique())]
+        [load_key(b, root).set_index(["task_id", "kind", *KEY_COLUMNS]).geometry for b in sorted(answers["batch"].unique())]
     )
     sides = manual_sides(answers, lines)
     sides["stale"] = stale_rows(sides, root)
@@ -310,6 +334,7 @@ def run_barrier_audit_preprocess(root: Path | None = None) -> dict:
         "stale": sides.loc[sides["stale"], listing].to_dict("records"),
         "not_visible": sides.loc[sides["decision"] == "not_visible", listing].to_dict("records"),
         "conflict": sides.loc[sides["decision"] == "conflict", listing].to_dict("records"),
+        "changes_side": sides.loc[sides["decision"] == "changes_side", listing].to_dict("records"),
         "validation": validation_report(answers, sides),
         "outer_track": outer_track_report(answers, sides),
         "double_coding": double_coding_report(answers),
@@ -322,5 +347,6 @@ def run_barrier_audit_preprocess(root: Path | None = None) -> dict:
         "n_stale": len(report["stale"]),
         "n_not_visible": len(report["not_visible"]),
         "n_conflict": len(report["conflict"]),
+        "n_changes_side": len(report["changes_side"]),
         "next": "re-run `sweden data barrier-protection build`, then schools/grid/panel assemble",
     }

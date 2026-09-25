@@ -51,10 +51,14 @@ CONTENT_TYPES = {
 REPORT_ID = re.compile(r"^[0-9A-Za-z_-]{1,64}$")
 REVIEWER = re.compile(r"^[0-9A-Za-z_-]{1,32}$")
 STATUSES = ("aligned", "both_sides", "unsure")
-UNSURE_REASONS = ("occluded", "not_visible", "other")
+UNSURE_REASONS = ("occluded", "not_visible", "other", "changes_side")  # changes_side: tasks covering a wall's pieces (0.5.0)
 NUMBER_FIELDS = ("lateral_m", "along_residual_m", "zoom", "seconds_on_task")
 MAX_NOTE_CHARS = 2000
-MAX_STREETVIEW_OPENS = 10_000
+# Times the reviewer opened Street View / Google satellite on a task (0.3.0 /
+# 0.4.0; absent, i.e. 0, before), and the photo shown at submit (0.4.0).
+COUNT_FIELDS = ("streetview_opens", "satellite_opens")
+MAX_OPENS = 10_000
+IMAGERY = ("colour", "infrared")
 
 
 def check_answers_dir(answers_dir: Path) -> tuple[bool, str | None]:
@@ -121,11 +125,15 @@ def validate_answer(answer: dict, task_ids: set) -> dict:
     if not isinstance(answered_at, str) or len(answered_at) > 40:
         raise ValueError("answered_at must be an ISO timestamp")
     clean["answered_at"] = answered_at
-    # Times Street View was opened on this task (app 0.3.0; absent before).
-    opens = answer.get("streetview_opens", 0)
-    if isinstance(opens, bool) or not isinstance(opens, int) or not 0 <= opens <= MAX_STREETVIEW_OPENS:
-        raise ValueError("streetview_opens must be a whole number >= 0")
-    clean["streetview_opens"] = opens
+    for field in COUNT_FIELDS:
+        opens = answer.get(field, 0)
+        if isinstance(opens, bool) or not isinstance(opens, int) or not 0 <= opens <= MAX_OPENS:
+            raise ValueError(f"{field} must be a whole number >= 0")
+        clean[field] = opens
+    imagery = answer.get("imagery", "colour")
+    if imagery not in IMAGERY:
+        raise ValueError(f"imagery must be one of {IMAGERY}")
+    clean["imagery"] = imagery
     return clean
 
 

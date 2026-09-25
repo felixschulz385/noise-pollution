@@ -42,7 +42,8 @@ def run_barrier_audit_import(path: Path, *, force: bool = False, root: Path | No
     if dest.resolve() != path.resolve():
         shutil.copyfile(path, dest)
 
-    groups = key.set_index("task_id")["group"]
+    # A task's group (a chain task has a key row per record; older keys one).
+    groups = key.drop_duplicates("task_id").set_index("task_id")["task_group" if "task_group" in key.columns else "group"]
     answered = {t for t in latest}
     return {
         "batch": batch,
