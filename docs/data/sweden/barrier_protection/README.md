@@ -8,6 +8,10 @@ For every road and rail noise barrier in Sweden, this stage records:
 It is computed once and saved. `schools`, `grid` and any other analysis
 load it rather than re-deriving it from the 2M-row road network. The method
 and its validation are in [`../barrier_matching.md`](../barrier_matching.md).
+Sweden's side inference is `src/regions/sweden/sources/_barrier_reference.py`.
+The protected-area model (`classify_points`, `protection_zones`) is the
+region-agnostic `src/core/barrier_geometry/protection.py`, shared with
+Florida.
 
 **Status (2026-09-24): implemented and run on the real layers.** One build
 covers all of Sweden in about 4.5 minutes: road 205s, mostly loading the 2M-row
@@ -93,25 +97,31 @@ One row per barrier, keyed by `barrier_row`:
   the `same_route` corridor lines (`corridor`)
 
 `load_barrier_references(kind, barriers_gdf=...)` returns the
-`BarrierReferences` object that `_barrier_reference.classify_points` takes.
+`BarrierReferences` object that `core/barrier_geometry/protection.classify_points` takes.
 It gives any points `same_route`, `same_side`, `same_side_unknown`,
 `lateral_m`, `along_offset_m`, `protected` and `protected_unknown`.
 
-## Real run (2026-09-24)
+## Real run (2026-09-25, rebuilt after §7.6)
+
+With the §7.6 matching fixes and all 35 pilot answers
+([`../barrier_matching.md`](../barrier_matching.md) §7.6); the
+2026-09-24 run in brackets where it differs.
 
 | | road | rail |
 |---|---|---|
 | barriers | 2,172 | 1,829 |
+| `manual` | 7 (0) | 9 (0) |
 | `both_sides` | 112 | — |
-| `osm_offset` | 192 | 98 |
+| `osm_both_sides` | 2 (0) | 0 |
+| `osm_offset` | 172 (194) | 77 (99) |
 | `geometric_offset` | 1 | 6 |
-| `track_offset` | — | 630 |
-| `parallel_road` | 1,232 | — |
-| `unknown` | 635 | 1,095 |
-| protected area (dissolved) | 172.1 km² | 59.2 km² |
-| side-unknown area (dissolved) | 119.2 km² | 223.1 km² |
-| 100m grid cells protected (any barrier) | 17,152 | 5,880 |
-| … of which not by their nearest barrier | 2,875 | 1,366 |
+| `track_offset` | — | 629 |
+| `parallel_road` | 1,240 (1,230) | — |
+| `unknown` | 638 (635) | 1,108 (1,095) |
+| protected area (dissolved) | 171.8 km² (172.1) | 60.5 km² (59.2) |
+| side-unknown area (dissolved) | 119.6 km² (119.2) | 225.1 km² (223.1) |
+| 100m grid cells protected (any barrier) | 17,117 (17,152) | 6,015 (5,880) |
+| … of which not by their nearest barrier | 2,884 (2,875) | 1,339 (1,366) |
 
 ## Why a separate stage
 

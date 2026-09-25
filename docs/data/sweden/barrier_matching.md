@@ -4,9 +4,14 @@ Covers the code that decides, for each noise barrier, **which road or track
 it belongs to, which stretch it covers, and which side of it the barrier
 stands on**. At the time of the review that code lived in three places
 (`_linear_ref.py`, `schools/assemble.py::match_barriers_network`,
-`grid/side.py::match_grid_side`). It now lives in one:
-`src/regions/sweden/sources/_barrier_reference.py`, built on the primitives
-in `_linear_ref.py`, and used by both schools and grid (see Status).
+`grid/side.py::match_grid_side`). It now lives in:
+- **Sweden's side inference:** `src/regions/sweden/sources/_barrier_reference.py`
+- **Region-agnostic code shared with Florida** (since 2026-09-24):
+  `src/core/barrier_geometry/`, holding the line primitives
+  (`linear_ref.py`, formerly `_linear_ref.py`) and the protected-area model
+  (`protection.py`)
+
+Schools and grid both use it (see Status).
 
 **Why it matters.** The end goal is to model the *area a barrier protects*:
 the land on the far side of the barrier from the traffic, along the stretch
@@ -34,9 +39,12 @@ The review below led to a rewrite, now in the pipeline:
 - **`_barrier_reference.py`** holds, per barrier: the exact link-key join,
   a corridor that trims long neighbours instead of dropping them, a
   through-line used as the single side reference, and a `side_method`
-  (`both_sides` (road) → `osm_offset` → `geometric_offset` →
-  `track_offset` (rail) → `parallel_road` (road) → `unknown`; `both_sides`
-  and `track_offset` added in §7), plus the protected-area columns (§7.1).
+  (`manual` / `manual_both_sides` → `both_sides` (road) →
+  `osm_both_sides` / `osm_offset` → `geometric_offset` → `track_offset`
+  (rail) → `parallel_road` (road) → `unknown`; `both_sides` and
+  `track_offset` added in §7, the manual and `osm_both_sides` methods and
+  the stricter OSM matching in §7.6), plus the protected-area columns
+  (§7.1).
   Its `classify_points` gives every point `same_route` / `same_side` /
   `same_side_unknown` / `lateral_m` / `along_offset_m` / `protected` /
   `protected_unknown`.
@@ -83,8 +91,9 @@ three problems with the side reference line, each now fixed and tested:
    it was validated on: a line that ran on into the mainline would sample
    its own neighbour.
 
-**Real run** (2026-09-24, final: through-line refinements, §7.1-7.3 and
-the `barrier_protection` stage):
+**Real run** (2026-09-24: through-line refinements, §7.1-7.3 and the
+`barrier_protection` stage; the §7.6 fixes since moved these slightly, see
+§7.6):
 
 | | before the rewrite | `same_side` now | `protected` now (new tier, §7.1) |
 |---|---|---|---|
@@ -124,9 +133,14 @@ The refinements moved these numbers in both directions:
 - **§7.2-7.3** (`both_sides`, `track_offset`) then gave panel road 113 and
   rail 62.
 
-**Not yet re-run:** `output/notebooks/sweden/analysis.ipynb` (uses
-`MATCH_TIER = "same_side"`; its results will change materially). The
-manual-audit app (§5) is next in line for the unknowns.
+**Analysis:** `output/notebooks/sweden/analysis.ipynb` was re-run on
+2026-09-24 with `MATCH_TIER = "protected"`: 42 treated schools, 18 of them
+built inside the 1998–2019 window. See its Summary. It predates the §7.6
+rebuild and has not been re-run since. The manual-audit app
+(§5) is built
+([`barrier_audit/README.md`](barrier_audit/README.md), 2026-09-24): its
+answers enter as `side_method = "manual"` / `"manual_both_sides"` ahead of
+every automatic method once batch A is back and preprocessed.
 
 ## 1. Which road/track: exact linear-reference join available
 
@@ -332,7 +346,7 @@ geometric tiers or "unknown".
 **Chosen approach:** option 3, geometry plus external data. Every barrier
 gets a `side_method`, tried in this priority order:
 
-1. `manual` (future, see below)
+1. `manual` / `manual_both_sides` (built 2026-09-24, see §5 and [`barrier_audit/README.md`](barrier_audit/README.md))
 2. `osm_offset`
 3. `geometric_offset`
 4. `parallel_road`
@@ -354,7 +368,9 @@ group.
 **A manual audit will be needed later.** Most school-relevant barriers
 remain `unknown` after the geometric and OSM methods: all of rail except
 OSM hits, and undivided roads. They can only be resolved by a person looking
-at imagery. **We'll build a small app for this:**
+at imagery. **We'll build a small app for this.** The detailed design
+(2026-09-24) is in [`barrier_audit/README.md`](barrier_audit/README.md) and
+supersedes the sketch below, which is kept for history:
 
 - **Scope.** The barriers linked to the analysis sample's treated schools,
   not all 4,000.
@@ -465,10 +481,12 @@ So the flag mostly means "same side of the road near a barrier", not
   stretch. A point past the stretch is known not to be protected whatever
   its side, so this tier has far fewer unknowns than `same_side`.
 
-**Open choice (user):** the margin. For reference, the FHWA "four-to-one"
-design rule of thumb says a barrier should extend about four times the
-receiver-to-barrier distance beyond the receiver on each side. A receiver
-past a barrier's end therefore gets much less than full shielding.
+**Decided (2026-09-24):** margin 50m and reach 600m, kept for both Sweden
+and Florida so results are comparable. For reference, the FHWA
+"four-to-one" design rule of thumb says a barrier should extend about four
+times the receiver-to-barrier distance beyond the receiver on each side, so
+a receiver past a barrier's end gets much less than full shielding. Both
+regions' analysis notebooks use the `protected` tier.
 
 **Status: implemented.**
 - `classify_points` returns `lateral_m`, `along_offset_m`, `protected` and
@@ -606,7 +624,7 @@ the side from the best OSM wall:
   track. The no-distance subset agrees only 66% with OSM, and those OSM
   matches can't be verified.
 
-Per-barrier count, full rail network: `track_offset` 630, `osm_offset` 98,
+Per-barrier count, full rail network: `track_offset` 629, `osm_offset` 99,
 `geometric_offset` 6, `unknown` 1,095 (known: 734, before: ~124).
 
 `build_barrier_references` now takes `kind="road"|"rail"` in place of the
@@ -626,6 +644,200 @@ agreement was measured only where OSM maps a wall.
 **Outside the matching:** most barriers have no construction year (162,328 of
 271,116 treated road grid cells have `timing_unknown`), which may matter as
 much for the event study as the side question.
+
+### 7.5 Transfer to Florida (implemented 2026-09-24)
+
+See [`../florida/barrier_protection.md`](../florida/barrier_protection.md).
+Florida's walls are drawn where they stand, and FDOT's `BLOC_SIDE` agrees
+with their geometric side for 98.3% of walls, so the side comes straight
+from geometry. The geometry code (through-line, `classify_points`,
+`protection_zones`) moved to `src/core/barrier_geometry/` and is now shared.
+Florida's panel has a `_protected` tier: 116 treated schools.
+
+### 7.6 Pilot findings: OSM matching, twin records, outer tracks (2026-09-24)
+
+The first two pilot tasks were both practice tasks built on a wrong
+`osm_offset` match.
+
+**1. Two records, one wall.** Task 1 was a double track with a wall on
+each side (OSM: 6.1 m left and 8.1 m right of the track). Trafikverket has
+one record per track, and both records claimed the left wall; nothing
+stopped two records from taking the same wall. The reviewer lined up the
+right wall, 0.25 m from its OSM position, and the practice feedback called
+it wrong.
+- Across the network, parallel records (another record within 25 m for
+  half the shorter one's length) are common: 1,108 of 2,172 current road
+  and 1,387 of 1,829 rail barriers. 45 road and 60 rail such pairs claimed
+  the same OSM wall.
+- **Fix:** an OSM wall counts for a rail barrier only if it lies nearer the
+  barrier's own track than the nearest parallel track on either side, as
+  the road rule already required for the other carriageway. Before, rail
+  computed the neighbouring track only for `track_offset`.
+
+**2. A wall past the barrier's end.** Task 2's wall started 8 m beyond
+the far end of a 136 m barrier. The 40 m search zone was a round-capped
+buffer, so a wall continuing past the end still counted toward the 30 m
+overlap. The reviewer correctly saw no wall.
+- 46 of 194 road and 27 of 99 rail `osm_offset` matches had no 30 m of
+  wall beside the barrier at all.
+- **Fix:** the zone is flat-capped. The wall must run beside the barrier
+  for 30 m, or half the barrier's length if that is shorter.
+
+**3. Walls on both sides.** With the rules above, qualifying OSM walls on
+both sides of the barrier's own road or track give `osm_both_sides`, which
+is protected on both sides like `both_sides`
+(`protection.BOTH_SIDES_METHODS`). Where the second wall is not a
+Trafikverket barrier (e.g. municipal), it still counts as protection.
+
+**4. Outer tracks: recorded, not yet a method.** If Trafikverket registers
+each rail wall on the track it stands beside, an outer track's wall stands
+outside, away from the other tracks, like `parallel_road`. §7.3 rejected
+this at 70% agreement, but that test took only the nearest parallel track,
+so a middle track counted as outer, and it was scored against the noisy
+matches above. Re-tested with the tracks on each side counted
+(`linear_ref.parallel_neighbors_by_side`) and the flat-capped OSM walls:
+
+| rail barriers on an outer track, one-sided OSM wall | n | agrees with "outside" |
+|---|---|---|
+| no twin record on the other track | 26 | 85% (22/26) |
+| distance recorded, wall at that distance | 6 | 100% |
+| twin record, wall nearer this record's track | 19 | 68% |
+| twin record, wall nearer the twin's track | 10 | 50% |
+
+All four misses without a twin are walls 10–33 m out, beyond the other
+track: probably another line's wall. 1,493 of 1,829 rail barriers are on
+an outer track, 41 on a middle one, and 295 have no parallel track. The
+rule looks right, but 26 cases are too few to adopt it. The references now
+carry `outer_track_sign` for rail, which is not used as a side. Batch A's
+rail targets test it directly: `barrier-audit preprocess` reports the
+agreement (`audit_report.json` → `outer_track`).
+
+**Effect of the fixes** (full rebuild on 2026-09-25, with all 35 pilot
+answers: 16 manual sides, 7 road + 9 rail):
+
+| barriers changed | road (32) | rail (45) |
+|---|---|---|
+| `osm_offset` → `parallel_road` / `track_offset` | 16 | 7 |
+| `osm_offset` → `unknown` | 5 | 17 |
+| `osm_offset` → `osm_both_sides` | 2 | — |
+| `osm_offset`, but a different wall | 0 | 10 (7 change side) |
+| → `osm_offset` (from `parallel_road` / `track_offset` / `unknown`) | 2 | 2 |
+| → `manual` | 7 | 9 |
+
+Per method, road: `osm_offset` 194 → 172, `parallel_road` 1,230 → 1,240,
+`unknown` 635 → 638. Rail: `osm_offset` 99 → 77, `unknown` 1,095 → 1,108,
+`track_offset` 629 unchanged.
+
+| | before §7.6 | after |
+|---|---|---|
+| panel road, treated schools, `protected` | 38 (17 unknown) | 37 (17 unknown) |
+| panel rail, treated schools, `protected` | 27 (75 unknown) | 25 (75 unknown) |
+| panel road, treated schools, `same_side` | 113 (127 unknown) | 112 (127 unknown) |
+| panel rail, treated schools, `same_side` | 62 (207 unknown) | 64 (208 unknown) |
+| grid road cells, `protected` | 17,152 (10,957 unknown) | 17,117 (10,981 unknown) |
+| grid rail cells, `protected` | 5,880 (21,754 unknown) | 6,015 (21,846 unknown) |
+
+The matching fixes alone (a rebuild without the manual answers) moved the
+panel to road 38 / rail 25 `protected` and road 112 / rail 62 `same_side`.
+The manual answers then took one road school out of `protected` and added
+two rail schools to `same_side`.
+
+**The pilot key was re-exported mid-pilot (2026-09-24 20:11).** The new
+selection drew new task ids, so the 24 answers already given no longer
+matched the key, and `preprocess` (an inner join on `task_id`) would have
+dropped them. The 24 tasks were restored into `pilot_key.parquet` from
+`processed/audit_answers.parquet`, as `order` 35-58. Every restored row
+matched its barrier by key and by `barrier_row`. The earlier 19 decisions
+came back unchanged. The pilot is complete: 35 answers.
+
+**The pilot's manual answers against the automatic side.** 11 of the 16
+barriers with a manual side already had an automatic side, and 9 of those
+agree: 5/5 `parallel_road`, 4/5 `track_offset`, 0/1 `osm_offset`. The
+other 5 were `unknown`. Five answers were
+`not_visible` and one Unsure (reported only). The practice score, 5 of 10
+on the OSM wall's side, includes the two wrong practice matches described
+above.
+
+`output/notebooks/sweden/analysis.ipynb` predates this rebuild; its
+numbers (42 treated schools, ATT 0.337) are stale until it is re-run.
+
+**Outer tracks, a closer look (2026-09-25).** Two of the checks available
+in the data turn out to be circular, and the one independent source is
+thin:
+
+- **`track_offset` and rail `osm_offset` can't test the rule.**
+  `track_offset` is defined as the side away from the one parallel track,
+  so it agrees with `outer_track_sign` 615/615 by construction. Since the
+  fix in point 1, a rail OSM wall must also be nearer its own track than
+  any neighbour (`_osm_side`). On an outer track about 4.5 m from the next,
+  a wall on the neighbour's side would have to stand 2.0–2.3 m from its own
+  track to pass, so every rail `osm_offset` on an outer track is on the
+  outer side (68/68). The same holds for the 102 co-located same-track
+  pairs "agreeing".
+- **Independent OSM test.** This re-scans the walls with that filter off
+  (flat-capped zone, 30 m overlap, parallel, ≥2 m off). Only 99 of 1,496
+  outer-track barriers have any OSM wall. Without a twin record, where a
+  lone wall is probably the record's own:
+
+  | outer-track barriers, no twin record | wall outside only | wall beyond the other track only | both |
+  |---|---|---|---|
+  | no recorded distance | 14 | 2 | 1 |
+  | recorded distance | 7 | 1 | 0 |
+
+  The two no-distance misses are consecutive records (692/693) of one wall,
+  10–11 m out: effectively one case. The no-distance barriers, which are
+  the ones the rule would decide, behave like the recorded-distance ones.
+  No OSM wall stands between two tracks.
+- **Manual answers:** 8/9 agree. The four no-distance barriers are all
+  right. The one miss (rail 896) has its "parallel track" only 2.6 m away,
+  which is a turnout or converging track, not a second track.
+- **Spacing.** Median 4.5 m (IQR 4.5–6.0). 166 outer-track barriers have a
+  neighbour closer than 4 m (86 unknown), which is where the geometry is
+  unreliable.
+- **Co-located records are the open risk.** 450 rail records share their
+  stretch with another record on the same track (within 1 m, ≥50%
+  overlap). Of the unknown barriers the rule would decide, 142 are such
+  records: 47 of similar length, the rail analogue of road's `both_sides`,
+  and 95 nested or partial. The rule gives both records of a pair the same,
+  outer side. If a pair is a wall on each side, one of them is wrong. The
+  data can't tell, because every known-side pair is `track_offset` or rail
+  `osm_offset`, and both are outer by construction.
+
+**What adoption would change.** Take unknown rail barriers without a
+recorded distance, on an outer track, with the neighbour 3.8–10 m away
+(693 barriers), and give each `outer_track_sign` as its side. Re-classify
+the panel schools' rail pairs with `classify_points`:
+
+| panel rail schools | now | with `outer_track` |
+|---|---|---|
+| protected | 21 | 52 |
+| protected, side unknown only | 59 | 19 |
+| same side | 55 | 122 |
+
+These are school counts from the pairs, before the panel's timing rules,
+so they are lower than the panel's 25 treated. The size of this change is
+why the rule needs batch A.
+
+**Proposed decision rule, after batch A.** Batch A's rail targets include
+68 barriers with an `outer_track_sign`: 59 with spacing 3.8–10 m, 45 with a
+twin record, and 14 co-located (5 similar length). None has a recorded
+distance. Adopt `outer_track` (rail, after `track_offset`) if:
+- among targets with spacing 3.8–10 m, manual agreement is ≥ 90% with a
+  Wilson 95% lower bound ≥ 80%, comparable to `parallel_road`'s 93%
+- no co-located target answered Both sides
+
+If co-located records do show walls on both sides, treat similar-length
+co-located pairs like road's `both_sides` before applying `outer_track`.
+
+Before batch A comes back, `audit_report.json` → `outer_track` should
+report agreement split by spacing band, by twin/co-located, and by target
+vs validation (validation = `track_offset` barriers, not independent), and
+count Both sides answers.
+
+**Audit app 0.2.0** (see [`barrier_audit/README.md`](barrier_audit/README.md)):
+Both sides is its own answer (key B), not an Unsure reason. Other barrier
+records within 300 m are drawn in orange. Practice tasks exclude barriers
+with a twin record. Tasks come area by area.
 
 ## Notes on reproduction
 
