@@ -25,13 +25,14 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
-from src.regions.sweden.sources._barrier_reference import (
+from src.core.barrier_geometry.linear_ref import nearest_segment
+from src.core.barrier_geometry.protection import (
     PROTECTED_MAX_LATERAL_M,
     PROTECTED_SPAN_MARGIN_M,
     BarrierReferences,
     classify_points,
 )
-from src.regions.sweden.sources._linear_ref import METRIC_CRS, nearest_segment
+from src.regions.sweden.sources._layout import METRIC_CRS
 from src.regions.sweden.sources.barrier_protection.shared import load_barrier_references
 
 # A protected point lies within 600m of its barrier's road, beside the

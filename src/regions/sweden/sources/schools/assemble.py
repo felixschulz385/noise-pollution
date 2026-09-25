@@ -26,8 +26,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
-from src.regions.sweden.sources._barrier_reference import BarrierReferences, classify_points
-from src.regions.sweden.sources._linear_ref import METRIC_CRS
+from src.core.barrier_geometry.protection import BarrierReferences, classify_points
+from src.regions.sweden.sources._layout import METRIC_CRS
 from src.regions.sweden.sources.barrier_protection.shared import ROUTE_COLUMNS, load_barrier_references
 from src.regions.sweden.sources.noise_barriers.shared import BARRIER_KINDS, load_noise_barriers
 from src.regions.sweden.sources.schools.shared import schools_paths

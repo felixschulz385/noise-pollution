@@ -18,7 +18,7 @@ decision is inherited verbatim here, not re-litigated.
 Unlike `schools/assemble.py::match_barriers_point` (a dense school x
 barrier distance matrix -- cheap at a few thousand schools), grid cell
 counts run to the hundreds of thousands, so this uses the same
-spatial-index nearest-neighbour join (`_linear_ref.nearest_segment`,
+spatial-index nearest-neighbour join (`core/barrier_geometry/linear_ref.nearest_segment`,
 `gpd.sjoin_nearest` under the hood) the road/rail network-matching
 algorithms already use, rather than materializing a dense matrix.
 """
@@ -30,7 +30,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
-from src.regions.sweden.sources._linear_ref import nearest_segment
+from src.core.barrier_geometry.linear_ref import nearest_segment
 from src.regions.sweden.sources.grid.shared import (
     ASSUMED_BARRIER_REDUCTION_DB,
     BAND_RADII_M,

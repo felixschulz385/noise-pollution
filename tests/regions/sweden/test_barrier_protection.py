@@ -7,7 +7,8 @@ import pandas as pd
 import pytest
 from shapely.geometry import LineString, Point
 
-from src.regions.sweden.sources._barrier_reference import build_barrier_references, classify_points, protection_zones
+from src.core.barrier_geometry.protection import classify_points, protection_zones
+from src.regions.sweden.sources._barrier_reference import build_barrier_references
 from src.regions.sweden.sources.barrier_protection import build as bpb
 from src.regions.sweden.sources.barrier_protection import shared as bps
 

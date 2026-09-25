@@ -32,7 +32,7 @@ outcome row, whichever of a school's historical windows actually covers
 that row's `year` (an interval-overlap join, not a flat broadcast) --
 this module just makes every real window available to join against.
 
-Reuses `_linear_ref.py::nearest_segment` -- the same nearest-segment
+Reuses `src/core/barrier_geometry/linear_ref.py::nearest_segment` -- the same nearest-segment
 spatial-index join `schools/assemble.py`'s algorithms 4/5 use against
 `road_network`/`network`, just pointed at the `traffic` layer directly."""
 from __future__ import annotations
@@ -42,7 +42,7 @@ from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 
-from src.regions.sweden.sources._linear_ref import nearest_segment
+from src.core.barrier_geometry.linear_ref import nearest_segment
 from src.regions.sweden.sources.schools.assemble import load_geocoded_schools
 from src.regions.sweden.sources.traffic.shared import assembled_school_traffic_path, processed_traffic_path
 

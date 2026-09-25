@@ -1,8 +1,10 @@
-"""Shared line-network geometry primitives for road and rail: nearest-segment
-matching, linear referencing, signed side-of-line, a network-distance-bounded
-corridor, a "through-line" following one road across junctions, and a
-parallel-neighbour search. Composed by `_barrier_reference.py`, which is what
-the `schools` and `grid` matching code actually call -- see
+"""Line-network geometry primitives for barrier matching, shared by every
+region: nearest-segment matching, linear referencing, signed side-of-line, a
+network-distance-bounded corridor, a "through-line" following one road
+across junctions, and a parallel-neighbour search. CRS-agnostic: callers pass
+geometry in a metric CRS of their choice. `protection.py` builds the
+protected-area model on top; each region's barrier-reference module decides
+which road a barrier belongs to and which side it stands on. See
 `docs/data/sweden/barrier_matching.md`.
 """
 from __future__ import annotations
@@ -16,7 +18,6 @@ from shapely.geometry import LineString
 from shapely.ops import substring, unary_union
 
 
-METRIC_CRS = "EPSG:3006"  # SWEREF99 TM
 DEFAULT_CORRIDOR_BUDGET_M = 800.0
 DEFAULT_CORRIDOR_BUFFER_M = 600.0
 
@@ -247,7 +248,7 @@ def through_line(
     return line, used
 
 
-def parallel_neighbor(
+def _parallel_candidates(
     anchor,
     own_line: LineString,
     exclude: set[int],
@@ -261,22 +262,9 @@ def parallel_neighbor(
     span_m: float = 200.0,
     step_m: float = 50.0,
     max_lateral_m: float = 80.0,
-) -> int | None:
-    """Nearest network row that runs *alongside* `own_line` at `anchor`: a
-    divided road's other carriageway, or the mainline beside a ramp.
-
-    A candidate must be parallel at its own nearest point (local tangent,
-    not the row's chord), within `search_m`, and mostly *sideways* from
-    `anchor` (at least `min_lateral_m` across and more across than along),
-    which rejects the same road's own continuation past a junction. It must
-    also stay beside `own_line` on one side, within `max_lateral_m`, for
-    `span_m` either way, which rejects a cross street or a frontage road
-    that only briefly parallels it. Validated against OSM wall positions
-    2026-09-23: the wall stands on the side of `own_line` away from the
-    neighbour for 93% of tagged / 100% of untyped OSM walls (n=102 / 37),
-    vs. 76% when simply taking the nearest parallel row; see
-    `docs/data/sweden/barrier_matching.md`. `exclude` holds `own_line`'s
-    own rows."""
+):
+    """Rows that pass `parallel_neighbor`'s tests, nearest first, with the
+    side of `own_line` each stays on (+1 left, -1 right)."""
     tangent = local_tangent(own_line, anchor)
     normal = np.array([-tangent[1], tangent[0]])
     candidates = []
@@ -301,6 +289,54 @@ def parallel_neighbor(
         if any(q.distance(other) > max_lateral_m for q in samples):
             continue
         sides, _ = signed_side(own_line, [other.interpolate(other.project(q)) for q in samples])
-        if len(set(sides[sides != 0])) == 1:
-            return i
-    return None
+        found = set(sides[sides != 0])
+        if len(found) == 1:
+            yield i, float(found.pop())
+
+
+def parallel_neighbor(
+    anchor,
+    own_line: LineString,
+    exclude: set[int],
+    geoms: np.ndarray,
+    sindex,
+    endpoints: dict[tuple[float, float], list[int]],
+    **tests,
+) -> int | None:
+    """Nearest network row that runs *alongside* `own_line` at `anchor`: a
+    divided road's other carriageway, or the mainline beside a ramp.
+
+    A candidate must be parallel at its own nearest point (local tangent,
+    not the row's chord), within `search_m`, and mostly *sideways* from
+    `anchor` (at least `min_lateral_m` across and more across than along),
+    which rejects the same road's own continuation past a junction. It must
+    also stay beside `own_line` on one side, within `max_lateral_m`, for
+    `span_m` either way, which rejects a cross street or a frontage road
+    that only briefly parallels it. Validated against OSM wall positions
+    2026-09-23: the wall stands on the side of `own_line` away from the
+    neighbour for 93% of tagged / 100% of untyped OSM walls (n=102 / 37),
+    vs. 76% when simply taking the nearest parallel row; see
+    `docs/data/sweden/barrier_matching.md`. `exclude` holds `own_line`'s
+    own rows; `tests` overrides `_parallel_candidates`' thresholds."""
+    return next((i for i, _ in _parallel_candidates(anchor, own_line, exclude, geoms, sindex, endpoints, **tests)), None)
+
+
+def parallel_neighbors_by_side(
+    anchor,
+    own_line: LineString,
+    exclude: set[int],
+    geoms: np.ndarray,
+    sindex,
+    endpoints: dict[tuple[float, float], list[int]],
+    **tests,
+) -> dict[float, int]:
+    """The nearest row alongside `own_line` on each side it has one: side
+    (+1 left, -1 right of `own_line`) -> row, same tests as
+    `parallel_neighbor`. One entry: `own_line` is an outer track or
+    carriageway; two: it runs between others."""
+    found: dict[float, int] = {}
+    for i, side in _parallel_candidates(anchor, own_line, exclude, geoms, sindex, endpoints, **tests):
+        found.setdefault(side, i)
+        if len(found) == 2:
+            break
+    return found

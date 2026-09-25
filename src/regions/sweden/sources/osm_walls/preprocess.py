@@ -11,7 +11,7 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import LineString
 
-from src.regions.sweden.sources._linear_ref import METRIC_CRS
+from src.regions.sweden.sources._layout import METRIC_CRS
 from src.regions.sweden.sources.osm_walls.shared import QUERIES, processed_osm_walls_path, raw_query_path
 
 

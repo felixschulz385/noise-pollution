@@ -24,7 +24,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from src.regions.sweden.sources._layout import domain_dirs
-from src.regions.sweden.sources._linear_ref import METRIC_CRS  # noqa: F401  (re-exported for grid modules)
+from src.regions.sweden.sources._layout import METRIC_CRS  # noqa: F401  (re-exported for grid modules)
 RESOLUTION_M = 100
 # 100m increments out to 500m (mirrors Moretti & Wheeler's distance-bin
 # structure, Table 2/Figure 4), plus a single 500-1000m control band.

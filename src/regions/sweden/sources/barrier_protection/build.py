@@ -9,8 +9,10 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.regions.sweden.sources._barrier_reference import build_barrier_references, protection_zones
-from src.regions.sweden.sources._linear_ref import DEFAULT_CORRIDOR_BUDGET_M, DEFAULT_CORRIDOR_BUFFER_M, METRIC_CRS
+from src.core.barrier_geometry.linear_ref import DEFAULT_CORRIDOR_BUDGET_M, DEFAULT_CORRIDOR_BUFFER_M
+from src.core.barrier_geometry.protection import protection_zones
+from src.regions.sweden.sources._barrier_reference import build_barrier_references
+from src.regions.sweden.sources._layout import METRIC_CRS
 from src.regions.sweden.sources.barrier_protection.shared import (
     KEY_COLUMNS,
     NETWORK_LOADERS,

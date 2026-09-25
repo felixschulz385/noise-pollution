@@ -19,8 +19,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
-from src.regions.sweden.sources._barrier_reference import BarrierReferences
-from src.regions.sweden.sources._layout import domain_dirs
+from src.core.barrier_geometry.protection import BarrierReferences
+from src.regions.sweden.sources._layout import METRIC_CRS, domain_dirs
 from src.regions.sweden.sources.network.shared import load_network_tracks
 from src.regions.sweden.sources.road_network.shared import load_road_network
 
@@ -81,6 +81,7 @@ def load_barrier_references(
         corridors=dict(enumerate(frame["corridor"])),
         lines=dict(enumerate(frame.geometry)),
         buffer_m=float(frame["buffer_m"].iat[0]) if len(frame) else 0.0,
+        crs=METRIC_CRS,
     )
 
 

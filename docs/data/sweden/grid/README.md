@@ -80,7 +80,7 @@ verbatim, not re-litigated here.
 Grid cell counts (hundreds of thousands) are too large for
 `schools/assemble.py::match_barriers_point`'s dense distance-matrix
 approach (cheap only at a few thousand schools) -- this uses the same
-spatial-index nearest-neighbour join (`_linear_ref.nearest_segment`,
+spatial-index nearest-neighbour join (`core/barrier_geometry/linear_ref.nearest_segment`,
 `gpd.sjoin_nearest` under the hood) the road/rail network-matching
 algorithms already use. One nearest-distance value per cell per kind;
 `ever_near_{radius}m` is just a threshold on it, one per configured band.

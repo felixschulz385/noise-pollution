@@ -10,6 +10,7 @@ import pytest
 from shapely.geometry import LineString, Point
 from shapely.ops import substring as substring_line
 
+from src.core.barrier_geometry import protection as pr
 from src.regions.sweden.sources import _barrier_reference as br
 
 CRS = "EPSG:3006"
@@ -70,7 +71,7 @@ def test_divided_road_barrier_protects_the_side_away_from_the_other_carriageway(
     assert refs.table.loc[0, "side_method"] == "parallel_road"
 
     points = [Point(450, -40), Point(450, 10), Point(450, 60), Point(450, 5000)]
-    out = br.classify_points(points, np.zeros(4, dtype=int), refs)
+    out = pr.classify_points(points, np.zeros(4, dtype=int), refs)
     assert out["same_side"].tolist() == [True, False, False, False]  # outer side / median / beyond B / far away
     assert out["same_route"].tolist() == [True, True, True, False]
     assert not out["same_side_unknown"].any()
@@ -82,7 +83,7 @@ def test_undivided_road_is_unknown_never_same_side():
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
     assert refs.table.loc[0, "side_method"] == "unknown"
 
-    out = br.classify_points([Point(450, -40), Point(450, 40)], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([Point(450, -40), Point(450, 40)], np.zeros(2, dtype=int), refs)
     assert out["same_route"].all()
     assert not out["same_side"].any()
     assert out["same_side_unknown"].all()
@@ -96,7 +97,7 @@ def test_osm_wall_beside_the_barrier_decides_the_side_and_beats_the_parallel_roa
     refs = br.build_barrier_references(barriers, _divided_road(), osm_walls=osm, kind="road")
     assert refs.table.loc[0, "side_method"] == "osm_offset"
     assert refs.table.loc[0, "osm_id"] == 1
-    out = br.classify_points([Point(450, 5), Point(450, -40)], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([Point(450, 5), Point(450, -40)], np.zeros(2, dtype=int), refs)
     assert out["same_side"].tolist() == [True, False]
 
 
@@ -134,7 +135,7 @@ def test_rail_barrier_with_a_real_offset_uses_it_and_snapped_rail_stays_unknown(
     barriers = pd.concat([offset, snapped], ignore_index=True)
     refs = br.build_barrier_references(barriers, tracks, osm_walls=None, kind="rail")
     assert refs.table["side_method"].tolist() == ["geometric_offset", "unknown"]
-    out = br.classify_points([Point(450, -30), Point(450, 30)], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([Point(450, -30), Point(450, 30)], np.zeros(2, dtype=int), refs)
     assert out["same_side"].tolist() == [True, False]
 
 
@@ -157,7 +158,7 @@ def test_points_beyond_the_end_of_the_barriers_road_have_an_unknown_side():
     barriers = _barrier("A", 0.90, 0.95, LineString([(900, 0), (950, 0)]))
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
     assert refs.table.loc[0, "side_method"] == "parallel_road"
-    out = br.classify_points([Point(930, -40), Point(1100, -40)], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([Point(930, -40), Point(1100, -40)], np.zeros(2, dtype=int), refs)
     assert out["same_route"].tolist() == [True, True]
     assert out["same_side"].tolist() == [True, False]
     assert out["same_side_unknown"].tolist() == [False, True]
@@ -176,7 +177,7 @@ def test_a_ramp_barriers_side_reference_continues_onto_the_mainline_it_leaves():
     barriers = _barrier("R", 0.6, 0.9, LineString([(1300, -70), (1500, -70)]))  # 10m south of R
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="rail")
     assert refs.table.loc[0, "side_method"] == "geometric_offset"
-    out = br.classify_points([Point(700, -50), Point(700, 50)], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([Point(700, -50), Point(700, 50)], np.zeros(2, dtype=int), refs)
     assert out["same_route"].all()
     assert out["same_side"].tolist() == [True, False]
     assert not out["same_side_unknown"].any()
@@ -198,7 +199,7 @@ def test_left_and_right_barriers_on_the_same_stretch_protect_both_sides():
     assert br.both_sides_rows(barriers) == {0, 1}
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
     assert refs.table["side_method"].tolist() == ["both_sides", "both_sides", "unknown"]
-    out = br.classify_points([Point(450, -40), Point(450, 40)], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([Point(450, -40), Point(450, 40)], np.zeros(2, dtype=int), refs)
     assert out["same_side"].all()
     assert not out["same_side_unknown"].any()
 
@@ -229,7 +230,7 @@ def _rail_barrier(distance_m):
 def test_rail_barrier_with_a_recorded_distance_stands_away_from_the_other_track():
     refs = br.build_barrier_references(_rail_barrier(4.0), _double_track(), osm_walls=None, kind="rail")
     assert refs.table.loc[0, "side_method"] == "track_offset"
-    out = br.classify_points([Point(450, -30), Point(450, 30)], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([Point(450, -30), Point(450, 30)], np.zeros(2, dtype=int), refs)
     assert out["same_side"].tolist() == [True, False]
 
 
@@ -249,6 +250,53 @@ def test_rail_osm_wall_must_lie_at_the_recorded_distance():
     assert refs.table.loc[0, "side_method"] == "osm_offset"
 
 
+def test_osm_wall_past_the_barriers_end_is_not_its_wall():
+    # The wall starts 5m past the barrier's end: inside a round-capped 40m
+    # buffer for 35m, but never beside the barrier.
+    network = _road([("A", 0.0, 1.0, LineString([(0, 0), (2000, 0)]))])
+    barriers = _barrier("A", 0.20, 0.25, LineString([(400, 0), (500, 0)]))
+    refs = br.build_barrier_references(barriers, network, osm_walls=_osm([LineString([(505, -8), (600, -8)])]), kind="road")
+    assert refs.table.loc[0, "side_method"] == "unknown"
+
+
+def test_osm_walls_on_both_sides_protect_both_sides():
+    network = _road([("A", 0.0, 1.0, LineString([(0, 0), (2000, 0)]))])
+    barriers = _barrier("A", 0.20, 0.25, LineString([(400, 0), (500, 0)]))
+    osm = _osm([LineString([(390, 8), (510, 8)]), LineString([(390, -8), (510, -8)])])
+    refs = br.build_barrier_references(barriers, network, osm_walls=osm, kind="road")
+    assert refs.table.loc[0, "side_method"] == "osm_both_sides"
+    out = pr.classify_points([Point(450, 30), Point(450, -30)], np.zeros(2, dtype=int), refs)
+    assert out["same_side"].tolist() == [True, True]
+
+
+def test_double_track_twin_records_each_take_the_wall_beside_their_own_track():
+    # One record per track (T1 at y=0, T2 at y=5), no recorded distance; a
+    # wall outside each track. The longer wall is T2's: T1 must not claim it.
+    barriers = pd.concat(
+        [
+            _barrier("T1", 0.20, 0.25, LineString([(400, 0), (500, 0)])),
+            _barrier("T2", 0.20, 0.25, LineString([(400, 5), (500, 5)])),
+        ],
+        ignore_index=True,
+    ).assign(distance_from_track_center_m=np.nan)
+    osm = _osm([LineString([(390, -4), (510, -4)]), LineString([(380, 9), (520, 9)])])
+    refs = br.build_barrier_references(barriers, _double_track(), osm_walls=osm, kind="rail")
+    assert refs.table["side_method"].tolist() == ["osm_offset", "osm_offset"]
+    assert refs.table["osm_id"].tolist() == [1, 2]
+    assert refs.table["barrier_sign"].tolist() == [-1.0, 1.0]
+
+
+def test_outer_track_sign_points_away_from_the_other_tracks_and_is_not_a_side_method():
+    refs = br.build_barrier_references(_rail_barrier(np.nan), _double_track(), osm_walls=None, kind="rail")
+    assert refs.table.loc[0, "side_method"] == "unknown"
+    assert refs.table.loc[0, "outer_track_sign"] == -1.0
+    three = pd.concat([_double_track(), _road([("T0", 0.0, 1.0, LineString([(0, -5), (2000, -5)]))])], ignore_index=True)
+    refs = br.build_barrier_references(_rail_barrier(np.nan), three, osm_walls=None, kind="rail")
+    assert np.isnan(refs.table.loc[0, "outer_track_sign"])  # a middle track
+    road = br.build_barrier_references(_barrier("A", 0.20, 0.25, LineString([(400, 0), (500, 0)])), _divided_road(), osm_walls=None, kind="road")
+    assert np.isnan(road.table.loc[0, "outer_track_sign"])
+
+
 def test_protected_is_same_side_beside_the_barriers_own_stretch():
     # Barrier covers x=400-500. Points on its protected side: beside it,
     # 30m past its end (within the 50m margin), and 200m past it.
@@ -256,7 +304,7 @@ def test_protected_is_same_side_beside_the_barriers_own_stretch():
     refs = br.build_barrier_references(barriers, _divided_road(), osm_walls=None, kind="road")
     assert refs.table.loc[0, ["span_start_m", "span_end_m"]].tolist() == pytest.approx([400.0, 500.0], abs=1e-6)
     points = [Point(450, -40), Point(530, -40), Point(700, -40), Point(450, 10)]
-    out = br.classify_points(points, np.zeros(4, dtype=int), refs)
+    out = pr.classify_points(points, np.zeros(4, dtype=int), refs)
     assert out["same_side"].tolist() == [True, True, True, False]
     assert out["along_offset_m"].tolist() == pytest.approx([0.0, 30.0, 200.0, 0.0])
     assert out["lateral_m"].tolist() == pytest.approx([40.0, 40.0, 40.0, 10.0])
@@ -268,7 +316,7 @@ def test_unknown_side_only_leaves_protection_unknown_beside_the_stretch():
     network = _road([("A", 0.0, 1.0, LineString([(0, 0), (2000, 0)]))])
     barriers = _barrier("A", 0.20, 0.25, LineString([(400, 0), (500, 0)]))
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
-    out = br.classify_points([Point(450, -40), Point(900, -40), Point(450, 5000)], np.zeros(3, dtype=int), refs)
+    out = pr.classify_points([Point(450, -40), Point(900, -40), Point(450, 5000)], np.zeros(3, dtype=int), refs)
     assert out["same_side_unknown"].tolist() == [True, True, False]
     assert out["protected_unknown"].tolist() == [True, False, False]
     assert not out["protected"].any()
@@ -278,7 +326,7 @@ def test_unknown_side_only_leaves_protection_unknown_beside_the_stretch():
 def test_span_margin_is_configurable():
     barriers = _barrier("A", 0.20, 0.25, LineString([(400, 0), (500, 0)]))
     refs = br.build_barrier_references(barriers, _divided_road(), osm_walls=None, kind="road")
-    out = br.classify_points([Point(530, -40)], np.zeros(1, dtype=int), refs, span_margin_m=0.0)
+    out = pr.classify_points([Point(530, -40)], np.zeros(1, dtype=int), refs, span_margin_m=0.0)
     assert not out["protected"].iat[0]
 
 
@@ -293,7 +341,7 @@ def test_a_point_far_past_the_end_of_a_short_line_is_not_beside_the_stretch():
     )
     barriers = _barrier("A", 0.85, 0.95, LineString([(850, 0), (950, 0)]))
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
-    out = br.classify_points([Point(1400, -40), Point(990, -40)], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([Point(1400, -40), Point(990, -40)], np.zeros(2, dtype=int), refs)
     assert out["along_offset_m"].tolist() == pytest.approx([450.0, 40.0])
     assert out["same_side_unknown"].tolist() == [True, False]
     assert out["protected_unknown"].tolist() == [False, False]
@@ -316,13 +364,13 @@ def test_protection_zone_matches_the_point_test_on_a_tight_bend(inward):
     barriers = _barrier("A", 0.45, 0.55, wall)
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
     assert refs.table.loc[0, "side_method"] == "geometric_offset"
-    zone = br.protection_zones(refs).geometry.iloc[0]
+    zone = pr.protection_zones(refs).geometry.iloc[0]
 
     xs, ys = np.meshgrid(np.arange(-700, 701, 20.0), np.arange(-500, 1001, 20.0))
     points = [Point(x, y) for x, y in zip(xs.ravel(), ys.ravel())]
-    protected = br.classify_points(points, np.zeros(len(points), dtype=int), refs)["protected"].to_numpy()
+    protected = pr.classify_points(points, np.zeros(len(points), dtype=int), refs)["protected"].to_numpy()
     in_zone = np.array([zone.covers(p) for p in points])
-    near_edge = np.array([zone.boundary.distance(p) <= br.ZONE_STEP_M for p in points])
+    near_edge = np.array([zone.boundary.distance(p) <= pr.ZONE_STEP_M for p in points])
     assert protected.sum() > 20
     assert not ((in_zone != protected) & ~near_edge).any()
 
@@ -333,9 +381,9 @@ def test_protection_zone_ignores_a_tiny_oddly_angled_end_segment():
     network = _road([("A", 0.0, 1.0, LineString([(0, 0), (1000, 0), (1000.3, 0.4)]))])
     barriers = _barrier("A", 0.80, 0.95, LineString([(800, -3), (950, -3)]))
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
-    zone = br.protection_zones(refs).geometry.iloc[0]
+    zone = pr.protection_zones(refs).geometry.iloc[0]
     points = [Point(990, -150), Point(900, -150), Point(1100, -150)]
-    protected = br.classify_points(points, np.zeros(3, dtype=int), refs)["protected"].tolist()
+    protected = pr.classify_points(points, np.zeros(3, dtype=int), refs)["protected"].tolist()
     assert protected == [True, True, False]
     assert [zone.covers(p) for p in points] == protected
 
@@ -350,10 +398,10 @@ def test_a_barrier_on_a_roundabout_has_no_beyond_the_end():
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
     assert refs.lines[0].is_closed
     inside, outside = Point(80, 10), Point(130, 20)
-    out = br.classify_points([inside, outside], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([inside, outside], np.zeros(2, dtype=int), refs)
     assert out["protected"].tolist() == [True, False]
     assert not out["same_side_unknown"].any()
-    assert br.protection_zones(refs).geometry.iloc[0].covers(inside)
+    assert pr.protection_zones(refs).geometry.iloc[0].covers(inside)
 
 
 def test_zone_is_only_cut_beyond_the_roads_end_not_beside_a_curve_after_it():
@@ -369,7 +417,7 @@ def test_zone_is_only_cut_beyond_the_roads_end_not_beside_a_curve_after_it():
     refs = br.build_barrier_references(barriers, network, osm_walls=None, kind="road")
     assert refs.table.loc[0, "side_method"] == "unknown"
     beside, behind_start = Point(-50, 400), Point(-100, -5)
-    out = br.classify_points([beside, behind_start], np.zeros(2, dtype=int), refs)
+    out = pr.classify_points([beside, behind_start], np.zeros(2, dtype=int), refs)
     assert out["protected_unknown"].tolist() == [True, False]
-    zone = br.protection_zones(refs).geometry.iloc[0]
+    zone = pr.protection_zones(refs).geometry.iloc[0]
     assert zone.covers(beside) and not zone.covers(behind_start)
