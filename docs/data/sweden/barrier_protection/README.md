@@ -93,6 +93,9 @@ One row per barrier, keyed by `barrier_row`:
 - `span_start_m` / `span_end_m`: the barrier's stretch along its
   through-line
 - `route` (rail `bandel`)
+- `chain_id`, `chain_orient`: pieces of one physical wall that the register
+  splits (`linear_ref.chain_lines`, 2026-09-25). The audit asks one task per
+  chain; nothing else uses them yet
 - two geometries: the through-line (`geometry`, the side reference) and
   the `same_route` corridor lines (`corridor`)
 

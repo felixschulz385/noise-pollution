@@ -195,3 +195,35 @@ def test_through_line_bridges_onto_the_row_a_ramp_starts_from():
     # along the mainline beside it.
     assert list(line.coords)[0][0] < 1000
     assert line.distance(Point(1500, 0)) > 50
+
+
+def test_chain_lines_joins_pieces_end_to_end_and_orients_them():
+    pieces = [
+        LineString([(0, 0), (100, 0)]),
+        LineString([(101, 0), (200, 0)]),  # a 1 m gap: still one wall
+        LineString([(300, 0), (201, 0)]),  # digitised the other way
+        LineString([(300, 0), (300, 100)]),  # turns 90 degrees: another wall
+        LineString([(5000, 0), (5100, 0)]),
+    ]
+    chains = lr.chain_lines(pieces)
+    assert chains["chain_id"].tolist()[:3] == [0, 0, 0] and chains["chain_size"].tolist() == [3, 3, 3, 1, 1]
+    assert chains["chain_pos"].tolist()[:3] == [0, 1, 2]
+    assert chains["chain_orient"].tolist()[:3] == [1, 1, -1]
+    assert len(set(chains["chain_id"])) == 3
+    joined = lr.join_chain(pieces[:3], chains["chain_orient"].tolist()[:3])
+    assert joined.coords[0] == (0, 0) and joined.coords[-1] == (300, 0)
+    assert joined.length == pytest.approx(300)
+
+
+def test_chain_lines_runs_the_way_most_of_the_wall_is_digitised():
+    pieces = [LineString([(100, 0), (0, 0)]), LineString([(300, 0), (100, 0)]), LineString([(300, 0), (320, 0)])]
+    chains = lr.chain_lines(pieces)
+    # 300 of 320 m run towards -x, so the chain does too: from piece 2 to piece 0.
+    assert chains["chain_pos"].tolist() == [2, 1, 0]
+    assert chains["chain_orient"].tolist() == [1, 1, -1]
+
+
+def test_chain_lines_leaves_branches_apart():
+    # Two co-located records meet the same end: not a simple path.
+    pieces = [LineString([(0, 0), (100, 0)]), LineString([(100, 0), (200, 0)]), LineString([(100, 0.5), (200, 0.5)])]
+    assert lr.chain_lines(pieces)["chain_size"].tolist() == [1, 1, 1]

@@ -11,7 +11,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from src.core.barrier_geometry.linear_ref import DEFAULT_CORRIDOR_BUDGET_M, DEFAULT_CORRIDOR_BUFFER_M
+from shapely import force_2d
+
+from src.core.barrier_geometry.linear_ref import DEFAULT_CORRIDOR_BUDGET_M, DEFAULT_CORRIDOR_BUFFER_M, chain_lines
 from src.core.barrier_geometry.protection import protection_zones
 from src.regions.sweden.sources._barrier_reference import build_barrier_references
 from src.regions.sweden.sources._layout import METRIC_CRS
@@ -53,7 +55,13 @@ def run_barrier_protection_build(
         )
         path = references_path(kind, root)
         path.parent.mkdir(parents=True, exist_ok=True)
-        references_frame(refs, barriers_gdf, METRIC_CRS).to_parquet(path, index=False)
+        frame = references_frame(refs, barriers_gdf, METRIC_CRS)
+        # Pieces of one physical wall that the register splits (see `chain_lines`).
+        pieces = [g if g.geom_type == "LineString" else max(g.geoms, key=lambda part: part.length)
+                  for g in force_2d(barriers_gdf.to_crs(METRIC_CRS).geometry.to_numpy())]  # as barrier-audit export does
+        chains = chain_lines(pieces)
+        frame[["chain_id", "chain_orient"]] = chains[["chain_id", "chain_orient"]].to_numpy()
+        frame.to_parquet(path, index=False)
 
         zones = protection_zones(refs)
         keyed = barriers_gdf[[*KEY_COLUMNS, "built_year"]].reset_index(names="barrier_row")
@@ -65,6 +73,7 @@ def run_barrier_protection_build(
             "n_manual_answers": 0 if manual is None else int(len(manual)),
             "side_method": {k: int(v) for k, v in refs.table["side_method"].value_counts().items()},
             "n_zones": int(len(zones)),
+            "n_records_in_chains": int((chains["chain_size"] > 1).sum()),
             "zone_area_km2": {
                 status: round(float(area) / 1e6, 1)
                 for status, area in zones.dissolve(by="zone_status").geometry.area.items()

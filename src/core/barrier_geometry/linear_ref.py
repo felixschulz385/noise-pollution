@@ -340,3 +340,90 @@ def parallel_neighbors_by_side(
         if len(found) == 2:
             break
     return found
+
+
+CHAIN_JOIN_M = 2.0
+CHAIN_MAX_TURN_DEG = 30.0
+
+
+def _outward_ends(line) -> list[tuple[np.ndarray, np.ndarray]] | None:
+    """(point, unit direction pointing out of the line) at its start and end."""
+    coords = shapely.get_coordinates(line)
+    if len(coords) < 2:
+        return None
+    return [(coords[0], _unit(coords[0] - coords[1])), (coords[-1], _unit(coords[-1] - coords[-2]))]
+
+
+def chain_lines(lines, *, join_m: float = CHAIN_JOIN_M, max_turn_deg: float = CHAIN_MAX_TURN_DEG) -> "pd.DataFrame":
+    """Group lines that continue one another end to end -- ends within
+    `join_m`, turning by less than `max_turn_deg` -- into chains: pieces of
+    one physical wall that its register splits wherever an attribute (height,
+    material) or the road link / track element changes.
+
+    One row per input line: `chain_id` (shared by a chain's members, numbered
+    by their lowest index), `chain_pos` (0.. along the chain), `chain_orient`
+    (+1 if the line is digitised along the chain's direction, -1 against it;
+    the chain runs the way most of its length is digitised) and
+    `chain_size`. Only simple paths are chained: where a line end meets two
+    others, or the pieces close a loop, each line stays a chain of its own."""
+    import pandas as pd
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    from scipy.spatial import cKDTree
+
+    lines = list(lines)
+    n = len(lines)
+    ends = [_outward_ends(line) for line in lines]
+    nodes = [(i, j) for i, e in enumerate(ends) if e is not None for j in (0, 1)]
+    partners: dict[tuple[int, int], list[tuple[int, int]]] = {node: [] for node in nodes}
+    if nodes:
+        tree = cKDTree(np.array([ends[i][j][0] for i, j in nodes]))
+        min_cos = np.cos(np.radians(max_turn_deg))
+        for a, b in tree.query_pairs(join_m):
+            (i, j), (k, m) = nodes[a], nodes[b]
+            if i != k and float(-(ends[i][j][1] @ ends[k][m][1])) >= min_cos:
+                partners[(i, j)].append((k, m))
+                partners[(k, m)].append((i, j))
+    rows = [i for (i, _), others in partners.items() for k, _ in others]
+    cols = [k for others in partners.values() for k, _ in others]
+    _, labels = connected_components(coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n)), directed=False)
+
+    chain_id, pos, orient, size = np.arange(n), np.zeros(n, int), np.ones(n, int), np.ones(n, int)
+    for label in np.unique(labels):
+        members = np.flatnonzero(labels == label)
+        if len(members) < 2:
+            continue
+        degrees = [len(partners[(i, j)]) for i in members for j in (0, 1)]
+        free = [(i, j) for i in members for j in (0, 1) if not partners[(i, j)]]
+        if max(degrees) > 1 or not free:  # a branch or a loop: leave the pieces apart
+            continue
+        # Walk from the free end of the lowest-index end piece.
+        i, j = min(free)
+        walk = []
+        while True:
+            walk.append((i, 1 if j == 0 else -1))  # entering at the start: digitised along the walk
+            exit_end = 1 - j
+            if not partners[(i, exit_end)]:
+                break
+            i, j = partners[(i, exit_end)][0]
+        if len(walk) != len(members):
+            continue
+        along = sum(lines[i].length * o for i, o in walk)
+        if along < 0:
+            walk = [(i, -o) for i, o in reversed(walk)]
+        for p, (i, o) in enumerate(walk):
+            chain_id[i], pos[i], orient[i], size[i] = members.min(), p, o, len(walk)
+    return pd.DataFrame({"chain_id": chain_id, "chain_pos": pos, "chain_orient": orient, "chain_size": size})
+
+
+def join_chain(lines, orients) -> LineString:
+    """A chain's pieces (in chain order, each with its `chain_orient`) as one
+    line in the chain's direction; the small gaps between pieces are bridged."""
+    coords = []
+    for line, o in zip(lines, orients):
+        c = shapely.get_coordinates(line)
+        c = c if o > 0 else c[::-1]
+        if coords and np.allclose(coords[-1], c[0]):
+            c = c[1:]
+        coords.extend(c)
+    return LineString(coords)
