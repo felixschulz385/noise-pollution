@@ -18,6 +18,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import geopandas as gpd
+
 from src.regions.florida.sources._layout import domain_dirs
 
 DOMAIN = "road_network"
@@ -116,3 +118,10 @@ def parse_index_versions(index_html: str) -> list[str]:
     tags = set(re.findall(rf'href="{DATASET_PREFIX}_([a-z]{{3}}\d{{2}})\.zip"', index_html))
     valid = [t for t in tags if _VERSION_RE.match(t)]
     return sorted(valid, key=version_sort_key, reverse=True)
+
+
+def load_road_network(root: Path | None = None) -> gpd.GeoDataFrame:
+    path = processed_road_network_path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing — run `... florida data road-network preprocess` first.")
+    return gpd.read_parquet(path)

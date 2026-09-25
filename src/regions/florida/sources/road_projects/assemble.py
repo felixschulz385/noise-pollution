@@ -67,7 +67,7 @@ import geopandas as gpd
 import pandas as pd
 
 from src.regions.florida.sources.road_network.linear_ref import arterial_subset, milepost_and_side, nearest_road
-from src.regions.florida.sources.road_network.shared import processed_road_network_path
+from src.regions.florida.sources.road_network.shared import load_road_network
 from src.regions.florida.sources.road_projects.shared import (
     processed_projects_path,
     school_road_match_path,
@@ -89,13 +89,6 @@ def load_placed_schools(root: Path | None = None) -> gpd.GeoDataFrame:
         raise FileNotFoundError(f"{path} missing — run `... florida data schools preprocess` first.")
     xs = gpd.read_parquet(path)
     return xs[xs["geom_source"] != "none"].reset_index(drop=True)
-
-
-def load_road_network(root: Path | None = None) -> gpd.GeoDataFrame:
-    path = processed_road_network_path(root)
-    if not path.exists():
-        raise FileNotFoundError(f"{path} missing — run `... florida data road-network preprocess` first.")
-    return gpd.read_parquet(path)
 
 
 def load_road_projects(root: Path | None = None) -> pd.DataFrame:

@@ -1,8 +1,8 @@
 """Stage 2 for the Florida ``schools`` source: the school <-> barrier match.
 
 ``REQUIRES noise_barriers`` (its ``preprocess`` must already have written
-``barriers.parquet``) and ``road_network`` (its ``preprocess`` must have
-written ``road_network.parquet``) — this is why it is a separate
+``barriers.parquet``) and ``barrier_protection`` (its ``build`` must have
+written the wall references, from ``road_network``) — this is why it is a separate
 ``assemble`` step rather than part of ``preprocess``: editing a Cluster-A
 covariate definition should never re-run this geospatial join, and vice
 versa.
@@ -33,17 +33,10 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 
-from src.regions.florida.sources.noise_barriers.shared import processed_barriers_path
-from src.regions.florida.sources.road_network.linear_ref import (
-    DEFAULT_CORRIDOR_BUDGET_M,
-    DEFAULT_CORRIDOR_BUFFER_M,
-    arterial_subset,
-    build_adjacency,
-    corridor_geometry,
-    milepost_and_side,
-    nearest_road,
-)
-from src.regions.florida.sources.road_network.shared import processed_road_network_path
+from src.core.barrier_geometry.protection import BarrierReferences, classify_points
+from src.regions.florida.sources._layout import METRIC_CRS
+from src.regions.florida.sources.barrier_protection.shared import load_barrier_references
+from src.regions.florida.sources.noise_barriers.shared import load_barriers
 from src.regions.florida.sources.schools.shared import (
     assembled_rollup_path,
     assembled_treatment_path,
@@ -53,10 +46,15 @@ from src.regions.florida.sources.schools.shared import (
 MAX_DIST_M = 1000
 BUFFERS_M = (100, 200, 300, 500, 1000)
 
-# Columns filled by algorithms 3-5 (road_gated, same_segment, same_side) via
-# `match_barriers_road`. `shielded_frac` (algorithm 6, stretch goal) stays a
-# documented `NA` placeholder — not implemented.
-PENDING_ROAD_COLUMNS = ("road_id", "same_route", "school_side", "wall_side", "shielded_frac")
+# Columns filled by algorithms 3-5 (road_gated, same_segment, same_side) and
+# the protected-area tier via `match_barriers_road`. `shielded_frac`
+# (algorithm 6, stretch goal) stays a documented `NA` placeholder — not
+# implemented.
+PENDING_ROAD_COLUMNS = (
+    "road_id", "same_route", "side_method", "same_side", "same_side_unknown",
+    "lateral_m", "along_offset_m", "protected", "protected_unknown", "shielded_frac",
+)
+ROAD_TIERS = ("same_route", "same_side", "protected")
 
 
 def load_placed_cross_section(root: Path | None = None) -> gpd.GeoDataFrame:
@@ -67,20 +65,6 @@ def load_placed_cross_section(root: Path | None = None) -> gpd.GeoDataFrame:
         raise FileNotFoundError(f"{path} missing — run `... florida data schools preprocess` first.")
     xs = gpd.read_parquet(path)
     return xs[xs["geom_source"] != "none"].reset_index(drop=True)
-
-
-def load_barriers(root: Path | None = None) -> gpd.GeoDataFrame:
-    path = processed_barriers_path(root)
-    if not path.exists():
-        raise FileNotFoundError(f"{path} missing — run `... florida data noise-barriers preprocess` first.")
-    return gpd.read_parquet(path)
-
-
-def load_road_network(root: Path | None = None) -> gpd.GeoDataFrame:
-    path = processed_road_network_path(root)
-    if not path.exists():
-        raise FileNotFoundError(f"{path} missing — run `... florida data road-network preprocess` first.")
-    return gpd.read_parquet(path)
 
 
 def match_barriers_point(
@@ -145,26 +129,37 @@ def match_barriers_point(
 
 
 def add_road_treatment_definitions(pair: pd.DataFrame, rollup: pd.DataFrame) -> pd.DataFrame:
-    """Adds the ``_same_route`` (algorithm 4) and ``_same_side`` (algorithm 5)
+    """Adds the ``_same_route`` (algorithm 4), ``_same_side`` (algorithm 5)
+    and ``_protected`` (same side and beside the wall's own stretch)
     treatment-timing tiers to ``rollup``, alongside the ``_point`` tier
     :func:`match_barriers_point` already computed. Must run after
-    :func:`match_barriers_road` has populated ``same_route`` /
-    ``school_side`` / ``wall_side`` on ``pair`` — each tier gates the same
+    :func:`match_barriers_road` — each tier gates the same
     ``groupby("msid")["treat_year"].min()`` computation on progressively
     stricter matching criteria, same pattern as the ``_point`` tier.
+    ``same_side_unknown`` / ``protected_unknown`` flag schools with an FDOT
+    wall whose side couldn't be determined (so an analysis can drop them
+    rather than count them as untreated).
     """
     fdot = pair[pair["category"].eq("fdot_barrier")].copy()
-    same_route = fdot["same_route"].fillna(False).astype(bool)
-    same_side = same_route & (fdot["school_side"] == fdot["wall_side"]).fillna(False)
 
     out = rollup.copy()
-    for name, gate in (("same_route", same_route), ("same_side", same_side)):
-        qualifying = fdot[gate]
+    for name in ROAD_TIERS:
+        qualifying = fdot[fdot[name].fillna(False).astype(bool)]
         first_year = qualifying.groupby("msid")["treat_year"].min()
         out[f"first_treat_year_{name}"] = out["msid"].map(first_year)
         out[f"ever_treated_{name}"] = out["msid"].isin(set(qualifying["msid"]))
         undated_msid = set(qualifying.loc[qualifying["timing_unknown"], "msid"])
         out[f"timing_unknown_{name}"] = out["msid"].isin(undated_msid)
+    for flag in ("same_side_unknown", "protected_unknown"):
+        out[flag] = out["msid"].isin(set(fdot.loc[fdot[flag].fillna(False).astype(bool), "msid"]))
+    # The protecting FDOT wall nearest the school (by distance from its
+    # road), and that wall's reference roadway: the road the school is
+    # shielded from, whose traffic the panel attaches.
+    protecting = (
+        fdot[fdot["protected"].fillna(False).astype(bool)].sort_values("lateral_m").drop_duplicates("msid").set_index("msid")
+    )
+    out["protected_gcid"] = out["msid"].map(protecting["gcid"])
+    out["protected_road_id"] = out["msid"].map(protecting["road_id"])
     return out
 
 
@@ -172,81 +167,40 @@ def match_barriers_road(
     pair: pd.DataFrame,
     placed: gpd.GeoDataFrame,
     barriers: gpd.GeoDataFrame,
-    road_network: gpd.GeoDataFrame,
-    budget_m: float = DEFAULT_CORRIDOR_BUDGET_M,
-    buffer_m: float = DEFAULT_CORRIDOR_BUFFER_M,
+    refs: BarrierReferences,
 ) -> pd.DataFrame:
     """Algorithms 3 (``road_gated``) + 4 (``same_segment``) + 5
-    (``same_side``): fills ``road_id`` / ``same_route`` / ``school_side`` /
-    ``wall_side`` on the existing point-only ``pair`` table (from
-    :func:`match_barriers_point`) — does **not** add new candidate pairs,
-    only annotates the ones already within ``MAX_DIST_M``.
+    (``same_side``) and the protected-area tier: fills ``road_id`` /
+    ``same_route`` / ``side_method`` / ``same_side`` / ``same_side_unknown`` /
+    ``lateral_m`` / ``along_offset_m`` / ``protected`` / ``protected_unknown``
+    on the existing point-only ``pair`` table (from
+    :func:`match_barriers_point`) — does **not** add new candidate pairs, only
+    annotates the ones already within ``MAX_DIST_M``.
 
-    Design (validated in ``schools.ipynb`` §7, see
-    ``road_network/linear_ref.py`` for the geometry helpers): each wall gets
-    a network-distance-bounded "corridor" polygon grown outward from its
-    point along the arterial road network's real connectivity; a pair is
-    ``same_route`` when the school falls inside its wall's corridor, and
-    ``school_side``/``wall_side`` (signed, pairwise-only — never a compass
-    direction) come from each point's own nearest-segment projection.
+    Each pair is judged against its wall's saved reference
+    (``barrier_protection``): ``same_route`` when the school lies within the
+    wall's corridor, ``same_side`` when it lies on the wall's side of the
+    wall's own reference line, ``protected`` when it is also beside the
+    wall's stretch (±50m) within 600m of the road. Every sign is taken
+    against that one line, never against the school's own nearest segment
+    (whose digitizing direction is unrelated). See
+    ``src/core/barrier_geometry/protection.py`` and
+    ``docs/data/florida/barrier_protection.md``.
 
-    Run for every wall regardless of ``category`` — the corridor/side
-    geometry is a general fact about the wall's location, not an
-    FDOT-specific one, and ``other_wall`` rows are meant to be usable as a
-    shielding covariate even though they're never ``treat_year``.
+    Run for every wall regardless of ``category`` — ``other_wall`` rows stay
+    usable as a shielding covariate even though they're never
+    ``treat_year``.
     """
-    major = arterial_subset(road_network)
-    geoms = major.geometry.to_numpy()
-    lengths = major.geometry.length.to_numpy()
-    endpoints = build_adjacency(major)
+    row_of_gcid = pd.Series(np.arange(len(barriers)), index=barriers["gcid"].to_numpy())
+    barrier_rows = row_of_gcid.loc[pair["gcid"]].to_numpy()
+    school_points = placed.to_crs(METRIC_CRS).set_index("msid").geometry
+    classified = classify_points(school_points.loc[pair["msid"]].to_numpy(), barrier_rows, refs)
 
-    walls = barriers.reset_index(drop=True)
-    walls["rep_point"] = walls.geometry.interpolate(0.5, normalized=True)
-    wall_pts = gpd.GeoDataFrame(
-        {"gcid": walls["gcid"].to_numpy()}, geometry=walls["rep_point"].to_numpy(), crs=walls.crs
-    )
-    wj = nearest_road(wall_pts, major)
-    wj["gcid"] = walls["gcid"].to_numpy()
-    wj["wall_pt"] = walls["rep_point"].to_numpy()
-    wall_res = [milepost_and_side(r.wall_pt, r.road_geometry, r.begin_post, r.end_post) for r in wj.itertuples()]
-    wj[["milepost", "side", "offset_m"]] = pd.DataFrame(wall_res, index=wj.index)
-    wj["roadway_id"] = major["roadway_id"].to_numpy()[wj["index_right"].to_numpy()]
-
-    sj = nearest_road(placed[["geometry"]], major)
-    sj["msid"] = placed["msid"].to_numpy()
-    sj["school_pt"] = placed["geometry"].to_numpy()
-    school_res = [milepost_and_side(r.school_pt, r.road_geometry, r.begin_post, r.end_post) for r in sj.itertuples()]
-    sj[["milepost", "side", "offset_m"]] = pd.DataFrame(school_res, index=sj.index)
-
-    corridors = {
-        gcid: corridor_geometry(int(idx_right), wall_pt, geoms, lengths, endpoints, budget_m=budget_m).buffer(buffer_m)
-        for gcid, idx_right, wall_pt in zip(wj["gcid"], wj["index_right"], wj["wall_pt"])
-    }
-    wj_by_gcid = wj.set_index("gcid")
-    sj_by_msid = sj.set_index("msid")
-
-    road_id, same_route, school_side, wall_side = [], [], [], []
-    for row in pair.itertuples():
-        corridor = corridors.get(row.gcid)
-        if corridor is None or row.msid not in sj_by_msid.index:
-            road_id.append(pd.NA)
-            same_route.append(pd.NA)
-            school_side.append(pd.NA)
-            wall_side.append(pd.NA)
-            continue
-        wall_row = wj_by_gcid.loc[row.gcid]
-        school_row = sj_by_msid.loc[row.msid]
-        within = bool(corridor.contains(school_row["school_pt"]))
-        road_id.append(wall_row["roadway_id"])
-        same_route.append(within)
-        school_side.append(school_row["side"] if within else pd.NA)
-        wall_side.append(wall_row["side"] if within else pd.NA)
-
-    out = pair.copy()
-    out["road_id"] = road_id
-    out["same_route"] = pd.array(same_route, dtype="boolean")
-    out["school_side"] = school_side
-    out["wall_side"] = wall_side
+    out = pair.reset_index(drop=True).copy()
+    out["road_id"] = refs.table["roadway_id"].to_numpy()[barrier_rows]
+    for column in ("same_route", "side_method", "same_side", "same_side_unknown", "lateral_m", "along_offset_m",
+                   "protected", "protected_unknown"):
+        out[column] = classified[column].to_numpy()
     return out
 
 
@@ -264,16 +218,14 @@ def run_schools_assemble(
     root: Path | None = None,
     max_dist: float = MAX_DIST_M,
     buffers: tuple[int, ...] = BUFFERS_M,
-    corridor_budget_m: float = DEFAULT_CORRIDOR_BUDGET_M,
-    corridor_buffer_m: float = DEFAULT_CORRIDOR_BUFFER_M,
 ) -> dict[str, object]:
-    """Load the cross-section + barrier + road-network layers, match,
-    validate, and persist."""
+    """Load the cross-section, the barrier layer and its saved references,
+    match, validate, and persist."""
     placed = load_placed_cross_section(root)
-    barriers = load_barriers(root)
-    road_network = load_road_network(root)
+    barriers = load_barriers(root).reset_index(drop=True)
+    refs = load_barrier_references(root, barriers_gdf=barriers)
     pair, rollup = match_barriers_point(placed, barriers, max_dist, buffers)
-    pair = match_barriers_road(pair, placed, barriers, road_network, corridor_budget_m, corridor_buffer_m)
+    pair = match_barriers_road(pair, placed, barriers, refs)
     rollup = add_road_treatment_definitions(pair, rollup)
 
     if not rollup["msid"].is_unique:
@@ -283,12 +235,12 @@ def run_schools_assemble(
     report: dict[str, object] = {
         "generated_at_utc": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "generated_by": "src/regions/florida/sources/schools/assemble.py",
-        "algorithms": {"implemented": ["euclid_nearest", "buffer_dose", "road_gated", "same_segment", "same_side"],
+        "algorithms": {"implemented": ["euclid_nearest", "buffer_dose", "road_gated", "same_segment", "same_side",
+                                       "protected"],
                        "pending": ["shielded_arc"]},
         "max_dist_m": max_dist,
         "buffers_m": list(buffers),
-        "corridor_budget_m": corridor_budget_m,
-        "corridor_buffer_m": corridor_buffer_m,
+        "corridor_buffer_m": refs.buffer_m,
         "schools_placed": int(len(placed)),
         "pairs": int(len(pair)),
         "schools_matched": int(rollup["msid"].nunique()),
@@ -297,7 +249,12 @@ def run_schools_assemble(
         "undated_fdot_pair_share": float(fdot_pairs["timing_unknown"].mean()) if len(fdot_pairs) else None,
         "ever_treated_by_definition": {
             name: int(rollup[f"ever_treated_{name}"].sum())
-            for name in ("point", "same_route", "same_side")
+            for name in ("point", *ROAD_TIERS)
+        },
+        "schools_same_side_unknown": int(rollup["same_side_unknown"].sum()),
+        "schools_protected_unknown": int(rollup["protected_unknown"].sum()),
+        "fdot_pairs_by_side_method": {
+            str(k): int(v) for k, v in fdot_pairs.loc[fdot_pairs["same_route"].fillna(False).astype(bool), "side_method"].value_counts().items()
         },
     }
     saved = save_treatment(pair, rollup, root)

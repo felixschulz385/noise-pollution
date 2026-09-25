@@ -11,9 +11,11 @@ folded into ``schools/assemble.py``) for the same isolation reason the
 ``schools`` source's own stages are split: editing an outcome-panel filter
 should never re-run the geospatial barrier match, and vice versa.
 
-Treatment timing is carried as **three parallel definitions**
-(``_point`` / ``_same_route`` / ``_same_side`` — ``schools/assemble.py``'s
-matching-rigour tiers, see ``docs/data/florida/schools/README.md``) rather
+Treatment timing is carried as **four parallel definitions**
+(``_point`` / ``_same_route`` / ``_same_side`` / ``_protected`` —
+``schools/assemble.py``'s matching-rigour tiers, see
+``docs/data/florida/schools/README.md`` and
+``docs/data/florida/barrier_protection.md``) rather
 than collapsed to one — the analysis layer picks a baseline + robustness
 checks downstream, nothing is decided here. A school with no nearby wall at
 all gets ``ever_treated_* = False`` (a real, informative value), not a
@@ -130,7 +132,8 @@ from src.regions.florida.sources.shocks.shared import school_shocks_panel_path
 from src.regions.florida.sources.staff.shared import district_staff_panel_path, school_staff_panel_path
 from src.regions.florida.sources.traffic.shared import school_aadt_panel_path
 
-TREATMENT_DEFINITIONS = ("point", "same_route", "same_side")
+TREATMENT_DEFINITIONS = ("point", "same_route", "same_side", "protected")
+SIDE_UNKNOWN_FLAGS = ("same_side_unknown", "protected_unknown")
 
 # How many years apart an assessment year and the nearest FGDL release year
 # may be before the traffic match is dropped (NA) rather than used as a
@@ -171,7 +174,7 @@ STATIC_SCHOOL_RENAMES = {"name": "msid_school_name", "district_name": "msid_dist
 TREATMENT_COLUMNS = [
     "msid", "nearest_fdot_dist_m", "nearest_fdot_gcid",
     "n_walls_100m", "n_walls_200m", "n_walls_300m", "n_walls_500m", "n_walls_1000m",
-    "wall_len_500m", "ever_near_wall_500m", "ever_near_wall_1000m",
+    "wall_len_500m", "ever_near_wall_500m", "ever_near_wall_1000m", *SIDE_UNKNOWN_FLAGS,
 ] + [
     f"{stat}_{definition}"
     for definition in TREATMENT_DEFINITIONS
@@ -508,6 +511,8 @@ def build_event_study_panel(
         panel[f"ever_treated_{definition}"] = panel[f"ever_treated_{definition}"].fillna(False)
         panel[f"timing_unknown_{definition}"] = panel[f"timing_unknown_{definition}"].fillna(False)
         panel[f"event_time_{definition}"] = panel["year"] - panel[f"first_treat_year_{definition}"]
+    for flag in SIDE_UNKNOWN_FLAGS:
+        panel[flag] = panel[flag].fillna(False).astype(bool)
 
     return gpd.GeoDataFrame(panel, geometry="geometry", crs=cross_section.crs)
 

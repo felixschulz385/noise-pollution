@@ -82,6 +82,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_assessments(data_domains)
     _register_schools(data_domains)
     _register_road_network(data_domains)
+    _register_barrier_protection(data_domains)
     _register_traffic(data_domains)
     _register_road_projects(data_domains)
     _register_shocks(data_domains)
@@ -408,6 +409,29 @@ def _register_assessments(domains: argparse._SubParsersAction) -> None:
     a_pre.set_defaults(func=h.command_assessments_preprocess)
 
 
+def _register_barrier_protection(domains: argparse._SubParsersAction) -> None:
+    protection = domains.add_parser(
+        "barrier-protection",
+        help="Every FDOT noise wall's reference road, side and protected area -- computed once, used by schools; "
+        "see docs/data/florida/barrier_protection.md",
+    )
+    cmd = protection.add_subparsers(dest="stage", required=True)
+    bp_build = cmd.add_parser(
+        "build",
+        help="Build and save wall references + the statewide protection-zone layer. Requires noise-barriers "
+        "preprocess and road-network preprocess first",
+    )
+    bp_build.add_argument(
+        "--budget-m", type=float, default=800.0,
+        help="Network-distance budget (metres) of the same_route corridor (default: 800).",
+    )
+    bp_build.add_argument(
+        "--buffer-m", type=float, default=600.0,
+        help="Distance (metres) from the corridor's lines that counts as same_route (default: 600).",
+    )
+    bp_build.set_defaults(func=h.command_barrier_protection_build)
+
+
 def _register_schools(domains: argparse._SubParsersAction) -> None:
     from src.regions.florida.sources.schools.shared import (
         API_YEARS_DEFAULT,
@@ -480,19 +504,11 @@ def _register_schools(domains: argparse._SubParsersAction) -> None:
 
     s_asm = cmd.add_parser(
         "assemble",
-        help="School <-> barrier point-only match (stage 2, REQUIRES noise-barriers preprocess) into assembled/",
+        help="School <-> barrier match (stage 2, REQUIRES noise-barriers preprocess + barrier-protection build) into assembled/",
     )
     s_asm.add_argument(
         "--max-dist", type=float, default=1000.0,
         help="Candidate (msid, gcid) pair cutoff in metres (default: 1000).",
-    )
-    s_asm.add_argument(
-        "--corridor-budget", type=float, default=800.0,
-        help="Network-distance budget (metres) for the road_network corridor test, algorithms 3-5 (default: 800).",
-    )
-    s_asm.add_argument(
-        "--corridor-buffer", type=float, default=600.0,
-        help="Corridor buffer width in metres around the flood-filled centerline (default: 600).",
     )
     s_asm.set_defaults(func=h.command_schools_assemble)
 

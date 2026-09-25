@@ -282,14 +282,18 @@ def command_schools_preprocess(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_barrier_protection_build(args: argparse.Namespace) -> int:
+    from src.regions.florida.sources.barrier_protection.build import run_barrier_protection_build
+
+    result = run_barrier_protection_build(budget_m=args.budget_m, buffer_m=args.buffer_m)
+    print_json({"domain": "barrier_protection", "stage": "build", **result})
+    return 0
+
+
 def command_schools_assemble(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.schools.assemble import run_schools_assemble
 
-    result = run_schools_assemble(
-        max_dist=args.max_dist,
-        corridor_budget_m=args.corridor_budget,
-        corridor_buffer_m=args.corridor_buffer,
-    )
+    result = run_schools_assemble(max_dist=args.max_dist)
     print_json({"domain": "schools", "stage": "assemble", **result})
     return 0
 

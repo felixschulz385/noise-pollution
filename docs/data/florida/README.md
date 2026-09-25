@@ -12,6 +12,7 @@ is in place.
 | `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2003–2026**, 435 files — plain FCAT + FCAT 2.0 + FSA + FAST/B.E.S.T.), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/regions/florida/sources/assessments/` |
 | `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/regions/florida/sources/schools/` |
 | `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and underpins `traffic`. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, planned `road_projects`) | `src/regions/florida/sources/road_network/` |
+| `barrier_protection` | `build` (new 2026-09-24: each FDOT wall's reference arterial road, side (from the wall's own geometry, checked against `BLOC_SIDE`) and protected area, computed once and saved, plus a **statewide protection-zone layer**, one polygon per wall. Built on the region-agnostic `src/core/barrier_geometry/`, shared with Sweden. See [`barrier_protection.md`](barrier_protection.md)) | `noise_barriers`, `road_network` | `src/regions/florida/sources/barrier_protection/` |
 | `traffic` | `list-versions`, `fetch`, `preprocess` (fetch many FGDL `rciroads` releases' `AADT` field and stack into `aadt_panel.parquet`, one row per `roadway_id × release_year`), `assemble` (match schools to a roadway, join its AADT time series → `school_aadt_panel.parquet`, 89.7% match rate) — all implemented, see [`traffic/README.md`](traffic/README.md). Covariate Cluster C. **Joined into `panel`'s final event-study table** (nearest-release-year match, 71.3% of rows matched). | `road_network`'s fetch machinery (reused directly), `schools preprocess` + `road_network preprocess` (`assemble`) | `src/regions/florida/sources/traffic/` |
 | `panel` | `assemble` (join `assessments` + `schools` + `traffic` + `road_projects` + `shocks` + `staff` + `neighbourhood` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, `traffic` (nearest-release-year match, 71.3% of rows matched), `road_projects` (year-interval-overlap match, 4.5% of rows matched an active project), `shocks` (exact county-year match, 44.7% of rows matched a disaster declaration), `staff` (two exact-key joins — salary/experience 5.4%, per-pupil expenditure 60.3%, out-of-field 5.3%), and now `neighbourhood` (two exact-key joins — ACS demographics 68.0% matched, ZHVI home values 98.6% matched, see the sections below), but doesn't yet carry the remaining covariate module (`air_quality` — see [`covariates.md`](covariates.md)). | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`), `road_projects` (`fetch` + `preprocess` + `assemble`), `shocks` (`fetch` + `preprocess` + `assemble`), `staff` (`fetch` + `preprocess` + `assemble`), `neighbourhood` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
 | `road_projects` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`road_projects/README.md`](road_projects/README.md). Covariate Cluster D (widening/PD&E/construction projects co-timed with a wall). Pulls FDOT `Work_Program_Current` layers 2/13 + `Active_Construction_Projects` ArcGIS REST services (both keyed by the same `ROADWAY` id format as `road_network.roadway_id`, confirmed live) into `road_projects.parquet` (118,014 project-item rows, 4,676 distinct roadways). `assemble` matches schools to a roadway + milepost and joins nearby projects via milepost-range overlap (5,366/5,984 schools matched, 40,729 school↔project pairs, 2,586 schools with ≥1 nearby project). **Joined into `panel`'s `event_study_panel.parquet`** via a year-interval-overlap match (4.5% of panel rows matched an active project). | `schools` (`preprocess`), `road_network` (`preprocess`) | `src/regions/florida/sources/road_projects/` |
@@ -220,17 +221,24 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
   covariate columns `NA` or the treatment columns `ever_treated_* = False`
   (a real value, not a missing one) — no outcome row is ever silently
   dropped.
-- **Treatment timing is three parallel columns, not one.** `schools
-  assemble` computes three matching-rigour tiers side by side
-  (`_point`/`_same_route`/`_same_side`, algorithms 1–2 / 4 / 5) rather than
+- **Treatment timing is four parallel columns, not one.** `schools
+  assemble` computes four matching-rigour tiers side by side
+  (`_point`/`_same_route`/`_same_side`/`_protected`, algorithms 1–2 / 4 / 5
+  and the protected area) rather than
   collapsing to a single "the" treatment definition — `first_treat_year_*`,
   `ever_treated_*`, `timing_unknown_*` for each, plus `event_time_* = year -
   first_treat_year_*` computed here. The analysis layer picks a baseline
-  (recommended: `_same_side`, the most rigorous) and the other two as
-  robustness checks.
+  (now `_protected`, the most rigorous) and the others as robustness
+  checks. **Update 2026-09-24:** a fourth tier, `_protected`
+  (same side *and* beside the wall's own stretch), was added, and
+  `_same_side` is now a true side test against one reference line. Before,
+  two-thirds of pairs compared signs from different road segments. The
+  analysis notebook now uses `_protected`. See
+  [`barrier_protection.md`](barrier_protection.md).
 - **Real run**: 660,681 rows, 5,039 distinct schools, years 2003–2026.
-  `ever_treated` schools: 513 (`_point`) → 293 (`_same_route`) → 221
-  (`_same_side`) — each tier a strict refinement of the last.
+  `ever_treated` schools (2026-09-24): 513 (`_point`) → 303
+  (`_same_route`) → 228 (`_same_side`) → 116 (`_protected`), each tier a
+  strict refinement of the last. Before 2026-09-24: 513 → 293 → 221.
 - **Traffic (Cluster C) is joined in**: `traffic_roadway_id`,
   `traffic_release_year`, `traffic_aadt`, `traffic_match_dist_m`, via
   `attach_traffic` — a `pd.merge_asof(direction="nearest",

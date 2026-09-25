@@ -68,6 +68,7 @@ ROLLUP_BASE = dict(
     nearest_fdot_dist_m=np.nan, nearest_fdot_gcid=pd.NA,
     n_walls_100m=0, n_walls_200m=0, n_walls_300m=0, n_walls_500m=0, n_walls_1000m=0,
     wall_len_500m=0.0, ever_near_wall_500m=False, ever_near_wall_1000m=False,
+    same_side_unknown=False, protected_unknown=False,
     **{f"{stat}_{d}": (np.nan if stat == "first_treat_year" else False)
        for d in TREATMENT_DEFINITIONS for stat in ("first_treat_year", "ever_treated", "timing_unknown")},
 )

@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import LineString, Point
 
+from src.regions.florida.sources.barrier_protection.reference import build_barrier_references
 from src.regions.florida.sources.schools.assemble import (
     PENDING_ROAD_COLUMNS,
     add_road_treatment_definitions,
@@ -110,79 +111,64 @@ def test_crs_mismatch_raises():
         match_barriers_point(schools, barriers)
 
 
+def _road_setup():
+    # A wall 5m north (y=5) of a 2km road, and schools: north beside it,
+    # south beside it, north but 200m past its stretch (still in the
+    # corridor), and far down the road (outside the corridor at the small
+    # budget/buffer used here).
+    schools = _schools([
+        ("protected", "N1", 500, 30),
+        ("opp_side", "N2", 500, -30),
+        ("past", "N3", 700, 30),
+        ("far", "N4", 1500, 30),
+    ])
+    barriers = _barriers([("w1", "fdot_barrier", 2010, 495, 505, 5)])
+    road_network = _road_network([("r1", 0, 2000, 0)])
+    refs = build_barrier_references(barriers, road_network, budget_m=200.0, buffer_m=50.0)
+    return schools, barriers, refs
+
+
 def test_match_barriers_road_fills_pending_columns():
-    # A wall just north (y=5) of a 2 km road; one school north (same side),
-    # one south (opposite side), one far down the road (out of corridor
-    # reach at the small budget/buffer used here).
-    schools = _schools([
-        ("same_side", "N1", 500, 30),
-        ("opp_side", "N2", 500, -30),
-        ("far", "N3", 1500, 30),
-    ])
-    barriers = _barriers([("w1", "fdot_barrier", 2010, 495, 505, 5)])
-    road_network = _road_network([("r1", 0, 2000, 0)])
-
+    schools, barriers, refs = _road_setup()
+    assert refs.table.loc[0, "side_method"] == "geometric_offset"
     pair, _ = match_barriers_point(schools, barriers, max_dist=1500)
-    assert set(pair["msid"]) == {"same_side", "opp_side", "far"}
+    out = match_barriers_road(pair, schools, barriers, refs).set_index("msid")
 
-    out = match_barriers_road(pair, schools, barriers, road_network, budget_m=200.0, buffer_m=50.0)
-    out = out.set_index("msid")
-
-    assert out.loc["same_side", "road_id"] == "r1"
-    assert out.loc["same_side", "same_route"] == True  # noqa: E712
-    assert out.loc["same_side", "school_side"] == out.loc["same_side", "wall_side"]
-
-    assert out.loc["opp_side", "same_route"] == True  # noqa: E712
-    assert out.loc["opp_side", "school_side"] == -out.loc["opp_side", "wall_side"]
-
-    assert out.loc["far", "same_route"] == False  # noqa: E712
-    assert pd.isna(out.loc["far", "school_side"])
-    assert pd.isna(out.loc["far", "wall_side"])
-    # road_id / wall_side still populate even when the school is out of reach
-    # -- only the school-dependent columns go NA.
-    assert out.loc["far", "road_id"] == "r1"
+    assert (out["road_id"] == "r1").all()
+    assert out["same_route"].tolist() == [True, True, True, False]
+    assert out["same_side"].tolist() == [True, False, True, False]
+    assert out["protected"].tolist() == [True, False, False, False]
+    assert out.loc["past", "along_offset_m"] == pytest.approx(195.0)
+    assert out.loc["protected", "lateral_m"] == pytest.approx(30.0)
+    assert not out["same_side_unknown"].any()
 
 
-def test_add_road_treatment_definitions_three_tiers_diverge():
-    # Same setup: point-only treats all three as "near an fdot wall"; the
-    # same_route tier drops "far" (outside corridor reach); the same_side
-    # tier further drops "opp_side" (opposite carriageway) -- three
-    # definitions kept side by side, not collapsed to one.
-    schools = _schools([
-        ("same_side", "N1", 500, 30),
-        ("opp_side", "N2", 500, -30),
-        ("far", "N3", 1500, 30),
-    ])
-    barriers = _barriers([("w1", "fdot_barrier", 2010, 495, 505, 5)])
-    road_network = _road_network([("r1", 0, 2000, 0)])
-
+def test_add_road_treatment_definitions_tiers_diverge():
+    # Point-only treats all four as near a wall; same_route drops "far";
+    # same_side further drops "opp_side"; protected further drops "past".
+    schools, barriers, refs = _road_setup()
     pair, rollup = match_barriers_point(schools, barriers, max_dist=1500)
-    pair = match_barriers_road(pair, schools, barriers, road_network, budget_m=200.0, buffer_m=50.0)
+    pair = match_barriers_road(pair, schools, barriers, refs)
     rollup = add_road_treatment_definitions(pair, rollup).set_index("msid")
 
-    assert rollup.loc["same_side", "ever_treated_point"] == True   # noqa: E712
-    assert rollup.loc["opp_side", "ever_treated_point"] == True    # noqa: E712
-    assert rollup.loc["far", "ever_treated_point"] == True         # noqa: E712
-
-    assert rollup.loc["same_side", "ever_treated_same_route"] == True   # noqa: E712
-    assert rollup.loc["opp_side", "ever_treated_same_route"] == True    # noqa: E712
-    assert rollup.loc["far", "ever_treated_same_route"] == False        # noqa: E712
-
-    assert rollup.loc["same_side", "ever_treated_same_side"] == True    # noqa: E712
-    assert rollup.loc["opp_side", "ever_treated_same_side"] == False    # noqa: E712
-    assert rollup.loc["far", "ever_treated_same_side"] == False         # noqa: E712
-
-    assert rollup.loc["same_side", "first_treat_year_same_side"] == 2010
-    assert pd.isna(rollup.loc["opp_side", "first_treat_year_same_side"])
+    order = ["protected", "opp_side", "past", "far"]
+    assert rollup.loc[order, "ever_treated_point"].tolist() == [True, True, True, True]
+    assert rollup.loc[order, "ever_treated_same_route"].tolist() == [True, True, True, False]
+    assert rollup.loc[order, "ever_treated_same_side"].tolist() == [True, False, True, False]
+    assert rollup.loc[order, "ever_treated_protected"].tolist() == [True, False, False, False]
+    assert rollup.loc["protected", "first_treat_year_protected"] == 2010
+    assert pd.isna(rollup.loc["past", "first_treat_year_protected"])
+    assert not rollup["protected_unknown"].any()
 
 
 def test_match_barriers_road_covers_other_wall_category_too():
     schools = _schools([("s", "N1", 500, 30)])
     barriers = _barriers([("priv", "other_wall", None, 495, 505, 5)])
-    road_network = _road_network([("r1", 0, 2000, 0)])
+    refs = build_barrier_references(barriers, _road_network([("r1", 0, 2000, 0)]), budget_m=200.0, buffer_m=50.0)
 
     pair, _ = match_barriers_point(schools, barriers, max_dist=1500)
-    out = match_barriers_road(pair, schools, barriers, road_network, budget_m=200.0, buffer_m=50.0)
+    out = match_barriers_road(pair, schools, barriers, refs)
 
     assert out.iloc[0]["road_id"] == "r1"
     assert out.iloc[0]["same_route"] == True  # noqa: E712
+    assert out.iloc[0]["protected"] == True  # noqa: E712
