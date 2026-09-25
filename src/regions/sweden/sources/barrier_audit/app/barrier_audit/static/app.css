@@ -1,0 +1,103 @@
+:root {
+  --bg: #f6f6f4;
+  --panel: #ffffff;
+  --text: #1d1d1b;
+  --muted: #66665f;
+  --line: #d8d8d2;
+  --ok: #1f7a3a;
+  --warn: #9a6400;
+  --fail: #b3261e;
+  --pending: #8a8a82;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+header h1 { font-size: 17px; margin: 0; }
+header span { color: var(--muted); font-size: 13px; }
+
+#selftest {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) 1fr;
+  gap: 16px;
+  padding: 16px;
+  height: calc(100% - 46px);
+}
+
+#checks, #preview {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px 16px;
+  overflow: auto;
+}
+
+#preview { display: flex; flex-direction: column; gap: 10px; padding: 10px; }
+#map { flex: 1; min-height: 320px; border-radius: 4px; background: #d9d9d4; }
+#manual p { margin: 4px 0; }
+
+.intro { margin-top: 0; color: var(--muted); }
+
+#check-list { list-style: none; padding: 0; margin: 0; }
+#check-list li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  column-gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+#check-list .mark { font-weight: 700; text-align: center; }
+#check-list .detail { grid-column: 2; color: var(--muted); font-size: 13px; word-break: break-word; }
+
+.pending .mark { color: var(--pending); }
+.ok .mark { color: var(--ok); }
+.warn .mark { color: var(--warn); }
+.fail .mark { color: var(--fail); }
+
+.report-status {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: var(--bg);
+}
+.report-status.saved { background: #e5f2e8; }
+.report-status.failed { background: #f8e3e1; }
+
+button {
+  font: inherit;
+  padding: 3px 14px;
+  margin-left: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel);
+  cursor: pointer;
+}
+button.chosen { border-color: var(--text); font-weight: 600; }
+
+kbd {
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0 4px;
+  background: var(--bg);
+}
+
+@media (max-width: 800px) {
+  #selftest { grid-template-columns: 1fr; height: auto; }
+  #map { height: 50vh; }
+}

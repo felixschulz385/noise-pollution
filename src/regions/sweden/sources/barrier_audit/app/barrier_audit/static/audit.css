@@ -1,0 +1,129 @@
+body.audit {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100vh;
+  overflow: hidden;
+  --overlay: #ff2bd6;
+  --wall: #2bff7a;
+  --submit: #1f7a3a;
+  --unsure: #9a6400;
+  --both: #1f5f9a;
+  --others: #ffa31a;
+  --streetview: #6a3d9a;
+}
+
+#topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  font-size: 15px;
+  white-space: nowrap;
+}
+#progress { font-weight: 600; }
+#meta { color: var(--text); }
+#previous { color: var(--muted); font-size: 13px; }
+#area { color: var(--muted); font-size: 13px; }
+#others-legend { color: var(--muted); font-size: 13px; }
+#others-legend[hidden] { display: none; }
+#offset { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--muted); }
+.badge { background: #fff1c2; color: #6b4a00; border-radius: 3px; padding: 1px 8px; font-size: 13px; font-weight: 600; }
+
+#workspace {
+  display: grid;
+  grid-template-columns: 84px 1fr 84px;
+  gap: 8px;
+  padding: 8px;
+  min-height: 0;
+}
+
+.side-stack { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.side-stack .unsure { flex: 3; }
+.side-stack .both { flex: 2; }
+.side-stack .streetview { flex: 2; }
+.side-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  border-radius: 6px;
+  border: 2px solid currentColor;
+  background: var(--panel);
+  font-size: 17px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.side-button span { writing-mode: vertical-rl; transform: rotate(180deg); letter-spacing: 0.08em; }
+.side-button.submit { color: var(--submit); }
+.side-button.unsure { color: var(--unsure); }
+.side-button.both { color: var(--both); }
+.side-button.streetview { color: var(--streetview); }
+.side-button[hidden] { display: none; }
+.side-button:hover:not(:disabled) { background: var(--bg); }
+.side-button:disabled { color: var(--pending); cursor: default; }
+
+#map-wrap { position: relative; min-height: 0; }
+#map-wrap #map { position: absolute; inset: 0; border-radius: 6px; }
+
+.panel {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(620px, calc(100% - 32px));
+  max-height: calc(100% - 48px);
+  overflow: auto;
+  padding: 16px 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  z-index: 5;
+}
+.panel[hidden] { display: none; }
+.panel h2 { font-size: 18px; margin: 0 0 10px; }
+.panel .hint { color: var(--muted); font-size: 13px; margin-bottom: 0; }
+/* Practice feedback stays small and out of the way: the wall may be anywhere. */
+.panel.feedback { top: 16px; right: 16px; left: auto; transform: none; width: min(380px, calc(100% - 32px)); }
+
+.checks { list-style: none; padding: 0; margin: 0 0 12px; }
+.checks li { padding: 3px 0; }
+.checks .mark { display: inline-block; width: 20px; font-weight: 700; }
+.checks .ok .mark { color: var(--ok); }
+.checks .warn .mark { color: var(--warn); }
+.checks .fail .mark { color: var(--fail); }
+.checks .detail { color: var(--muted); font-size: 13px; margin-left: 6px; }
+
+.howto p { margin: 6px 0; }
+.choices { list-style: none; padding: 0; margin: 0; }
+.choices button { display: block; width: 100%; text-align: left; margin: 0 0 6px; padding: 8px 10px; }
+#note { width: 100%; font: inherit; padding: 6px; border: 1px solid var(--line); border-radius: 4px; }
+
+button.primary { margin: 8px 0 0; padding: 6px 18px; background: var(--text); color: var(--panel); border-color: var(--text); }
+button.primary:disabled { background: var(--pending); border-color: var(--pending); }
+button.primary kbd { background: transparent; color: inherit; border-color: rgba(255, 255, 255, 0.5); }
+
+.swatch { display: inline-block; width: 22px; height: 4px; vertical-align: middle; border-radius: 2px; }
+.swatch.overlay { background: var(--overlay); }
+.swatch.wall { background: var(--wall); }
+.swatch.others { background: var(--others); }
+
+.error {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  background: #f8e3e1;
+  color: var(--fail);
+  border: 1px solid var(--fail);
+  border-radius: 6px;
+  z-index: 6;
+}
+.error[hidden] { display: none; }
+
+#keys { padding: 4px 16px 8px; color: var(--muted); font-size: 12.5px; }

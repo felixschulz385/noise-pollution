@@ -45,6 +45,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_skolkoll(data_domains)
     _register_osm_walls(data_domains)
     _register_barrier_protection(data_domains)
+    _register_barrier_audit(data_domains)
     _register_panel(data_domains)
     _register_traffic(data_domains)
     _register_neighbourhood(data_domains)
@@ -295,6 +296,55 @@ def _register_barrier_protection(domains: argparse._SubParsersAction) -> None:
     bp_build.add_argument("--budget-m", type=float, default=800.0)
     bp_build.add_argument("--buffer-m", type=float, default=600.0)
     bp_build.set_defaults(func=h.command_barrier_protection_build)
+
+
+def _register_barrier_audit(domains: argparse._SubParsersAction) -> None:
+    audit = domains.add_parser(
+        "barrier-audit",
+        help="Manual side audit of barriers against aerial imagery, see docs/data/sweden/barrier_audit/README.md",
+    )
+    cmd = audit.add_subparsers(dest="stage", required=True)
+
+    ba_check = cmd.add_parser(
+        "device-check",
+        help="Build the phase-0 zip that runs only the app's self-test on the reviewer's laptop",
+    )
+    ba_check.add_argument("--out-dir", help="Default: data/sweden/barrier_audit/packages")
+    ba_check.set_defaults(func=h.command_barrier_audit_device_check)
+
+    ba_export = cmd.add_parser(
+        "export",
+        help="Pick a batch's barriers and write its blinded tasks, its key and the reviewer zip. Requires "
+        "barrier-protection build, schools assemble and panel assemble",
+    )
+    ba_export.add_argument("--batch", required=True, choices=["pilot", "protected", "same_side"])
+    ba_export.add_argument("--reviewer", default="assistant", help="Name in the answers file (letters, digits, - or _)")
+    ba_export.add_argument("--seed", type=int)
+    ba_export.add_argument("--n-targets", type=int, help="Default: all (pilot: 15)")
+    ba_export.add_argument("--validation-per-method", type=int)
+    ba_export.add_argument("--n-practice", type=int)
+    ba_export.add_argument("--double-code-share", type=float)
+    ba_export.add_argument("--no-zip", action="store_true", help="Only write tasks and key")
+    ba_export.set_defaults(func=h.command_barrier_audit_export)
+
+    ba_serve = cmd.add_parser("serve", help="Run the app from the repo (pilot, double-coding); answers go to raw/<batch>/")
+    ba_serve.add_argument("--batch", required=True)
+    ba_serve.add_argument("--reviewer", default="felix")
+    ba_serve.add_argument("--double-coded", action="store_true", help="Only the batch's double-coding tasks")
+    ba_serve.add_argument("--port", type=int, default=8765)
+    ba_serve.add_argument("--no-browser", action="store_true")
+    ba_serve.set_defaults(func=h.command_barrier_audit_serve)
+
+    ba_import = cmd.add_parser("import", help="Check a returned answers_<reviewer>.jsonl against its key and store it")
+    ba_import.add_argument("path")
+    ba_import.add_argument("--force", action="store_true", help="Replace a stored file that has more answers")
+    ba_import.set_defaults(func=h.command_barrier_audit_import)
+
+    ba_pre = cmd.add_parser(
+        "preprocess",
+        help="All imported answers -> processed/manual_sides.parquet (used by barrier-protection build) and a validation report",
+    )
+    ba_pre.set_defaults(func=h.command_barrier_audit_preprocess)
 
 
 def _register_panel(domains: argparse._SubParsersAction) -> None:

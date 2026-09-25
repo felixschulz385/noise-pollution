@@ -29,6 +29,11 @@ from src.core.cli.main import build_parser
         ["sweden", "data", "traffic", "assemble"],
         ["sweden", "data", "grid", "preprocess"],
         ["sweden", "data", "grid", "assemble"],
+        ["sweden", "data", "barrier-audit", "device-check"],
+        ["sweden", "data", "barrier-audit", "export", "--batch", "protected"],
+        ["sweden", "data", "barrier-audit", "serve", "--batch", "pilot"],
+        ["sweden", "data", "barrier-audit", "import", "answers_x.jsonl"],
+        ["sweden", "data", "barrier-audit", "preprocess"],
     ],
 )
 def test_known_commands_resolve_to_a_handler(argv):

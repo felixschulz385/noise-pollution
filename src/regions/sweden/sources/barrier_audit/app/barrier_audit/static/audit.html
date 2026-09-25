@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barrier audit</title>
+<link rel="stylesheet" href="/static/vendor/maplibre-gl.css">
+<link rel="stylesheet" href="/static/app.css">
+<link rel="stylesheet" href="/static/audit.css">
+</head>
+<body class="audit">
+<header id="topbar">
+  <span id="progress">Barrier audit</span>
+  <span id="meta"></span>
+  <span id="badge" class="badge" hidden>Practice</span>
+  <span id="area"></span>
+  <span id="others-legend" hidden><span class="swatch others"></span> other barriers</span>
+  <span id="previous"></span>
+  <span id="offset"></span>
+</header>
+<main id="workspace">
+  <div class="side-stack">
+    <button type="button" id="btn-unsure" class="side-button unsure" disabled><span>Unsure</span><kbd>U</kbd></button>
+    <button type="button" id="btn-both" class="side-button both" disabled><span>Both sides</span><kbd>B</kbd></button>
+    <button type="button" id="btn-streetview" class="side-button streetview" disabled hidden><span>Street View</span><kbd>G</kbd></button>
+  </div>
+  <div id="map-wrap">
+    <div id="map"></div>
+
+    <section id="start" class="panel">
+      <h2>Barrier audit</h2>
+      <p id="start-summary"></p>
+      <ol id="start-checks" class="checks"></ol>
+      <div class="howto">
+        <p>Each task shows one noise barrier on an aerial photo. The <span class="swatch overlay"></span> line is
+          the barrier's recorded position, which is the <em>centre of the road or track</em>, not the wall.</p>
+        <p><strong>Drag the photo</strong> (or press <kbd>&uarr;</kbd>/<kbd>&darr;</kbd>) until the line lies on the wall.
+          Match the wall's foot or its shadow line, not its top. Then press <strong>Submit</strong> (<kbd>Enter</kbd>).</p>
+        <p>If there is a wall on <em>both</em> sides of the road or railway along this stretch, press
+          <strong>Both sides</strong> (<kbd>B</kbd>) instead of choosing one.</p>
+        <p><span class="swatch others"></span> lines are other barriers in the register, also drawn at their road or
+          track centre. They are for orientation only; answer for the pink line.</p>
+        <p>For a road barrier, <strong>Street View</strong> (<kbd>G</kbd>) opens Google Street View in another tab,
+          looking along the barrier: its left is up in this map. Use it when the photo leaves you unsure, then come
+          back and line up the wall here.</p>
+        <p>If you can't place it, press <strong>Unsure</strong> (<kbd>U</kbd>) and choose a reason.
+          Nearby tasks come one after another. The first tasks are practice: afterwards the app shows where the
+          wall really is.</p>
+      </div>
+      <button type="button" id="btn-start" class="primary" disabled>Start <kbd>Enter</kbd></button>
+    </section>
+
+    <section id="unsure" class="panel" hidden>
+      <h2>Why are you unsure?</h2>
+      <ol class="choices">
+        <li><button type="button" data-reason="occluded"><kbd>1</kbd> Hidden: trees, shadow or an image seam</button></li>
+        <li><button type="button" data-reason="not_visible"><kbd>2</kbd> No wall visible along this stretch</button></li>
+        <li><button type="button" data-reason="other"><kbd>3</kbd> Something else (write a note)</button></li>
+      </ol>
+      <p id="streetview-hint" class="hint" hidden>Not sure? Press <kbd>G</kbd> to look at the road in Street View
+        first.</p>
+      <div id="note-wrap" hidden>
+        <textarea id="note" rows="3" placeholder="What did you see?"></textarea>
+        <button type="button" id="btn-note" class="primary">Save <kbd>Enter</kbd></button>
+      </div>
+      <p class="hint"><kbd>Esc</kbd> back to the map</p>
+    </section>
+
+    <section id="confirm" class="panel" hidden>
+      <h2>The line is still near the road centre</h2>
+      <p>The line has moved less than 2 m. That is right for a wall in the middle of the road or between tracks.</p>
+      <p><kbd>Enter</kbd> submit anyway · <kbd>Esc</kbd> back to the map</p>
+    </section>
+
+    <section id="feedback" class="panel feedback" hidden>
+      <h2 id="feedback-title"></h2>
+      <p id="feedback-text"></p>
+      <p><span class="swatch wall"></span> is the wall as mapped in OpenStreetMap.</p>
+      <button type="button" id="btn-continue" class="primary">Continue <kbd>Enter</kbd></button>
+    </section>
+
+    <section id="done" class="panel" hidden>
+      <h2>All tasks answered. Thank you!</h2>
+      <p>Please send this file to Felix:</p>
+      <p><code id="done-file"></code></p>
+      <p>You can press <kbd>Backspace</kbd> to revisit a task, or close this page and the black window.</p>
+    </section>
+
+    <div id="error" class="error" hidden></div>
+  </div>
+  <button type="button" id="btn-submit" class="side-button submit" disabled><span>Submit</span><kbd>Enter</kbd></button>
+</main>
+<footer id="keys">
+  <kbd>&uarr;</kbd><kbd>&darr;</kbd> nudge 0.25 m (<kbd>Shift</kbd> 2 m) · <kbd>Enter</kbd> submit · <kbd>B</kbd> both sides · <kbd>G</kbd> Street View (roads) · <kbd>U</kbd> unsure ·
+  <kbd>R</kbd> reset · <kbd>Space</kbd> hold to hide the line · <kbd>Backspace</kbd> previous task · scroll to zoom
+</footer>
+<script src="/static/vendor/maplibre-gl.js"></script>
+<script src="/static/common.js"></script>
+<script src="/static/geometry.js"></script>
+<script src="/static/audit.js"></script>
+</body>
+</html>

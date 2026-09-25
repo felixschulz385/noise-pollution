@@ -420,6 +420,61 @@ def command_skolkoll_preprocess(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_barrier_audit_device_check(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from src.regions.sweden.sources.barrier_audit.package import build_device_check_zip
+
+    result = build_device_check_zip(Path(args.out_dir) if args.out_dir else None)
+    print_json({"domain": "barrier_audit", "stage": "device-check", **result})
+    return 0
+
+
+def command_barrier_audit_export(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.barrier_audit.export import DEFAULT_SEED, run_barrier_audit_export
+    from src.regions.sweden.sources.barrier_audit.package import build_batch_zip
+
+    result = run_barrier_audit_export(
+        args.batch,
+        reviewer=args.reviewer,
+        seed=DEFAULT_SEED if args.seed is None else args.seed,
+        n_targets=args.n_targets,
+        validation_per_method=args.validation_per_method,
+        n_practice=args.n_practice,
+        double_code_share=args.double_code_share,
+    )
+    if not args.no_zip:
+        result["zip"] = build_batch_zip(args.batch)
+    print_json({"domain": "barrier_audit", "stage": "export", **result})
+    return 0
+
+
+def command_barrier_audit_serve(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.barrier_audit.serve import run_barrier_audit_serve
+
+    return run_barrier_audit_serve(
+        args.batch, reviewer=args.reviewer, double_coded=args.double_coded, port=args.port, open_browser=not args.no_browser
+    )
+
+
+def command_barrier_audit_import(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from src.regions.sweden.sources.barrier_audit.import_answers import run_barrier_audit_import
+
+    result = run_barrier_audit_import(Path(args.path), force=args.force)
+    print_json({"domain": "barrier_audit", "stage": "import", **result})
+    return 0
+
+
+def command_barrier_audit_preprocess(args: argparse.Namespace) -> int:
+    from src.regions.sweden.sources.barrier_audit.preprocess import run_barrier_audit_preprocess
+
+    result = run_barrier_audit_preprocess()
+    print_json({"domain": "barrier_audit", "stage": "preprocess", **result})
+    return 0
+
+
 def command_osm_walls_fetch(args: argparse.Namespace) -> int:
     from src.regions.sweden.sources.osm_walls.fetch import run_osm_walls_fetch
 

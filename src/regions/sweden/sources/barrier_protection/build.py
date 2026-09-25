@@ -1,7 +1,9 @@
 """`sweden data barrier-protection build`: computes every barrier's
 reference once per kind (`_barrier_reference.build_barrier_references`)
 and saves it with the national protected-area layer
-(`_barrier_reference.protection_zones`). See `shared.py`."""
+(`_barrier_reference.protection_zones`). Manual answers from the
+`barrier_audit` source are used when `barrier-audit preprocess` has run.
+See `shared.py`."""
 from __future__ import annotations
 
 import time
@@ -13,6 +15,7 @@ from src.core.barrier_geometry.linear_ref import DEFAULT_CORRIDOR_BUDGET_M, DEFA
 from src.core.barrier_geometry.protection import protection_zones
 from src.regions.sweden.sources._barrier_reference import build_barrier_references
 from src.regions.sweden.sources._layout import METRIC_CRS
+from src.regions.sweden.sources.barrier_audit.shared import load_manual_sides
 from src.regions.sweden.sources.barrier_protection.shared import (
     KEY_COLUMNS,
     NETWORK_LOADERS,
@@ -37,6 +40,7 @@ def run_barrier_protection_build(
     for kind in kinds:
         t0 = time.time()
         barriers_gdf = load_noise_barriers(kind, root).reset_index(drop=True)
+        manual = load_manual_sides(kind, root)
         refs = build_barrier_references(
             barriers_gdf,
             NETWORK_LOADERS[kind](root),
@@ -45,6 +49,7 @@ def run_barrier_protection_build(
             route_column=ROUTE_COLUMNS[kind],
             budget_m=budget_m,
             buffer_m=buffer_m,
+            manual=manual,
         )
         path = references_path(kind, root)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -57,6 +62,7 @@ def run_barrier_protection_build(
         zones_by_kind.append(zones)
         report[kind] = {
             "n_barriers": int(len(barriers_gdf)),
+            "n_manual_answers": 0 if manual is None else int(len(manual)),
             "side_method": {k: int(v) for k, v in refs.table["side_method"].value_counts().items()},
             "n_zones": int(len(zones)),
             "zone_area_km2": {

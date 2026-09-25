@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Barrier audit</title>
+<link rel="stylesheet" href="/static/vendor/maplibre-gl.css">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<header>
+  <h1>Barrier audit: device check</h1>
+  <span id="version"></span>
+</header>
+<main id="selftest">
+  <section id="checks">
+    <p class="intro">This page checks that the audit app will work on this computer.
+      The automatic checks take up to a minute. Then please do the three short steps below the map.</p>
+    <ol id="check-list"></ol>
+    <div id="report-status" class="report-status">The report is saved when the checks finish.</div>
+  </section>
+  <section id="preview">
+    <div id="map"></div>
+    <div id="manual">
+      <p><strong>1.</strong> Drag the map a little with the mouse or touchpad.</p>
+      <p><strong>2.</strong> Click on the map, then press the <kbd>&uarr;</kbd> arrow key once.</p>
+      <p><strong>3.</strong> Do you see an aerial photo with a red line along a road?
+        <button type="button" id="seen-yes">Yes</button>
+        <button type="button" id="seen-no">No</button>
+      </p>
+    </div>
+  </section>
+</main>
+<script src="/static/vendor/maplibre-gl.js"></script>
+<script src="/static/common.js"></script>
+<script src="/static/selftest.js"></script>
+</body>
+</html>
