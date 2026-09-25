@@ -448,3 +448,50 @@ def test_load_school_traffic_missing_file_raises_with_guidance():
 def test_load_school_neighbourhood_missing_file_raises_with_guidance():
     with pytest.raises(FileNotFoundError, match="neighbourhood assemble"):
         pa.load_school_neighbourhood()
+
+
+def _segment_history():
+    # Segment "hw" (a highway): 20,000 until 2010, then 30,000. Segment "st"
+    # (a street): 2,000 throughout.
+    return pd.DataFrame(
+        {
+            "element_id": ["hw", "hw", "st"],
+            "start_measure": [0.0, 0.0, 0.0],
+            "end_measure": [1.0, 1.0, 1.0],
+            "valid_from": [19900101, 20100101, 19900101],
+            "valid_to": [20100101, 99991231, 99991231],
+            "adt": [20000.0, 30000.0, 2000.0],
+        }
+    )
+
+
+def test_attach_nearby_traffic_takes_the_busiest_road_within_each_radius_per_year():
+    panel = pd.DataFrame({"skolenhetskod": ["s1", "s1", "s2"], "year": [2005, 2015, 2015]})
+    nearby = pd.DataFrame(
+        {
+            "skolenhetskod": ["s1", "s1", "s2"],
+            "element_id": ["st", "hw", "st"],
+            "start_measure": [0.0, 0.0, 0.0],
+            "end_measure": [1.0, 1.0, 1.0],
+            "dist_m": [100.0, 400.0, 50.0],
+        }
+    )
+    out = pa.attach_nearby_traffic(panel, nearby, _segment_history()).set_index(["skolenhetskod", "year"])
+    assert out.loc[("s1", 2005), "traffic_max_adt_250m"] == 2000.0  # the highway is beyond 250m
+    assert out.loc[("s1", 2005), "traffic_max_adt_500m"] == 20000.0
+    assert out.loc[("s1", 2015), "traffic_max_adt_500m"] == 30000.0  # the window covering 2015
+    assert out.loc[("s2", 2015), "traffic_max_adt_500m"] == 2000.0
+
+
+def test_attach_protected_road_traffic_is_the_protecting_barriers_road_and_na_otherwise():
+    panel = pd.DataFrame(
+        {
+            "skolenhetskod": ["s1", "s2"],
+            "year": [2015, 2015],
+            "road_protected_barrier_row": pd.array([7, pd.NA], dtype="Int64"),
+        }
+    )
+    barrier_segments = pd.DataFrame({"barrier_row": [7], "element_id": ["hw"], "start_measure": [0.0], "end_measure": [1.0]})
+    out = pa.attach_protected_road_traffic(panel, barrier_segments, _segment_history()).set_index("skolenhetskod")
+    assert out.loc["s1", "traffic_protected_road_adt"] == 30000.0
+    assert pd.isna(out.loc["s2", "traffic_protected_road_adt"])

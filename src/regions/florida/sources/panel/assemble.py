@@ -130,7 +130,11 @@ from src.regions.florida.sources.schools.shared import (
 from src.regions.florida.sources.neighbourhood.shared import school_acs_panel_path, school_zhvi_panel_path
 from src.regions.florida.sources.shocks.shared import school_shocks_panel_path
 from src.regions.florida.sources.staff.shared import district_staff_panel_path, school_staff_panel_path
-from src.regions.florida.sources.traffic.shared import school_aadt_panel_path
+from src.regions.florida.sources.traffic.shared import (
+    processed_aadt_panel_path,
+    school_aadt_panel_path,
+    school_nearby_aadt_path,
+)
 
 TREATMENT_DEFINITIONS = ("point", "same_route", "same_side", "protected")
 SIDE_UNKNOWN_FLAGS = ("same_side_unknown", "protected_unknown")
@@ -261,6 +265,41 @@ def load_school_zhvi_panel(root: Path | None = None) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
+def _join_nearest_release(panel: pd.DataFrame, table: pd.DataFrame, max_year_gap: int) -> pd.DataFrame:
+    """Left-join each ``(msid, year)`` row onto the row of ``table`` (``msid``,
+    ``release_year`` plus value columns) at the nearest release year for that
+    school, within ``max_year_gap`` years; ``NA`` values otherwise."""
+    table = table.dropna(subset=["release_year"]).copy()
+    table["release_year"] = table["release_year"].astype("int64")
+    # `merge_asof`'s `by=` requires matching dtypes on both sides; `panel`'s
+    # `msid` can be an Arrow-backed string dtype (from a parquet read) while
+    # a freshly-built/empty traffic frame may be plain `object` -- cast both
+    # to plain `str` for the merge key only, not the columns we return.
+    table["_msid_key"] = table["msid"].astype(str)
+    # `merge_asof` requires the `on` column sorted GLOBALLY (not just within
+    # each `by` group) -- sorting by [msid, year] instead silently breaks
+    # this the moment there's more than one msid, since `year` then resets
+    # at each group boundary.
+    table = table.drop(columns="msid").sort_values("release_year").reset_index(drop=True)
+
+    out = panel.reset_index(drop=True)
+    out["_traffic_row_order"] = out.index
+    out["_msid_key"] = out["msid"].astype(str)
+    left_sorted = out.sort_values("year").reset_index(drop=True)
+
+    joined = pd.merge_asof(
+        left_sorted,
+        table,
+        left_on="year",
+        right_on="release_year",
+        by="_msid_key",
+        direction="nearest",
+        tolerance=max_year_gap,
+    )
+    joined = joined.drop(columns="_msid_key")
+    return joined.sort_values("_traffic_row_order").drop(columns="_traffic_row_order").reset_index(drop=True)
+
+
 def attach_traffic(
     panel: pd.DataFrame,
     school_aadt_panel: pd.DataFrame,
@@ -273,35 +312,40 @@ def attach_traffic(
     release too far from this assessment year) keeps its row with ``NA``
     traffic columns, same convention as every other join in this module."""
     present_source_columns = [c for c in TRAFFIC_RENAME if c in school_aadt_panel.columns]
-    traffic = school_aadt_panel.dropna(subset=["release_year"])[["msid", *present_source_columns]].copy()
-    traffic["release_year"] = traffic["release_year"].astype("int64")
-    # `merge_asof`'s `by=` requires matching dtypes on both sides; `panel`'s
-    # `msid` can be an Arrow-backed string dtype (from a parquet read) while
-    # a freshly-built/empty traffic frame may be plain `object` -- cast both
-    # to plain `str` for the merge key only, not the columns we return.
-    traffic["_msid_key"] = traffic["msid"].astype(str)
-    # `merge_asof` requires the `on` column sorted GLOBALLY (not just within
-    # each `by` group) -- sorting by [msid, year] instead silently breaks
-    # this the moment there's more than one msid, since `year` then resets
-    # at each group boundary.
-    traffic = traffic.drop(columns="msid").sort_values("release_year").reset_index(drop=True)
+    joined = _join_nearest_release(panel, school_aadt_panel[["msid", *present_source_columns]], max_year_gap)
+    return joined.rename(columns=TRAFFIC_RENAME)
 
-    out = panel.reset_index(drop=True)
-    out["_traffic_row_order"] = out.index
-    out["_msid_key"] = out["msid"].astype(str)
-    left_sorted = out.sort_values("year").reset_index(drop=True)
 
-    joined = pd.merge_asof(
-        left_sorted,
-        traffic,
-        left_on="year",
-        right_on="release_year",
-        by="_msid_key",
-        direction="nearest",
-        tolerance=max_year_gap,
-    )
-    joined = joined.rename(columns=TRAFFIC_RENAME).drop(columns="_msid_key")
-    return joined.sort_values("_traffic_row_order").drop(columns="_traffic_row_order").reset_index(drop=True)
+def _read_if_built(path: Path) -> pd.DataFrame | None:
+    """A traffic table the panel can do without: `None` when the traffic
+    stage that writes it hasn't been (re-)run yet."""
+    return pd.read_parquet(path) if path.exists() else None
+
+
+def attach_nearby_traffic(
+    panel: pd.DataFrame, school_nearby_aadt: pd.DataFrame, max_year_gap: int = MAX_TRAFFIC_YEAR_GAP
+) -> pd.DataFrame:
+    """``traffic_max_aadt_{R}m``: the busiest RCI road within R metres of the
+    school (``traffic/assemble.py::build_school_nearby_aadt``), for every
+    school, treated or not -- unlike ``attach_traffic``'s single nearest
+    arterial, which is often not the road a wall shields."""
+    columns = [c for c in school_nearby_aadt.columns if c.startswith("traffic_max_aadt_")]
+    joined = _join_nearest_release(panel, school_nearby_aadt[["msid", "release_year", *columns]], max_year_gap)
+    return joined.drop(columns="release_year")
+
+
+def attach_protected_road_traffic(
+    panel: pd.DataFrame, aadt_panel: pd.DataFrame, max_year_gap: int = MAX_TRAFFIC_YEAR_GAP
+) -> pd.DataFrame:
+    """``traffic_protected_road_aadt``: AADT on the reference roadway of the
+    FDOT wall protecting the school (``protected_road_id``, the nearest
+    protecting wall's). NA for a school no wall protects, so it describes
+    the treated; it isn't a control for everyone."""
+    schools = panel[["msid", "protected_road_id"]].dropna().drop_duplicates("msid")
+    table = schools.merge(
+        aadt_panel[["roadway_id", "release_year", "aadt"]], left_on="protected_road_id", right_on="roadway_id"
+    )[["msid", "release_year", "aadt"]].rename(columns={"aadt": "traffic_protected_road_aadt"})
+    return _join_nearest_release(panel, table, max_year_gap).drop(columns="release_year")
 
 
 ROAD_PROJECTS_COLUMNS = ["n_road_projects_active", "road_project_is_wall", "road_project_is_widening"]
@@ -484,6 +528,8 @@ def build_event_study_panel(
     school_acs_panel: pd.DataFrame,
     school_zhvi_panel: pd.DataFrame,
     max_traffic_year_gap: int = MAX_TRAFFIC_YEAR_GAP,
+    school_nearby_aadt: pd.DataFrame | None = None,
+    aadt_panel: pd.DataFrame | None = None,
 ) -> gpd.GeoDataFrame:
     """One row per ``(msid, grade, subject, year)`` — the ``assessments``
     grain — with Cluster-A covariates, static school identity/filter fields,
@@ -497,8 +543,13 @@ def build_event_study_panel(
     )
     static_cols = cross_section[STATIC_SCHOOL_COLUMNS + ["geometry"]].rename(columns=STATIC_SCHOOL_RENAMES)
     panel = panel.merge(static_cols, on="msid", how="left", validate="m:1")
-    panel = panel.merge(rollup[TREATMENT_COLUMNS], on="msid", how="left", validate="m:1")
+    rollup_columns = TREATMENT_COLUMNS + [c for c in ("protected_road_id",) if c in rollup.columns]
+    panel = panel.merge(rollup[rollup_columns], on="msid", how="left", validate="m:1")
     panel = attach_traffic(panel, school_aadt_panel, max_traffic_year_gap)
+    if school_nearby_aadt is not None:
+        panel = attach_nearby_traffic(panel, school_nearby_aadt, max_traffic_year_gap)
+    if aadt_panel is not None and "protected_road_id" in panel.columns:
+        panel = attach_protected_road_traffic(panel, aadt_panel, max_traffic_year_gap)
     panel = attach_road_projects(panel, school_road_projects)
     panel = attach_shocks(panel, shocks_county_year_panel)
     panel = attach_staff(panel, district_staff_panel, school_staff_panel)
@@ -553,6 +604,8 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
         school_staff_panel,
         school_acs_panel,
         school_zhvi_panel,
+        school_nearby_aadt=_read_if_built(school_nearby_aadt_path(root)),
+        aadt_panel=_read_if_built(processed_aadt_panel_path(root)),
     )
 
     report: dict[str, object] = {
@@ -574,6 +627,11 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
         "rows_missing_enrollment_covariate": int(panel["enrollment"].isna().sum()),
         "rows_missing_geometry": int(panel.geometry.isna().sum()),
         "max_traffic_year_gap": MAX_TRAFFIC_YEAR_GAP,
+        **{
+            f"schools_with_{column}": int(panel.loc[panel[column].notna(), "msid"].nunique())
+            for column in ("traffic_max_aadt_250m", "traffic_max_aadt_500m", "traffic_protected_road_aadt")
+            if column in panel.columns
+        },
         "rows_with_traffic_match": int(panel["traffic_aadt"].notna().sum()),
         "rows_missing_traffic_match": int(panel["traffic_aadt"].isna().sum()),
         "rows_with_traffic_aadt_local": (

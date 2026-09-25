@@ -266,6 +266,31 @@ specifically (pre-2016 `traffic_aadt`, where present, may reflect which
 roads FDOT happened to count first) — but the match *rate* itself is no
 longer unexplained.
 
+## Beyond the nearest arterial: nearby and shielded-road traffic (2026-09-24)
+
+`traffic_aadt` is the AADT of the school's single **nearest arterial**
+roadway. For schools an FDOT wall protects, that is the wall's own
+reference roadway only 52% of the time: protected schools sit a median
+303m from the shielded road, and a nearer arterial is often picked (median
+172m). So `assemble` also writes `school_nearby_aadt.parquet`, and `panel
+assemble` adds year-varying columns, using the nearest release year within
+`MAX_TRAFFIC_YEAR_GAP` as `attach_traffic` does:
+
+| panel column | meaning | schools with a value |
+|---|---|---|
+| `traffic_max_aadt_250m`, `traffic_max_aadt_500m` | the highest roadway AADT among all RCI roads (any class) within 250m / 500m of the school, for every school, treated or not | 3,464 / 4,358 |
+| `traffic_protected_road_aadt` | AADT on the reference roadway of the FDOT wall protecting the school (`protected_road_id`, the nearest protecting wall's, from `barrier_protection`); NA for schools no wall protects | 114 of 116 protected |
+
+- **Magnitude:** for protected schools, median AADT is 67,710 on the
+  nearest arterial, 111,882 for the busiest road within 500m, and 121,940
+  on the protecting wall's road. The single-nearest-road control
+  understates the shielded road's traffic by about 45%.
+- **Use:** only `traffic_max_aadt_*` is symmetric between treated and
+  control schools, so only it works as a `csdid` covariate.
+  `traffic_protected_road_aadt` describes the treated.
+- **Caveat:** values are roadway-wide means, like `aadt`, not
+  segment-level.
+
 ## Local-intensity scaling (`aadt_local`) — implemented (2026-09-14)
 
 `aadt` (the roadway-wide, length-weighted mean) can be a coarse proxy for a

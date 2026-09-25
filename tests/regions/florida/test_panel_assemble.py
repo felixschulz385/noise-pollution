@@ -576,3 +576,32 @@ def test_build_event_study_panel_includes_neighbourhood_columns():
     )
     assert panel.iloc[0]["nbhd_median_household_income"] == 55000.0
     assert panel.iloc[0]["nbhd_zhvi"] == 210000.0
+
+
+def test_attach_nearby_traffic_takes_the_nearest_release_year():
+    from src.regions.florida.sources.panel.assemble import attach_nearby_traffic
+
+    panel = pd.DataFrame({"msid": ["a", "a", "b"], "year": [2010, 2020, 2010]})
+    nearby = pd.DataFrame(
+        {
+            "msid": ["a", "a", "b"],
+            "release_year": [2009, 2021, 2009],
+            "traffic_max_aadt_250m": [1000.0, 1200.0, np.nan],
+            "traffic_max_aadt_500m": [50000.0, 60000.0, 8000.0],
+        }
+    )
+    out = attach_nearby_traffic(panel, nearby, max_year_gap=2).set_index(["msid", "year"])
+    assert out.loc[("a", 2010), "traffic_max_aadt_500m"] == 50000.0
+    assert out.loc[("a", 2020), "traffic_max_aadt_500m"] == 60000.0
+    assert pd.isna(out.loc[("b", 2010), "traffic_max_aadt_250m"])
+    assert "release_year" not in out.columns
+
+
+def test_attach_protected_road_traffic_uses_the_protecting_walls_roadway():
+    from src.regions.florida.sources.panel.assemble import attach_protected_road_traffic
+
+    panel = pd.DataFrame({"msid": ["a", "b"], "year": [2015, 2015], "protected_road_id": ["R1", None]})
+    aadt = pd.DataFrame({"roadway_id": ["R1", "R2"], "release_year": [2015, 2015], "aadt": [90000.0, 3000.0]})
+    out = attach_protected_road_traffic(panel, aadt, max_year_gap=2).set_index("msid")
+    assert out.loc["a", "traffic_protected_road_aadt"] == 90000.0
+    assert pd.isna(out.loc["b", "traffic_protected_road_aadt"])

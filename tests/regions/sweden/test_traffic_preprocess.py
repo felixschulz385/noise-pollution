@@ -80,3 +80,11 @@ def test_preprocess_traffic_renames_expected_columns():
     assert "matarsperiod" in traffic.columns
     assert "valid_from" in traffic.columns
     assert "ELEMENT_ID" not in traffic.columns
+
+
+def test_preprocess_traffic_nulls_the_999998_adt_placeholder():
+    frame = _raw_traffic_gdf(valid_from=20200101, valid_to=99991231, adt=999998)
+    out = preprocess_traffic([frame]).iloc[0]
+    assert pd.isna(out["adt_samtliga_fordon"])
+    # the fixture derives the other columns from `adt`, so they aren't the placeholder
+    assert out["adt_tunga_fordon"] == 99999

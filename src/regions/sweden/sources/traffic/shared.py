@@ -46,3 +46,15 @@ def processed_traffic_path(root: Path | None = None) -> Path:
 
 def assembled_school_traffic_path(root: Path | None = None) -> Path:
     return traffic_paths(root)["assembled"] / "school_traffic.parquet"
+
+
+def assembled_school_traffic_nearby_path(root: Path | None = None) -> Path:
+    return traffic_paths(root)["assembled"] / "school_traffic_nearby.parquet"
+
+
+def assembled_segment_adt_history_path(root: Path | None = None) -> Path:
+    return traffic_paths(root)["assembled"] / "segment_adt_history.parquet"
+
+
+def assembled_barrier_traffic_segments_path(root: Path | None = None) -> Path:
+    return traffic_paths(root)["assembled"] / "barrier_traffic_segments.parquet"

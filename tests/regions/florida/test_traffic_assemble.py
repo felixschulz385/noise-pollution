@@ -10,7 +10,9 @@ from shapely.geometry import LineString, Point
 
 from src.regions.florida.sources.traffic.assemble import (
     build_school_aadt_panel,
+    build_school_nearby_aadt,
     compute_local_intensity,
+    match_schools_to_nearby_roadways,
     match_schools_to_roadway,
 )
 
@@ -153,3 +155,27 @@ def test_build_school_aadt_panel_keeps_unmatched_school_with_na_row():
     assert len(orphan_row) == 1
     assert pd.isna(orphan_row["aadt"].iloc[0])
     assert pd.isna(orphan_row["release_year"].iloc[0])
+
+
+def test_nearby_roadways_include_every_road_within_the_radius_with_its_closest_distance():
+    roads = _roads([
+        ("LOCAL", -500, 100, 500, 100, "URBAN: Local"),
+        ("HWY", -500, 400, 500, 400, "URBAN: Principal Arterial - Interstate"),
+        ("HWY", 500, 400, 900, 450, "URBAN: Principal Arterial - Interstate"),
+        ("FAR", -500, 900, 500, 900, "URBAN: Principal Arterial - Other"),
+    ])
+    nearby = match_schools_to_nearby_roadways(_schools([("s", 0, 0)]), roads, radius=500).set_index("roadway_id")
+    assert sorted(nearby.index) == ["HWY", "LOCAL"]  # FAR is beyond 500m
+    assert nearby.loc["HWY", "dist_m"] == pytest.approx(400.0)
+
+
+def test_nearby_aadt_is_the_busiest_road_within_each_radius():
+    nearby = pd.DataFrame({"msid": ["s", "s"], "roadway_id": ["LOCAL", "HWY"], "dist_m": [100.0, 400.0]})
+    aadt = pd.DataFrame(
+        {"roadway_id": ["LOCAL", "HWY", "HWY"], "release_year": [2015, 2015, 2016], "aadt": [4000.0, 90000.0, 95000.0]}
+    )
+    out = build_school_nearby_aadt(nearby, aadt).set_index("release_year")
+    assert out.loc[2015, "traffic_max_aadt_250m"] == 4000.0
+    assert out.loc[2015, "traffic_max_aadt_500m"] == 90000.0
+    assert out.loc[2016, "traffic_max_aadt_500m"] == 95000.0
+    assert pd.isna(out.loc[2016, "traffic_max_aadt_250m"])

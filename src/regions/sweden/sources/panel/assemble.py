@@ -162,7 +162,12 @@ from src.regions.sweden.sources.neighbourhood.shared import assembled_school_nei
 from src.regions.sweden.sources.panel.shared import assembled_metadata_path, assembled_panel_path
 from src.regions.sweden.sources.schools.lineage import load_lineage_crosswalk
 from src.regions.sweden.sources.schools.shared import schools_paths
-from src.regions.sweden.sources.traffic.shared import assembled_school_traffic_path
+from src.regions.sweden.sources.traffic.shared import (
+    assembled_barrier_traffic_segments_path,
+    assembled_school_traffic_nearby_path,
+    assembled_school_traffic_path,
+    assembled_segment_adt_history_path,
+)
 
 BARRIER_KINDS = ("road", "rail")
 TREATMENT_DEFINITIONS = ("point", "same_route", "same_side", "protected")
@@ -299,6 +304,20 @@ def load_treatment_rollup_with_recovery(kind: str, root: Path | None = None) -> 
     if recovered is None or recovered.empty:
         return base
     return pd.concat([base, recovered], ignore_index=True)
+
+
+def load_traffic_extras(root: Path | None = None) -> dict[str, pd.DataFrame] | None:
+    """`traffic assemble`'s nearby-segment, barrier-segment and segment-history
+    tables, or `None` when that stage predates them (the panel then just
+    lacks the `traffic_max_adt_*` / `traffic_protected_road_adt` columns)."""
+    paths = {
+        "nearby": assembled_school_traffic_nearby_path(root),
+        "barrier_segments": assembled_barrier_traffic_segments_path(root),
+        "history": assembled_segment_adt_history_path(root),
+    }
+    if not all(path.exists() for path in paths.values()):
+        return None
+    return {name: pd.read_parquet(path) for name, path in paths.items()}
 
 
 def load_school_traffic(root: Path | None = None) -> pd.DataFrame:
@@ -566,6 +585,7 @@ def _rollup_treatment_columns(rollup: pd.DataFrame, kind: str) -> pd.DataFrame:
         for definition in TREATMENT_DEFINITIONS
         for stat in ("first_treat_year", "ever_treated", "timing_unknown")
     ]
+    columns += [c for c in ("protected_barrier_row",) if c in renamed.columns]
     selected = renamed[columns].rename(columns={c: f"{kind}_{c}" for c in columns if c != "skolenhetskod"})
     return selected
 
@@ -659,6 +679,56 @@ def attach_traffic(panel: pd.DataFrame, school_traffic: pd.DataFrame) -> pd.Data
     return joined.sort_values("_row_order").drop(columns="_row_order").reset_index(drop=True)
 
 
+SEGMENT_KEY = ["element_id", "start_measure", "end_measure"]
+NEARBY_TRAFFIC_RADII_M = (250, 500)
+
+
+def _adt_by_year(links: pd.DataFrame, history: pd.DataFrame, key: str, years) -> pd.DataFrame:
+    """`links` (one row per `key` x counted segment) against each segment's
+    ÅDT history: per `key` and year, the busiest linked segment's ÅDT in the
+    window covering Jan 1 of that year (same year convention as
+    `attach_traffic`)."""
+    merged = links.merge(history, on=SEGMENT_KEY)
+    frames = []
+    for year in years:
+        as_of = int(year) * 10000 + 101
+        covering = merged[(merged["valid_from"] <= as_of) & (as_of < merged["valid_to"])]
+        frames.append(covering.groupby(key, as_index=False)["adt"].max().assign(year=int(year)))
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=[key, "adt", "year"])
+
+
+def attach_nearby_traffic(panel: pd.DataFrame, nearby: pd.DataFrame, history: pd.DataFrame) -> pd.DataFrame:
+    """`traffic_max_adt_{R}m`: the busiest counted road within R metres of
+    the school in that year, for every school, treated or not -- unlike
+    `attach_traffic`'s single nearest segment, which is often a quiet street
+    rather than the nearby highway."""
+    years = sorted(panel["year"].unique())
+    out = panel
+    for radius in NEARBY_TRAFFIC_RADII_M:
+        within = nearby.loc[nearby["dist_m"] <= radius, ["skolenhetskod", *SEGMENT_KEY]]
+        by_year = _adt_by_year(within, history, "skolenhetskod", years).rename(
+            columns={"adt": f"traffic_max_adt_{radius}m"}
+        )
+        out = out.merge(by_year, on=["skolenhetskod", "year"], how="left")
+    return out
+
+
+def attach_protected_road_traffic(
+    panel: pd.DataFrame, barrier_segments: pd.DataFrame, history: pd.DataFrame
+) -> pd.DataFrame:
+    """`traffic_protected_road_adt`: ÅDT on the road of the road barrier
+    protecting the school (`road_protected_barrier_row`, the nearest
+    protecting one) in that year. NA for a school no road barrier protects,
+    so it describes the treated, it isn't a control for everyone."""
+    schools = panel[["skolenhetskod", "road_protected_barrier_row"]].dropna().drop_duplicates("skolenhetskod")
+    links = schools.rename(columns={"road_protected_barrier_row": "barrier_row"}).astype({"barrier_row": "int64"})
+    links = links.merge(barrier_segments, on="barrier_row")[["skolenhetskod", *SEGMENT_KEY]]
+    by_year = _adt_by_year(links, history, "skolenhetskod", sorted(panel["year"].unique()))
+    return panel.merge(
+        by_year.rename(columns={"adt": "traffic_protected_road_adt"}), on=["skolenhetskod", "year"], how="left"
+    )
+
+
 def attach_neighbourhood(panel: pd.DataFrame, school_neighbourhood: pd.DataFrame) -> pd.DataFrame:
     """Plain `(skolenhetskod, year)` merge -- unlike `attach_traffic`, no
     interval-overlap logic is needed here: `neighbourhood assemble`'s own
@@ -699,6 +769,7 @@ def remap_treatment_rollup_to_lineage(treatment_rollup: pd.DataFrame, crosswalk:
         agg[f"{kind}_ever_near_1000m"] = "max"
         for flag in SIDE_UNKNOWN_FLAGS:
             agg[f"{kind}_{flag}"] = "max"
+        agg[f"{kind}_protected_barrier_row"] = "min"
         for definition in TREATMENT_DEFINITIONS:
             agg[f"{kind}_ever_treated_{definition}"] = "max"
             agg[f"{kind}_timing_unknown_{definition}"] = "max"
@@ -751,6 +822,7 @@ def build_event_study_panel(
     school_traffic: pd.DataFrame,
     school_neighbourhood: pd.DataFrame,
     lineage_crosswalk: pd.DataFrame | None = None,
+    traffic_extras: dict[str, pd.DataFrame] | None = None,
 ) -> tuple[pd.DataFrame, dict]:
     outcomes_long = build_outcomes_long(siris_datasets)
     treatment_rollup = build_treatment_rollup(rollups)
@@ -762,6 +834,10 @@ def build_event_study_panel(
 
     panel = attach_treatment(outcomes_long, treatment_rollup)
     panel = attach_traffic(panel, school_traffic)
+    if traffic_extras is not None:
+        panel = attach_nearby_traffic(panel, traffic_extras["nearby"], traffic_extras["history"])
+        if "road_protected_barrier_row" in panel.columns:
+            panel = attach_protected_road_traffic(panel, traffic_extras["barrier_segments"], traffic_extras["history"])
     panel = attach_neighbourhood(panel, school_neighbourhood)
     return panel, lineage_report
 
@@ -805,7 +881,8 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
     lineage_crosswalk = load_lineage_crosswalk(root)
 
     panel, lineage_report = build_event_study_panel(
-        siris_datasets, rollups, school_traffic, school_neighbourhood, lineage_crosswalk
+        siris_datasets, rollups, school_traffic, school_neighbourhood, lineage_crosswalk,
+        traffic_extras=load_traffic_extras(root),
     )
 
     report: dict[str, object] = {
@@ -834,6 +911,11 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
             for flag in SIDE_UNKNOWN_FLAGS
         },
         "vanished_schools_recovered": _vanished_recovery_counts(root),
+        **{
+            f"schools_with_{column}": int(panel.loc[panel[column].notna(), "skolenhetskod"].nunique())
+            for column in ("traffic_max_adt_250m", "traffic_max_adt_500m", "traffic_protected_road_adt")
+            if column in panel.columns
+        },
         "rows_with_traffic_match": int(panel["traffic_adt_samtliga_fordon"].notna().sum()),
         "schools_with_traffic_match": int(
             panel.loc[panel["traffic_adt_samtliga_fordon"].notna(), "skolenhetskod"].nunique()

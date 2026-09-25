@@ -38,6 +38,7 @@ PROCESSED_AADT_PANEL_FILENAME = "aadt_panel.parquet"
 PROCESSED_METADATA_FILENAME = "traffic.json"
 ASSEMBLED_SCHOOL_ROAD_MATCH_FILENAME = "school_road_match.parquet"
 ASSEMBLED_SCHOOL_AADT_PANEL_FILENAME = "school_aadt_panel.parquet"
+ASSEMBLED_SCHOOL_NEARBY_AADT_FILENAME = "school_nearby_aadt.parquet"
 
 
 def raw_aadt_path(version: str, root: Path | None = None) -> Path:
@@ -76,3 +77,8 @@ def release_year(version: str) -> int:
     if year < 0:
         raise ValueError(f"Invalid FGDL version tag '{version}'.")
     return year
+
+
+def school_nearby_aadt_path(root: Path | None = None) -> Path:
+    """`msid x release_year`: the busiest RCI road within each radius of the school."""
+    return traffic_paths(root)["assembled"] / ASSEMBLED_SCHOOL_NEARBY_AADT_FILENAME

@@ -173,6 +173,36 @@ orders. More orders, especially filling remaining gaps (e.g. between 2019
 and 2022, or before 1999), would push the rate higher still -- confirmed
 working, not a dead end.
 
+## Beyond the nearest segment: nearby and shielded-road traffic (2026-09-24)
+
+The school-level traffic control (`traffic_adt_*`) is the ÅDT of the
+school's single **nearest** counted segment. For schools a road barrier
+protects, that is the barrier's own road only 42% of the time: protected
+schools sit a median 407m back from the shielded road, and a quieter
+street is usually closer (median 265m). So `assemble` also writes three
+tables, and `panel assemble` turns them into year-varying columns, using
+the window covering Jan 1 of each year as `attach_traffic` does:
+
+| panel column | meaning | schools with a value |
+|---|---|---|
+| `traffic_max_adt_250m`, `traffic_max_adt_500m` | the busiest counted road within 250m / 500m of the school, for every school, treated or not | 618 / 984 |
+| `traffic_protected_road_adt` | ÅDT on the road of the road barrier protecting the school (the nearest protecting one, `road_protected_barrier_row`); NA for schools no road barrier protects | 30 of 38 road-protected |
+
+- **Per segment and window:** the ÅDT is the maximum over the segment's
+  direction/role rows. `Syskon` sibling rows repeat or blank the same road
+  total, so a sum would double-count.
+- **Barrier segments:** found by exact key join (`element_id` plus
+  overlapping measures). 2,143 of 2,172 road barriers have counted
+  segments.
+- **Coverage:** limited by the same historical-window coverage as
+  `traffic_adt_*` (1,021 schools).
+- **Magnitude:** for road-protected schools, median ÅDT is 8,524 at the
+  nearest segment, 11,051 for the busiest road within 500m, and 10,000 on
+  the protecting barrier's road.
+- **Use:** only `traffic_max_adt_*` is symmetric between treated and
+  control schools, so only it works as a `csdid` covariate.
+  `traffic_protected_road_adt` describes the treated.
+
 ## `TrafficFlow` (the real-time API, not NVDB) checked and ruled out -- confirmed live 2026-09-16
 
 Separately from the `Betraktelsedatum` correction above: also checked

@@ -150,7 +150,8 @@ def add_network_treatment_definitions(pair: pd.DataFrame, rollup: pd.DataFrame) 
     at least one `same_route` pair whose barrier side couldn't be
     determined, so an analysis can drop them from the `same_side` contrast
     rather than count them as untreated; `protected_unknown` does the same
-    for the `protected` tier (only pairs beside the stretch count)."""
+    for the `protected` tier (only pairs beside the stretch count).
+    `protected_barrier_row` is the protecting barrier nearest the school."""
     out = rollup.copy()
     for name in NETWORK_TIERS:
         qualifying = pair[pair[name]]
@@ -161,6 +162,12 @@ def add_network_treatment_definitions(pair: pd.DataFrame, rollup: pd.DataFrame) 
         out[f"timing_unknown_{name}"] = out["skolenhetskod"].isin(undated_schools)
     for flag in ("same_side_unknown", "protected_unknown"):
         out[flag] = out["skolenhetskod"].isin(set(pair.loc[pair[flag], "skolenhetskod"]))
+    # The protecting barrier nearest the school (by distance from its road):
+    # the one whose road's traffic the panel attaches as the shielded road.
+    protecting = pair[pair["protected"]].sort_values("lateral_m").drop_duplicates("skolenhetskod")
+    out["protected_barrier_row"] = (
+        out["skolenhetskod"].map(protecting.set_index("skolenhetskod")["barrier_row"]).astype("Int64")
+    )
     return out
 
 

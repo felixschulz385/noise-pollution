@@ -53,6 +53,11 @@ from src.regions.sweden.sources.traffic.shared import all_traffic_gpkgs, process
 
 LAYER_NAME = "TRAFIK_DK_O_105_Trafik"
 IS_CURRENT_SENTINEL = 99991231
+# Trafik's "no value" placeholder in its ÅDT columns (12 rows of
+# `Adt_samtliga_fordon`/`Adt_tunga_fordon`, 55 of `Adt_axelpar`; the real
+# 99.9th percentile is ~54,000 vehicles/day). Found 2026-09-24 when the
+# busiest-road-within-500m measure picked it up as a real maximum.
+ADT_SENTINEL = 999998
 
 _RENAME = {
     "ELEMENT_ID": "element_id",
@@ -95,7 +100,8 @@ def load_all_traffic(root: Path | None = None) -> list[gpd.GeoDataFrame]:
 
 def preprocess_traffic(raw_frames: list[gpd.GeoDataFrame]) -> gpd.GeoDataFrame:
     """Union every order's rows (each a real historical `[valid_from,
-    valid_to)` window), snake_case-renamed, deduplicated. **Does not
+    valid_to)` window), snake_case-renamed, deduplicated, with the
+    `ADT_SENTINEL` placeholder nulled in every ÅDT column. **Does not
     filter by `VALID_TO`** -- see the module docstring for why an earlier
     version's `VALID_TO == 99991231` filter was a real bug, not a
     simplification."""
@@ -103,6 +109,8 @@ def preprocess_traffic(raw_frames: list[gpd.GeoDataFrame]) -> gpd.GeoDataFrame:
     combined = pd.concat(renamed, ignore_index=True)
     non_geom_cols = [c for c in combined.columns if c != "geometry"]
     combined = combined[~combined[non_geom_cols].duplicated()]
+    adt_cols = [c for c in combined.columns if c.startswith("adt_")]
+    combined[adt_cols] = combined[adt_cols].mask(combined[adt_cols] == ADT_SENTINEL)
     return gpd.GeoDataFrame(combined, geometry="geometry", crs=raw_frames[0].crs).reset_index(drop=True)
 
 

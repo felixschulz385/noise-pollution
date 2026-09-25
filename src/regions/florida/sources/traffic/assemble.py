@@ -66,14 +66,15 @@ import pandas as pd
 
 from src.regions.florida.sources.road_network.linear_ref import arterial_subset, nearest_road
 from src.regions.florida.sources.road_network.shared import (
+    load_road_network,
     processed_metadata_path as road_network_metadata_path,
-    processed_road_network_path,
 )
 from src.regions.florida.sources.schools.shared import processed_cross_section_path
 from src.regions.florida.sources.traffic.shared import (
     processed_aadt_panel_path,
     release_year,
     school_aadt_panel_path,
+    school_nearby_aadt_path,
     school_road_match_path,
 )
 
@@ -89,13 +90,6 @@ def load_placed_schools(root: Path | None = None) -> gpd.GeoDataFrame:
         raise FileNotFoundError(f"{path} missing — run `... florida data schools preprocess` first.")
     xs = gpd.read_parquet(path)
     return xs[xs["geom_source"] != "none"].reset_index(drop=True)
-
-
-def load_road_network(root: Path | None = None) -> gpd.GeoDataFrame:
-    path = processed_road_network_path(root)
-    if not path.exists():
-        raise FileNotFoundError(f"{path} missing — run `... florida data road-network preprocess` first.")
-    return gpd.read_parquet(path)
 
 
 def load_aadt_panel(root: Path | None = None) -> pd.DataFrame:
@@ -190,6 +184,47 @@ def build_school_aadt_panel(school_road_match: pd.DataFrame, aadt_panel: pd.Data
     return out.sort_values(["msid", "release_year"], na_position="last").reset_index(drop=True)
 
 
+NEARBY_RADII_M = (250, 500)
+
+
+def match_schools_to_nearby_roadways(
+    placed: gpd.GeoDataFrame, road_network: gpd.GeoDataFrame, radius: float = max(NEARBY_RADII_M)
+) -> pd.DataFrame:
+    """Every RCI `roadway_id` passing within `radius` of each school (any road
+    class, not just arterials), with its closest distance: `msid`,
+    `roadway_id`, `dist_m`."""
+    roads = road_network[["roadway_id", "geometry"]].dropna(subset=["roadway_id"]).reset_index(drop=True)
+    points = placed.to_crs(roads.crs).reset_index(drop=True)
+    school_idx, road_idx = roads.sindex.query(points.geometry.values, predicate="dwithin", distance=radius)
+    pairs = pd.DataFrame(
+        {
+            "msid": points["msid"].to_numpy()[school_idx],
+            "roadway_id": roads["roadway_id"].to_numpy()[road_idx],
+            "dist_m": roads.geometry.values[road_idx].distance(points.geometry.values[school_idx]),
+        }
+    )
+    return pairs.groupby(["msid", "roadway_id"], as_index=False)["dist_m"].min()
+
+
+def build_school_nearby_aadt(nearby: pd.DataFrame, aadt_panel: pd.DataFrame) -> pd.DataFrame:
+    """`msid x release_year`: `traffic_max_aadt_{R}m`, the highest roadway AADT
+    among roads within R metres of the school. Unlike `school_aadt_panel`'s
+    single nearest arterial, this catches the busy highway a few hundred
+    metres away rather than the nearer quiet road (for schools protected by
+    a wall, the nearest arterial is the wall's own road only ~52% of the
+    time)."""
+    joined = nearby.merge(aadt_panel[["roadway_id", "release_year", "aadt"]], on="roadway_id")
+    frames = []
+    for radius in NEARBY_RADII_M:
+        frames.append(
+            joined[joined["dist_m"] <= radius]
+            .groupby(["msid", "release_year"])["aadt"]
+            .max()
+            .rename(f"traffic_max_aadt_{radius}m")
+        )
+    return pd.concat(frames, axis=1).reset_index()
+
+
 def save_assembled(
     school_road_match: pd.DataFrame, school_aadt_panel: pd.DataFrame, root: Path | None = None
 ) -> dict[str, str]:
@@ -215,6 +250,10 @@ def run_traffic_assemble(root: Path | None = None, max_dist: float = MAX_MATCH_D
     school_road_match = compute_local_intensity(school_road_match, aadt_panel, reference_release_year)
     school_aadt_panel = build_school_aadt_panel(school_road_match, aadt_panel)
     saved = save_assembled(school_road_match, school_aadt_panel, root)
+    nearby_aadt = build_school_nearby_aadt(match_schools_to_nearby_roadways(placed, road_network), aadt_panel)
+    nearby_path = school_nearby_aadt_path(root)
+    nearby_aadt.to_parquet(nearby_path, index=False)
+    saved["school_nearby_aadt"] = str(nearby_path)
 
     matched = school_road_match["roadway_id"].notna()
     has_ratio = school_road_match["local_intensity_ratio"].notna()
@@ -235,5 +274,6 @@ def run_traffic_assemble(root: Path | None = None, max_dist: float = MAX_MATCH_D
         "aadt_local_known_rows": (
             int(school_aadt_panel["aadt_local"].notna().sum()) if "aadt_local" in school_aadt_panel.columns else 0
         ),
+        "schools_with_nearby_aadt": int(nearby_aadt["msid"].nunique()),
         "saved": saved,
     }

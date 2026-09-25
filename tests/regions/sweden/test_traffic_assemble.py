@@ -18,12 +18,14 @@ def _schools_gdf() -> gpd.GeoDataFrame:
     )
 
 
-def _traffic_row(*, element_id, valid_from, valid_to, adt, geometry) -> dict:
+def _traffic_row(*, element_id, valid_from, valid_to, adt, geometry, direction="Med", measures=(0.0, 1.0)) -> dict:
     return {
         "element_id": element_id,
+        "start_measure": measures[0],
+        "end_measure": measures[1],
         "valid_from": valid_from,
         "valid_to": valid_to,
-        "direction": "Med",
+        "direction": direction,
         "role": "Normal",
         "adt_samtliga_fordon": adt,
         "adt_tunga_fordon": adt // 10,
@@ -108,7 +110,41 @@ def isolated_paths(tmp_path, monkeypatch):
     monkeypatch.setattr(
         ta, "assembled_school_traffic_path", lambda root=None: paths["assembled"] / "school_traffic.parquet"
     )
+    for name in ("school_traffic_nearby", "segment_adt_history", "barrier_traffic_segments"):
+        monkeypatch.setattr(ta, f"assembled_{name}_path", lambda root=None, n=name: paths["assembled"] / f"{n}.parquet")
+    monkeypatch.setattr(ta, "load_noise_barriers", lambda kind, root=None: _barriers_gdf())
     return paths
+
+
+def _barriers_gdf() -> gpd.GeoDataFrame:
+    # One road barrier on t1 (measures 0.2-0.4), one on an uncounted link.
+    return gpd.GeoDataFrame(
+        {"element_id": ["t1", "uncounted"], "start_measure": [0.2, 0.0], "end_measure": [0.4, 1.0]},
+        geometry=[LineString([(50, -6), (50, -2)]), LineString([(900, 0), (950, 0)])],
+        crs="EPSG:3006",
+    )
+
+
+def test_segment_adt_history_takes_the_max_over_direction_rows_not_the_sum():
+    rows = [
+        _traffic_row(element_id="d", valid_from=20200101, valid_to=99991231, adt=3000,
+                     geometry=LineString([(0, 0), (10, 0)])),
+        _traffic_row(element_id="d", valid_from=20200101, valid_to=99991231, adt=3000, direction="Mot",
+                     geometry=LineString([(0, 0), (10, 0)])),
+    ]
+    history = ta.segment_adt_history(gpd.GeoDataFrame(rows, crs="EPSG:3006"))
+    assert history["adt"].tolist() == [3000]
+
+
+def test_nearby_segments_are_every_counted_segment_within_the_radius():
+    nearby = ta.match_schools_to_nearby_segments(_schools_gdf(), _traffic_gdf(), radius=500.0)
+    assert nearby[["skolenhetskod", "element_id"]].values.tolist() == [["s1", "t1"]]
+    assert nearby["dist_m"].iat[0] == pytest.approx(50.0)
+
+
+def test_barriers_join_their_own_counted_segments_by_link_and_measures():
+    segments = ta.match_barriers_to_segments(_barriers_gdf(), _traffic_gdf())
+    assert segments[["barrier_row", "element_id"]].values.tolist() == [[0, "t1"]]
 
 
 def test_run_traffic_assemble_end_to_end(isolated_paths):
@@ -123,6 +159,10 @@ def test_run_traffic_assemble_end_to_end(isolated_paths):
     assert report["n_history_rows"] == 3  # s1's 2 windows + s2's 1 NA row
     assert report["median_windows_per_matched_school"] == pytest.approx(2.0)
     assert (isolated_paths["assembled"] / "school_traffic.parquet").exists()
+    assert report["schools_with_a_nearby_segment"] == 1
+    assert report["road_barriers_with_counted_segments"] == 1
+    for name in ("school_traffic_nearby", "segment_adt_history", "barrier_traffic_segments"):
+        assert (isolated_paths["assembled"] / f"{name}.parquet").exists()
 
 
 def test_run_traffic_assemble_requires_preprocess_to_have_run_first(isolated_paths):
