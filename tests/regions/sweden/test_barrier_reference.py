@@ -421,3 +421,57 @@ def test_zone_is_only_cut_beyond_the_roads_end_not_beside_a_curve_after_it():
     assert out["protected_unknown"].tolist() == [True, False]
     zone = pr.protection_zones(refs).geometry.iloc[0]
     assert zone.covers(beside) and not zone.covers(behind_start)
+
+
+def _stub_track():
+    # T1 is digitised +x up to x=1000 and -x beyond it (T1b), so the stub's
+    # through-line runs against its sibling's; T2 runs alongside at y=5.
+    return _road(
+        [
+            ("T1a", 0.0, 1.0, LineString([(0, 0), (1000, 0)])),
+            ("T1b", 0.0, 1.0, LineString([(2000, 0), (1000, 0)])),
+            ("T2", 0.0, 1.0, LineString([(0, 5), (2000, 5)])),
+        ]
+    )
+
+
+def _bis_barriers(rows):
+    """rows: (element_id, start, end, geometry, bis_object_number, recorded distance)."""
+    return gpd.GeoDataFrame(
+        {
+            "element_id": [r[0] for r in rows], "start_measure": [r[1] for r in rows], "end_measure": [r[2] for r in rows],
+            "bis_object_number": [r[4] for r in rows], "distance_from_track_center_m": [r[5] for r in rows],
+        },
+        geometry=[r[3] for r in rows],
+        crs=CRS,
+    )
+
+
+STUB = ("T1b", 0.989, 0.98901, LineString([(1011, 0), (1011.02, 0)]), 7, np.nan)
+
+
+def test_stub_takes_the_side_of_its_bis_objects_other_records():
+    # The sibling stands right of +x (away from T2, y<0); the stub, on a
+    # link digitised the other way, must protect the same y<0 side.
+    sibling = ("T1a", 0.9, 1.0, LineString([(900, 0), (1000, 0)]), 7, 4.0)
+    refs = br.build_barrier_references(_bis_barriers([sibling, STUB]), _stub_track(), osm_walls=None, kind="rail")
+    assert refs.table["side_method"].tolist() == ["track_offset", "bis_sibling"]
+    out = pr.classify_points([Point(1011, -30), Point(1011, 30)], np.array([1, 1]), refs)
+    assert out["same_side"].tolist() == [True, False]
+
+
+@pytest.mark.parametrize(
+    "others",
+    [
+        # Two records of the object disagree.
+        [("T1a", 0.9, 1.0, LineString([(900, 0), (1000, 0)]), 7, 4.0),
+         ("T2", 0.45, 0.5, LineString([(900, 5), (1000, 5)]), 7, 4.0)],
+        # The only record is another object's.
+        [("T1a", 0.9, 1.0, LineString([(900, 0), (1000, 0)]), 8, 4.0)],
+        # The object's record lies more than 50 m away.
+        [("T1a", 0.8, 0.9, LineString([(800, 0), (900, 0)]), 7, 4.0)],
+    ],
+)
+def test_stub_stays_unknown_without_one_agreeing_record_nearby(others):
+    refs = br.build_barrier_references(_bis_barriers([*others, STUB]), _stub_track(), osm_walls=None, kind="rail")
+    assert refs.table["side_method"].iat[-1] == "unknown"

@@ -46,7 +46,13 @@ M. `manual` / `manual_both_sides` -- a reviewer aligned the barrier with the
    road's other carriageway, the mainline beside a ramp): the wall stands
    on the side away from it. Agrees with OSM wall positions 93% (tagged,
    n=102) / 100% (untyped, n=37).
-5. `unknown` -- none of the above. Never counted as the protected side.
+5. `bis_sibling` (rail only) -- a stub record, its geometry under 1m
+   although its kilometre posts often span hundreds of metres, takes the
+   side of the other records of its BIS object (`bis_object_number`) within
+   50m, if they all agree. 63 rail records are such stubs (2026-09-25):
+   the pilot showed one as an invisible line, and 40 share their object
+   with longer records that carry the wall's geometry.
+6. `unknown` -- none of the above. Never counted as the protected side.
 
 Rail also records `outer_track_sign`: where parallel tracks run on one side
 only, the side away from them (the wall of an outer track stands outside).
@@ -88,7 +94,10 @@ from src.core.barrier_geometry.protection import (
 )
 from src.regions.sweden.sources._layout import METRIC_CRS
 
-SIDE_METHODS = ("manual", "manual_both_sides", "both_sides", "osm_both_sides", "osm_offset", "geometric_offset", "track_offset", "parallel_road", "unknown")
+SIDE_METHODS = (
+    "manual", "manual_both_sides", "both_sides", "osm_both_sides", "osm_offset", "geometric_offset", "track_offset",
+    "parallel_road", "bis_sibling", "unknown",
+)
 OSM_MATCH_M = 40.0
 OSM_MIN_OVERLAP_M = 30.0
 OSM_MIN_COS = 0.8
@@ -98,6 +107,9 @@ OSM_WALL_PRIORITY = {"noise_barrier": 0, "untyped_wall": 1}
 BOTH_SIDES_MIN_OVERLAP = 0.5
 TRACK_OFFSET_MIN_M = 1.0
 OSM_RECORDED_OFFSET_TOLERANCE_M = 3.0
+STUB_MAX_M = 1.0
+BIS_SIBLING_MAX_M = 50.0
+BIS_SIBLING_PROBE_M = 5.0
 # `manual` input: one row per barrier key, `decision` "side" (with the
 # aligned wall point `aligned_x`/`aligned_y` in METRIC_CRS) or "both_sides".
 MANUAL_KEY = ["element_id", "start_measure", "end_measure"]
@@ -221,6 +233,45 @@ def _manual_sign(entry: tuple | None, line) -> float | None:
     return sign if sign != 0 else None
 
 
+def is_stub(barriers_m: gpd.GeoDataFrame) -> np.ndarray:
+    """Records whose geometry is under `STUB_MAX_M`: nothing to see or
+    match, whatever their kilometre posts say."""
+    return barriers_m.geometry.length.to_numpy() < STUB_MAX_M
+
+
+def bis_sibling_signs(barriers_m: gpd.GeoDataFrame, table: pd.DataFrame, lines: dict) -> dict[int, float]:
+    """Stub row -> the side its BIS object's other records agree on. Each
+    decided record within `BIS_SIBLING_MAX_M` of the stub puts a probe
+    `BIS_SIBLING_PROBE_M` out on its side of its own through-line, beside
+    the stub; the probe's side of the stub's through-line is that record's
+    vote. A record with walls on both sides votes 0, which blocks the
+    inheritance, as does any disagreement."""
+    if "bis_object_number" not in barriers_m.columns:
+        return {}
+    bis = barriers_m["bis_object_number"].to_numpy()
+    stub = is_stub(barriers_m)
+    decided = (table["side_method"] != "unknown").to_numpy()
+    signs = table["barrier_sign"].to_numpy()
+    out = {}
+    for row in np.flatnonzero(stub & ~decided & pd.notna(bis)):
+        anchor = barriers_m.geometry.iat[row].interpolate(0.5, normalized=True)
+        votes = set()
+        for sib in np.flatnonzero((bis == bis[row]) & ~stub & decided):
+            if barriers_m.geometry.iat[sib].distance(anchor) > BIS_SIBLING_MAX_M:
+                continue
+            if signs[sib] == 0:
+                votes.add(0.0)
+                continue
+            line = lines[sib]
+            near = line.interpolate(line.project(anchor))
+            t = local_tangent(line, anchor)
+            probe = Point(near.x - t[1] * signs[sib] * BIS_SIBLING_PROBE_M, near.y + t[0] * signs[sib] * BIS_SIBLING_PROBE_M)
+            votes.add(float(signed_side(lines[row], [probe])[0][0]))
+        if len(votes) == 1 and 0.0 not in votes:
+            out[int(row)] = votes.pop()
+    return out
+
+
 def build_barrier_references(
     barriers_gdf: gpd.GeoDataFrame,
     network_gdf: gpd.GeoDataFrame,
@@ -319,5 +370,8 @@ def build_barrier_references(
         records.append(record)
 
     table = pd.DataFrame(records)
+    if kind == "rail":
+        for row, sign in bis_sibling_signs(barriers_m, table, lines).items():
+            table.loc[row, ["side_method", "barrier_sign"]] = ["bis_sibling", sign]
     table["osm_id"] = table["osm_id"].astype("Int64")
     return BarrierReferences(table=table, corridors=corridors, lines=lines, buffer_m=buffer_m, crs=METRIC_CRS)

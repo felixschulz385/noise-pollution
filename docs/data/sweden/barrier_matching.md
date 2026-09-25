@@ -41,9 +41,11 @@ The review below led to a rewrite, now in the pipeline:
   through-line used as the single side reference, and a `side_method`
   (`manual` / `manual_both_sides` → `both_sides` (road) →
   `osm_both_sides` / `osm_offset` → `geometric_offset` → `track_offset`
-  (rail) → `parallel_road` (road) → `unknown`; `both_sides` and
-  `track_offset` added in §7, the manual and `osm_both_sides` methods and
-  the stricter OSM matching in §7.6), plus the protected-area columns
+  (rail) → `parallel_road` (road) → `bis_sibling` (rail) → `unknown`;
+  `both_sides` and `track_offset` added in §7, the manual and
+  `osm_both_sides` methods and the stricter OSM matching in §7.6,
+  `bis_sibling` for sub-metre rail "stubs" in §7.7), plus the
+  protected-area columns
   (§7.1).
   Its `classify_points` gives every point `same_route` / `same_side` /
   `same_side_unknown` / `lateral_m` / `along_offset_m` / `protected` /
@@ -821,7 +823,8 @@ why the rule needs batch A.
 **Proposed decision rule, after batch A.** Batch A's rail targets include
 68 barriers with an `outer_track_sign`: 59 with spacing 3.8–10 m, 45 with a
 twin record, and 14 co-located (5 similar length). None has a recorded
-distance. Adopt `outer_track` (rail, after `track_offset`) if:
+distance. (After the §7.7 re-export: 66 in 58 tasks; the two dropped are
+stubs. The spacing and twin splits are not yet recounted.) Adopt `outer_track` (rail, after `track_offset`) if:
 - among targets with spacing 3.8–10 m, manual agreement is ≥ 90% with a
   Wilson 95% lower bound ≥ 80%, comparable to `parallel_road`'s 93%
 - no co-located target answered Both sides
@@ -838,6 +841,26 @@ count Both sides answers.
 Both sides is its own answer (key B), not an Unsure reason. Other barrier
 records within 300 m are drawn in orange. Practice tasks exclude barriers
 with a twin record. Tasks come area by area.
+
+### 7.7 Stub records and `bis_sibling` (2026-09-25)
+
+The pilot showed one task with no visible line: a rail record 2 cm long.
+The rail register has 63 records under 1 m (road none). Their kilometre
+posts often span a real wall (this one 1.1 km). That wall's geometry sits
+on other records of the same BIS object: 40 of the 63 share their
+`bis_object_number` with longer records.
+
+- **`bis_sibling`** (rail, after every other method, before `unknown`): a
+  stub takes the side all its BIS object's decided records within 50 m
+  agree on. The side is carried over geometrically: a probe 5 m out on
+  each record's protected side, tested against the stub's own
+  through-line. Both-sides records and disagreement leave it unknown.
+- **Audit:** stubs are never shown as tasks, and batch A was re-exported
+  (details in [`barrier_audit/README.md`](barrier_audit/README.md), "Stub
+  records").
+- **Effect now:** 2 stubs decided. 23 more wait on same-object records
+  that are themselves unknown, mostly audit targets, so they follow once
+  the answers are in.
 
 ## Notes on reproduction
 

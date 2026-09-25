@@ -67,7 +67,7 @@ a barrier:
 | `kind` | `road` / `rail` |
 | `barrier_row` | row position in `load_noise_barriers(kind)`; the key into the reference file |
 | `element_id`, `start_measure`, `end_measure` | the barrier's NVDB link and position along it |
-| `side_method` | `both_sides` / `osm_offset` / `geometric_offset` / `track_offset` / `parallel_road` / `unknown` |
+| `side_method` | `manual` / `manual_both_sides` / `both_sides` / `osm_both_sides` / `osm_offset` / `geometric_offset` / `track_offset` / `parallel_road` / `bis_sibling` / `unknown` |
 | `zone_status` | `protected`; or `side_unknown` (the barrier protects one of the two sides, but which is not known, so it must not count as protected) |
 | `built_year` | the barrier's construction year (often missing) |
 | `osm_id` | the OpenStreetMap wall that decided the side, for `osm_offset` |
@@ -125,6 +125,27 @@ With the §7.6 matching fixes and all 35 pilot answers
 | side-unknown area (dissolved) | 119.6 km² (119.2) | 225.1 km² (223.1) |
 | 100m grid cells protected (any barrier) | 17,117 (17,152) | 6,015 (5,880) |
 | … of which not by their nearest barrier | 2,884 (2,875) | 1,339 (1,366) |
+
+**Rebuild of 2026-09-25, afternoon.** It adds the 24 pilot answers given
+that day and the new rail method `bis_sibling`, which lets a record under
+1 m take its side from its BIS object's other records
+([`../barrier_audit/README.md`](../barrier_audit/README.md), "Stub
+records"). Changed rows, previous value in brackets:
+
+| | road | rail |
+|---|---|---|
+| `manual` | 14 (7) | 20 (9) |
+| `osm_offset` | 169 (172) | 76 (77) |
+| `track_offset` | — | 624 (629) |
+| `parallel_road` | 1,236 (1,240) | — |
+| `bis_sibling` | — | 2 (—) |
+| `unknown` | 638 | 1,101 (1,108) |
+| protected area (dissolved) | 171.9 km² (171.8) | 61.1 km² (60.5) |
+| side-unknown area (dissolved) | 119.6 km² | 224.5 km² (225.1) |
+| 100m grid cells protected (any barrier) | 17,122 (17,117) | 6,072 (6,015) |
+
+Panel schools: rail `same_side` 67 (64), rail side-unknown 206 (208);
+`protected` unchanged (road 37, rail 25).
 
 ## Why a separate stage
 
