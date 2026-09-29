@@ -35,9 +35,9 @@ fetchable the way every other source in this pipeline is.
 treated/untreated band flags below don't need SCB's real population
 counts -- only cell *geometry*, to place distance bands around barriers.
 So `preprocess.py` **builds the 100m tiling itself**, deterministically
-aligned the same way SCB's/INSPIRE's real grids are keyed (cell id from
-the SWEREF99TM coordinates of the cell's lower-left corner, snapped to
-multiples of the resolution -- see `grid/shared.py::cell_id`) -- if MONA
+aligned the same way SCB's real grids are keyed (cell id = SCB's 13-digit
+code from the SWEREF99TM coordinates of the cell's lower-left corner,
+snapped to multiples of the resolution -- see `grid/shared.py::cell_id`) -- if MONA
 access is ever obtained later, these cells line up with the real grid by
 construction, they just don't carry any of SCB's real attributes today.
 
@@ -63,6 +63,22 @@ cluster near settlements, not one country-spanning blob), total corridor
 area ~4,000 km^2, largest single component ~185 km^2 -- confirmed cheap
 (summed per-component bbox tiling is ~1.6x the true corridor cell count).
 **400,369 cells**, `data/sweden/grid/processed/grid_cells.parquet`.
+
+Columns: `cell_id`, `easting`/`northing` (the cell's SW corner,
+SWEREF99TM), `geometry` (the centroid). **`cell_id` is SCB's 13-digit code**
+(since 2026-09-29; it was `SE100mN{northing}E{easting}` before) -- 6-digit
+easting then 7-digit northing of the SW corner, e.g. `3182006374200` -- the
+form of the 100m residence coordinate in SCB's register microdata and of
+`rutid_scb` in the open 1km grid, so register residences join on it
+directly. The code doesn't carry the resolution (100m by default). Checked
+against SCB's open 2024 1km grid: all 115,062 `rutid_scb` codes equal their
+cell polygon's lower-left corner (to 5 mm), SCB's metadata says the same
+("representerar rutans nedre vänstra hörn"), and 90% of our cells sit in a
+populated SCB 1km cell. **Not confirmed:** whether SCB floors an address
+into its cell or rounds to the nearest 100m -- the public Geografidatabasen
+documentation (2016, 2021-2023) doesn't say; the MONA variable
+documentation or SCB would. If it rounds, shift register coordinates by
++50m before joining.
 
 ## `assemble` -- real run 2026-09-23
 
@@ -152,7 +168,8 @@ that `kind`'s layer has (`height_m`/`height_above_rail_top_m`, `absorbent`,
 `side_method`, `same_side`, `same_side_unknown`, `ever_treated_same_route`,
 `ever_treated_same_side`, `timing_unknown_same_route`,
 `timing_unknown_same_side`) and `grid_barrier_rollup.parquet`
-(`{kind}_`-prefixed columns side by side, one row per cell).
+(`cell_id`, then `{kind}_`-prefixed columns side by side, one row per
+cell).
 
 ## Elaborated exposure modeling (2026-09-23)
 

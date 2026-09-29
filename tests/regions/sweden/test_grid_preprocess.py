@@ -30,8 +30,11 @@ def _rail_gdf_far_away() -> gpd.GeoDataFrame:
     )
 
 
-def test_cell_id_encodes_sw_corner_and_resolution():
-    assert cell_id(318200, 6374200, 100) == "SE100mN6374200E318200"
+def test_cell_id_is_scb_six_digit_easting_then_seven_digit_northing():
+    assert cell_id(318200, 6374200) == "3182006374200"
+    # Same layout as the open 1km grid's `rutid_scb` (`5980006729000` is the
+    # cell whose SW corner is E598000 N6729000).
+    assert cell_id(598000, 6729000) == "5980006729000"
 
 
 def test_build_grid_cells_only_keeps_cells_within_buffer():
@@ -53,7 +56,7 @@ def test_build_grid_cells_ids_land_on_multiples_of_resolution():
     assert (cells["easting"] % 100 == 0).all()
     assert (cells["northing"] % 100 == 0).all()
     assert set(cells["cell_id"]) == {
-        cell_id(e, n, 100) for e, n in zip(cells["easting"], cells["northing"])
+        cell_id(e, n) for e, n in zip(cells["easting"], cells["northing"])
     }
 
 

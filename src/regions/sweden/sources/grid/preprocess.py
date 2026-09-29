@@ -67,7 +67,8 @@ def build_grid_cells(
     metric_crs: str = METRIC_CRS,
 ) -> gpd.GeoDataFrame:
     """One row per 100m cell whose centroid falls within `buffer_m` of any
-    barrier of any kind. Columns: `cell_id`, `easting`/`northing` (the
+    barrier of any kind. Columns: `cell_id` (SCB's 13-digit
+    easting+northing code, `shared.py::cell_id`), `easting`/`northing` (the
     cell's SW corner in `metric_crs`), `geometry` (the cell centroid --
     matching, not mapping, is this module's job; the polygon is always
     reconstructible from `easting`/`northing`/`resolution_m`)."""
@@ -82,7 +83,7 @@ def build_grid_cells(
     tiles = [_tile_component(component, resolution_m) for component in components]
     cells = pd.concat([t for t in tiles if t is not None], ignore_index=True)
     cells = cells.drop_duplicates(subset=["easting", "northing"]).reset_index(drop=True)
-    cells["cell_id"] = [cell_id(e, n, resolution_m) for e, n in zip(cells["easting"], cells["northing"])]
+    cells["cell_id"] = [cell_id(e, n) for e, n in zip(cells["easting"], cells["northing"])]
 
     geometry = gpd.points_from_xy(cells["easting"] + resolution_m / 2, cells["northing"] + resolution_m / 2)
     return gpd.GeoDataFrame(
