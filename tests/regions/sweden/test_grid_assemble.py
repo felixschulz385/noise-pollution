@@ -236,3 +236,29 @@ def test_run_grid_assemble_end_to_end(isolated_paths):
     assert len(combined) == 3
     assert "road_ever_near_100m" in combined.columns
     assert "rail_ever_near_100m" in combined.columns
+    treatment = pd.read_parquet(isolated_paths["assembled"] / "grid_treatment_protected.parquet")
+    assert list(treatment.columns) == [
+        "cell_id",
+        "road_treated", "road_treat_year", "road_timing_unknown", "road_side_unknown",
+        "rail_treated", "rail_treat_year", "rail_timing_unknown", "rail_side_unknown",
+    ]
+    assert len(treatment) == 3
+
+
+def test_build_protected_treatment_keeps_only_exact_years_and_flags_unclear_controls():
+    combined = pd.DataFrame(
+        {
+            "cell_id": ["dated", "undated", "side_unknown", "clean"],
+            "road_ever_treated_protected": [True, True, False, False],
+            "road_timing_unknown_protected": [False, True, False, False],
+            "road_first_treat_year_protected": pd.array([2012, 2005, pd.NA, pd.NA], dtype="Int64"),
+            "road_protected_unknown": [False, False, True, False],
+        }
+    )
+    out = ga.build_protected_treatment(combined, ("road",)).set_index("cell_id")
+
+    assert out["road_treated"].tolist() == [True, True, False, False]
+    # A year that an undated protecting barrier might precede isn't exact.
+    assert out["road_treat_year"].tolist() == [2012, pd.NA, pd.NA, pd.NA]
+    assert out["road_timing_unknown"].tolist() == [False, True, False, False]
+    assert out["road_side_unknown"].tolist() == [False, False, True, False]

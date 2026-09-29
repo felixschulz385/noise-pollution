@@ -237,6 +237,32 @@ def build_combined_rollup(cells_gdf: gpd.GeoDataFrame, rollups: dict[str, pd.Dat
     return combined
 
 
+def build_protected_treatment(combined: pd.DataFrame, kinds: tuple[str, ...] = BARRIER_KINDS) -> pd.DataFrame:
+    """The reduced file for downstream analyses: one row per cell, the
+    `protected` tier only, one indicator per barrier kind.
+
+    - `{kind}_treated` -- `ever_treated_protected`.
+    - `{kind}_treat_year` -- the earliest protecting barrier's `built_year`,
+      NA when the timing is unknown, so a year is always exact.
+    - `{kind}_timing_unknown` -- treated, but a protecting barrier is undated.
+    - `{kind}_side_unknown` -- untreated, but a barrier whose side isn't
+      known would protect the cell: not a clean control.
+
+    A residence matching no cell is more than 1km from every barrier, a
+    clean never-treated control for both kinds."""
+    out = combined[["cell_id"]].copy()
+    for kind in kinds:
+        treated = combined[f"{kind}_ever_treated_protected"].astype(bool)
+        timing_unknown = combined[f"{kind}_timing_unknown_protected"].astype(bool)
+        out[f"{kind}_treated"] = treated
+        out[f"{kind}_treat_year"] = (
+            combined[f"{kind}_first_treat_year_protected"].where(treated & ~timing_unknown).astype("Int16")
+        )
+        out[f"{kind}_timing_unknown"] = timing_unknown
+        out[f"{kind}_side_unknown"] = combined[f"{kind}_protected_unknown"].astype(bool) & ~treated
+    return out
+
+
 def run_grid_assemble(
     *,
     kinds: tuple[str, ...] = BARRIER_KINDS,
@@ -257,6 +283,9 @@ def run_grid_assemble(
     combined = build_combined_rollup(cells_gdf, rollups)
     combined_path = assembled_dir(root) / "grid_barrier_rollup.parquet"
     combined.to_parquet(combined_path, index=False)
+    treatment = build_protected_treatment(combined, kinds)
+    treatment_path = assembled_dir(root) / "grid_treatment_protected.parquet"
+    treatment.to_parquet(treatment_path, index=False)
 
     return {
         "n_cells": int(len(cells_gdf)),
@@ -298,4 +327,14 @@ def run_grid_assemble(
             for kind in kinds
         },
         "combined_rollup_path": str(combined_path),
+        "treatment_protected": {
+            kind: {
+                "n_treated": int(treatment[f"{kind}_treated"].sum()),
+                "n_treated_with_year": int(treatment[f"{kind}_treat_year"].notna().sum()),
+                "n_timing_unknown": int(treatment[f"{kind}_timing_unknown"].sum()),
+                "n_side_unknown": int(treatment[f"{kind}_side_unknown"].sum()),
+            }
+            for kind in kinds
+        },
+        "treatment_protected_path": str(treatment_path),
     }

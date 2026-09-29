@@ -171,6 +171,46 @@ that `kind`'s layer has (`height_m`/`height_above_rail_top_m`, `absorbent`,
 (`cell_id`, then `{kind}_`-prefixed columns side by side, one row per
 cell).
 
+## `grid_treatment_protected.parquet` -- the reduced file for analyses (2026-09-29)
+
+Written by `grid assemble` next to the rollups
+(`assemble.py::build_protected_treatment`): one row per cell, the
+`protected` tier only, one indicator per barrier kind. Columns: `cell_id`,
+then for `road_` and `rail_`:
+
+- `treated` -- `ever_treated_protected`.
+- `treat_year` (Int16) -- the earliest protecting barrier's `built_year`;
+  NA when the timing is unknown, so a year is always exact.
+- `timing_unknown` -- treated, but a protecting barrier is undated. Kept in
+  the file; the analysis decides what to do with them.
+- `side_unknown` -- untreated, but a barrier whose side isn't known would
+  protect the cell: not a clean control.
+
+A residence matching no cell is more than 1km from every barrier: a clean
+never-treated control for both kinds. Treatment years before the register
+data starts are left to the analysis.
+
+**Coverage, 2026-09-29 run** (400,369 cells):
+
+| | road | rail |
+|---|---|---|
+| treated, exact year | 9,803 | 5,473 |
+| treated, timing unknown | 7,334 | 599 |
+| untreated, side unknown | 10,954 | 21,748 |
+| untreated, clean control | 372,278 | 372,549 |
+
+367,778 cells (91.9%) have their protection status decided for both kinds.
+Almost every side-unknown cell hinges on a barrier with side method
+`unknown` (road 10,894, rail 21,693; the rest are geometric edge cases), so
+the manual audit can resolve them: 626 road and 1,087 rail barriers, where
+the top 100 hold 36% (road) / 42% (rail) of those cells. But only 167 of
+the road ones are dated (rail 647): resolving an undated barrier's side
+turns its cells into clean controls or undated treated cells, never into
+cells with a usable year. Caveat: 27 road and 431 rail cells counted with
+an exact year could also be protected, earlier or undated, by an
+unknown-side barrier, so their year may still move once those are
+classified.
+
 ## Elaborated exposure modeling (2026-09-23)
 
 Ported ingredients from Moretti & Wheeler (2025) -- geometry only, no new
