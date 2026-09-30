@@ -552,3 +552,125 @@ def test_outer_track_rule_without_answers():
     answers, sides, classes = _outer_track_inputs(0)
     answers = answers[answers["group"] == "validation"]
     assert pp.outer_track_report(answers, sides, classes)["decision_rule"]["verdict"] == "no answers yet"
+
+
+# -- co-located walls and the national batches -------------------------------
+
+def _road(lines, methods, **columns):
+    n = len(lines)
+    barriers_m = gpd.GeoDataFrame(
+        {"element_id": [f"E{i}" for i in range(n)], "start_measure": 0.0, "end_measure": 1.0, "material_type": "wood",
+         "height_m": 3.0, "extent_length_m": [line.length for line in lines], **columns},
+        geometry=lines, crs=CRS,
+    )
+    references = pd.DataFrame({"side_method": methods, "barrier_sign": 0.0, "osm_id": pd.array([pd.NA] * n, dtype="Int64")})
+    return {"barriers": barriers_m.to_crs(4326), "barriers_m": barriers_m, "references": references}
+
+
+NO_WALLS = gpd.GeoDataFrame({"osm_id": pd.array([], dtype="int64"), "wall_type": []}, geometry=[], crs=CRS)
+NO_SCHOOLS = gpd.GeoSeries([], crs=CRS)
+
+
+def test_co_located_walls_are_one_task_and_both_sides_places_every_record():
+    """A wall on each side of one road: two records on its centreline (the
+    second digitised the other way) are one task; a Both sides answer puts a
+    wall on each side for both records."""
+    data = {"road": _road(
+        [LineString([(X0, Y0), (X0 + 300, Y0)]), LineString([(X0 + 300, Y0), (X0, Y0)]), LineString([(X0, Y0 + 2000), (X0 + 300, Y0 + 2000)])],
+        ["both_sides", "both_sides", "unknown"], side=["left", "left", "right"],
+    )}
+    selection = pd.DataFrame({"kind": "road", "barrier_row": [0, 1, 2], "group": ["validation", "validation", "target"], "skolenhetskod": None})
+    document, key = ex.build_tasks(
+        "national_1", selection, data=data, schools_m=NO_SCHOOLS, osm_walls_m=NO_WALLS, context_m=ex.context_layer(data),
+        reviewer="tester", double_code_share=0.0, rng=np.random.default_rng(0),
+    )
+    assert len(document["tasks"]) == 2
+    pair = key[key["element_id"].isin(["E0", "E1"])]
+    assert pair["task_id"].nunique() == 1 and set(pair["strand"]) == {0, 1} and set(pair["n_strands"]) == {2}
+    assert pair.set_index("element_id")["chain_orient"].to_dict() == {"E0": 1, "E1": -1}
+    task = next(t for t in document["tasks"] if t["task_id"] == pair["task_id"].iat[0])
+    assert task["n_strands"] == 2 and task["length_m"] == 300
+    assert len(task["others_lonlat"]) == 1  # the second record, shown on the line
+
+    answers = pd.DataFrame(pair.drop(columns="geometry")).assign(
+        status="both_sides", reason=None, note=None, lateral_m=6.0, lateral_other_m=-8.0, reviewer="r"
+    )
+    answers["category"] = pp.categorize(answers)
+    lines = key.set_index(["task_id", "kind", "element_id", "start_measure", "end_measure"]).geometry
+    sides = pp.manual_sides(answers, lines).set_index("element_id")
+    assert sides["decision"].tolist() == ["both_sides", "both_sides"]
+    for element_id, row in sides.iterrows():
+        ys = sorted(part.centroid.y for part in row.geometry.geoms)
+        assert ys == pytest.approx([Y0 - 8, Y0 + 6]), element_id
+
+
+def test_national_selection_skips_stubs_manual_sides_and_earlier_batches():
+    lines = [LineString([(X0, Y0 + 100 * i), (X0 + 300, Y0 + 100 * i)]) for i in range(4)]
+    lines.append(LineString([(X0, Y0 + 500), (X0 + 0.02, Y0 + 500)]))  # a stub
+    data = {"road": _road(lines, ["unknown", "parallel_road", "manual", "unknown", "unknown"])}
+    data["road"]["pairs"] = pd.DataFrame({"barrier_row": [0], "skolenhetskod": ["S1"], "dist_m": [50.0], "same_route": [True]})
+    previous = pd.DataFrame({"kind": ["road"], "element_id": ["E3"], "start_measure": [0.0], "end_measure": [1.0], "group": ["target"]})
+    selection = ex.select_national(
+        {"n_practice": 0}, data=data, previous=previous, osm_walls=NO_WALLS, context_m=ex.context_layer(data), rng=np.random.default_rng(0)
+    )
+    assert selection[["barrier_row", "group"]].values.tolist() == [[0, "target"], [1, "validation"]]
+    assert selection["skolenhetskod"].tolist()[0] == "S1" and selection["skolenhetskod"].isna().tolist()[1]
+
+
+def test_national_priority_tiers_and_timing():
+    lines = [LineString([(X0, Y0 + 100 * i), (X0 + 300, Y0 + 100 * i)]) for i in range(5)]
+    data = {"road": _road(lines, ["unknown", "unknown", "unknown", "parallel_road", "osm_offset"],
+                          built_year=[1995.0, np.nan, 2001.0, np.nan, 2010.0])}
+    data["road"]["pairs"] = pd.DataFrame({"barrier_row": [0, 1], "same_route": [True, False]})
+    units = [pd.DataFrame({"kind": "road", "barrier_row": [r], "group": ["target"], "strand": 0, "chain_orient": 1}) for r in range(5)]
+    info = ex.national_priority(units, data, {"road": pd.DataFrame({"barrier_row": [0, 1]})})
+    assert [(i["priority_tier"], i["timed"]) for i in info] == [(1, True), (2, False), (3, True), (4, False), (5, True)]
+
+
+def test_national_order_puts_dated_first_keeps_sites_together_and_never_splits_them():
+    far = lambda k: LineString([(X0 + 5000 * k, Y0), (X0 + 5000 * k + 300, Y0)])  # noqa: E731
+    lines = [
+        far(0), LineString([(X0, Y0 + 20), (X0 + 300, Y0 + 20)]),  # one site: a wall on each carriageway
+        far(1), far(2), far(3),
+    ]
+    info = [
+        {"priority_tier": 4, "timed": True}, {"priority_tier": 1, "timed": False},  # site class: dated, tier 4
+        {"priority_tier": 1, "timed": True}, {"priority_tier": 2, "timed": False}, {"priority_tier": 3, "timed": True},
+    ]
+    units = [pd.DataFrame({"kind": "road", "barrier_row": [i], "group": ["target"]}) for i in range(5)]
+    centers = [line.interpolate(0.5, normalized=True) for line in lines]
+    batches, area_of = ex.order_national(units, centers, lines, info, {}, np.random.default_rng(0), parts=2)
+    assert batches == [[2, 4], [0, 1, 3]]
+    assert info[0]["site"] == info[1]["site"] and {i["part"] for i in info[:2]} == {2}
+    assert set(area_of) == set(range(5)) and area_of[2]["count"] == 2
+
+
+def test_both_walls_of_a_folded_line_stay_one_geometry():
+    # The offset of a spiked wall comes back in two parts on one side.
+    line = LineString([(0, 0), (50, 0), (52, 10), (54, 0), (100, 0)])
+    lines = pp.offset_lines(line, [6.0, -8.0])
+    assert lines.geom_type == "MultiLineString" and len(lines.geoms) >= 3
+    left = [p for p in lines.geoms if p.centroid.y > 0]
+    assert left and all(p.distance(Point(25, 6)) < 30 for p in left[:1])
+
+
+@pytest.mark.parametrize("status,other", [("aligned", None), ("both_sides", -8.0)])
+def test_co_located_records_sharing_their_key_get_one_row_with_a_line(status, other):
+    """Two records of one task with the same element_id and measures (a wall
+    each side, identical extents): one manual row, its geometry a line."""
+    frame = pd.DataFrame({
+        "task_id": "t1", "reviewer": "r", "answered_at": "2026-09-29T10:00:00Z", "status": status, "lateral_m": 6.0,
+        "lateral_other_m": other, "reason": None, "note": None, "batch": "national_1", "group": "target", "kind": "road",
+        "element_id": "E0", "start_measure": 0.0, "end_measure": 1.0, "center_x": 150.0, "center_y": 0.0, "n_x": 0.0,
+        "n_y": 1.0, "chain_orient": [1, -1],
+    })
+    frame["category"] = pp.categorize(frame)
+    lines = gpd.GeoSeries(
+        [LineString([(0, 0), (300, 0)]), LineString([(300, 0), (0, 0)])],
+        index=pd.MultiIndex.from_tuples([("t1", "road", "E0", 0.0, 1.0)] * 2),
+    )
+    for rows in (frame, frame.iloc[::-1]):  # whichever record's answer is taken
+        sides = pp.manual_sides(rows, lines)
+        assert len(sides) == 1
+        ys = sorted(part.centroid.y for part in getattr(sides.geometry.iat[0], "geoms", [sides.geometry.iat[0]]))
+        assert ys == pytest.approx([6.0] if other is None else [-8.0, 6.0])

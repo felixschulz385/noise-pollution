@@ -1,9 +1,18 @@
 # Barrier audit
 
 For each task you line up a noise barrier's recorded position with the
-real wall on an aerial photo. This takes about 2–3 hours in total, best in sittings of up to an hour. You
-can stop at any time: every answer is saved as soon as you give it, and
-the app continues where you left off.
+real wall on an aerial photo. A task takes about 30–45 seconds; the top
+bar shows how many tasks this folder has. Work in sittings of up to an
+hour. You can stop at any time: every answer is saved as soon as you give
+it, and the app continues where you left off.
+
+## Several folders
+
+The audit comes in several zips, one folder each. **Do them in this
+order:** `protected` first, then `national_1`, `national_2`, … up to
+`national_5`. The most important barriers come first, so it is fine if
+you don't reach the last folder. Each folder has its own answers file;
+send each one when you finish it (or part-way through).
 
 ## Starting
 
@@ -51,7 +60,16 @@ register pieces". Your answer counts for every piece.
 - If the wall stands in the middle of the road or between tracks, submit
   it there. The app asks you to confirm.
 - If there is a wall on **both sides** of the road or railway along this
-  stretch, press **Both sides** (`B`) instead of lining up one of them.
+  stretch, press **Both sides** (`B`). Then place each wall:
+  1. line up one of the walls and press `Enter`; a blue line marks it;
+  2. line up the wall on the other side and press `Enter` again.
+
+  If you can see both walls but can't place them, press `B` again. `Esc`
+  cancels.
+- When the top bar says **"2 barriers registered on this line"**, the
+  register has a record for each of two walls here, usually one on each
+  side. Check both sides carefully: if there are two walls, use
+  **Both sides**; if you only find one, line that one up.
 - Orange lines are other barriers in the register, also drawn at their
   road or track centre. They help you see which walls belong together;
   always answer for the pink line.
@@ -80,13 +98,15 @@ register pieces". Your answer counts for every piece.
   3. something else (write a short note)
   4. the wall switches to the other side along this stretch (only
      offered for barriers made of several register pieces)
-- Tasks come area by area: the top bar shows the area and how many tasks
-  are left there.
+- Tasks come area by area, and walls next to each other (both sides of
+  a road, both carriageways of a motorway, neighbouring tracks) come one
+  after another: the top bar shows the area and how many tasks are left
+  there.
 - `Backspace` goes back to the previous task. Answering it again simply
   replaces your earlier answer.
 
-The first 10 tasks are practice. After each one, a green line shows where
-the wall really is.
+A folder may start with a few practice tasks, marked **Practice**. After
+each one, a green line shows where the wall really is.
 
 ## When you are done
 
@@ -109,3 +129,7 @@ through.
   Start it again and reload the page. Nothing already saved is lost.
 - **The photo stays grey.** Check your internet connection, then reload
   the page.
+- **A grey patch in the photo.** One image tile didn't load. Zoom in or
+  out one step and it loads again.
+- **The start checks say the map did not start.** Reload the page. If it
+  happens again, close the black window and start it again.

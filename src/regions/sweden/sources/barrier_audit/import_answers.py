@@ -54,5 +54,5 @@ def run_barrier_audit_import(path: Path, *, force: bool = False, root: Path | No
         "tasks_answered": len(answered),
         "tasks_in_batch": len(known),
         "answered_by_group": dict(Counter(groups[t] for t in answered)),
-        "status": dict(Counter(r["status"] if r["status"] == "aligned" else f"unsure:{r.get('reason')}" for r in latest.values())),
+        "status": dict(Counter(r["status"] if r["status"] != "unsure" else f"unsure:{r.get('reason')}" for r in latest.values())),
     }

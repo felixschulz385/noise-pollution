@@ -5,7 +5,8 @@ blinded `tasks.json` the app shows plus the key that stays on our side.
 
 - `target`: barriers paired with panel schools whose side is unknown
   (`protected_unknown` for batch `protected`, `same_side_unknown` for
-  `same_side`, a sample of the latter for `pilot`).
+  `same_side`, a sample of the latter for `pilot`); for `national`, every
+  barrier whose side is unknown.
 - `validation`: a blind sample of auto-sided barriers paired with panel
   schools, `validation_per_method` each of `parallel_road`, `track_offset`
   and `osm_offset`.
@@ -13,6 +14,12 @@ blinded `tasks.json` the app shows plus the key that stays on our side.
   barrier, with no second barrier record running alongside (a double
   track's twin); the app shows that wall after each one. Excluded from
   results.
+
+**National batches** (`national` -> `national_1` .. `national_5`, see
+`export_national`): every register record not yet audited, dated barriers
+before undated ones and by priority tier (`PRIORITY_TIERS`), walls at one
+site (`site_labels`) one after another, cut into five batches of about
+equal size that never split a site.
 
 **Order.** Practice first, then the rest by area: tasks within
 `CLUSTER_LINK_M` of each other (chained) form one area, areas come in random
@@ -24,12 +31,17 @@ colour, at their recorded (centreline) positions.
 **One task per wall.** The register splits a wall into pieces wherever an
 attribute or the road link / track element changes (a quarter of all
 records are under 30 m). A chosen record's task therefore covers every
-piece of its wall (`linear_ref.chain_lines`: ends within 2 m, continuing
-within 30 degrees, simple paths only), drawn as one line; the pieces that
-weren't chosen join the key as group `chain`, and the answer applies to
-all of them. The key has one row per record; `task_group` is the task's
-highest group (target > validation > chain > practice). Practice tasks stay
-single records.
+piece of its wall (`_barrier_reference.register_chains`: each end joins
+its best continuation within 2 m, or 5 m in line, or 25 m within one rail
+BIS object, turning less than 30 degrees), drawn as one line; the pieces
+that weren't chosen join the key as group `chain`, and the answer applies
+to all of them. Walls whose records are co-located (a wall on each side of
+one road, each registered on its centreline) are one task: the longest is
+drawn, the others (`strand` 1..) show as other barriers on the same line,
+and the app says how many are registered there; a Both sides answer places
+a wall on each side. The key has one row per record; `task_group` is the
+task's highest group (target > validation > chain > practice). Practice
+tasks stay single records.
 
 **Type badge.** Each task carries its materials (by length) and a
 `type_group` -- `berm`, `berm_screen`, `glass`, `wall` or `mixed` -- that the
@@ -74,8 +86,8 @@ from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 from shapely.geometry import LineString, Point
 
-from src.core.barrier_geometry.linear_ref import chain_lines, join_chain
-from src.regions.sweden.sources._barrier_reference import is_stub
+from src.core.barrier_geometry.linear_ref import co_located, join_chain
+from src.regions.sweden.sources._barrier_reference import is_stub, register_chains
 from src.regions.sweden.sources._layout import METRIC_CRS
 from src.regions.sweden.sources.barrier_audit.shared import KEY_COLUMNS, barrier_audit_paths, key_path, tasks_path
 from src.regions.sweden.sources.barrier_protection.shared import references_path
@@ -100,6 +112,9 @@ BATCHES = {
     "pilot": {"target": "pilot", "n_targets": 15, "validation_per_method": 5, "n_practice": 5, "double_code_share": 0.0},
     "protected": {"target": "protected_unknown", "n_targets": None, "validation_per_method": 40, "n_practice": 10, "double_code_share": 0.15},
     "same_side": {"target": "same_side_unknown", "n_targets": None, "validation_per_method": 0, "n_practice": 10, "double_code_share": 0.15},
+    # Every barrier in the registers not yet audited, in `parts` batches
+    # national_1..: see `export_national`. Supersedes `same_side`.
+    "national": {"target": "national", "n_targets": None, "validation_per_method": 15, "n_practice": 4, "double_code_share": 0.05, "parts": 5},
 }
 DISPLAY_COLUMNS = {
     "road": {"material": "material_type", "height": "height_m"},
@@ -289,10 +304,12 @@ def _references(kind: str, barriers: gpd.GeoDataFrame, root: Path | None) -> pd.
     return refs
 
 
-def _previous_keys(batch: str, root: Path | None) -> pd.DataFrame:
+def _previous_keys(batch: str, root: Path | None, skip: tuple[str, ...] = ()) -> pd.DataFrame:
+    """Every other batch's key rows (`kind`, key, `group`), but those of
+    batches whose name starts with one of `skip`."""
     frames = []
     for path in sorted(barrier_audit_paths(root)["packages"].glob("*_key.parquet")):
-        if path.name != f"{batch}_key.parquet":
+        if path.name != f"{batch}_key.parquet" and not path.name.startswith(skip):
             frames.append(pd.read_parquet(path, columns=["kind", *KEY_COLUMNS, "group"]))
     if not frames:
         return pd.DataFrame(columns=["kind", *KEY_COLUMNS, "group"])
@@ -365,21 +382,7 @@ def select_barriers(
             taken[kind].add(row)
             chosen.append({"kind": kind, "barrier_row": row, "group": "validation"})
 
-    # Practice: tagged OSM noise barriers alongside, not in any other group,
-    # without a twin record (whose wall could be the one the reviewer picks).
-    tagged = set(osm_walls.loc[osm_walls["wall_type"] == "noise_barrier", "osm_id"].astype("int64"))
-    per_kind = {"road": spec["n_practice"] - spec["n_practice"] // 2, "rail": spec["n_practice"] // 2}
-    for kind, d in data.items():
-        refs, barriers = d["references"], d["barriers"]
-        ok = (
-            (refs["side_method"] == "osm_offset")
-            & refs["osm_id"].isin(tagged)
-            & (barriers["extent_length_m"].to_numpy() >= PRACTICE_MIN_LENGTH_M)
-        )
-        pool = sorted(set(refs.index[ok]) - taken[kind] - set(d["pairs"]["barrier_row"]) - stubs[kind])
-        pool = [r for r in pool if not has_twin(_line_2d(d["barriers_m"].geometry.iat[r]), kind, r, context_m)]
-        picks = rng.choice(len(pool), size=min(per_kind.get(kind, 0), len(pool)), replace=False) if pool else []
-        chosen += [{"kind": kind, "barrier_row": int(pool[i]), "group": "practice"} for i in sorted(picks)]
+    chosen += practice_rows(spec["n_practice"], data=data, taken=taken, stubs=stubs, osm_walls=osm_walls, context_m=context_m, rng=rng)
 
     frame = pd.DataFrame(chosen, columns=["kind", "barrier_row", "group"])
     schools = {kind: _nearest_school(d["pairs"]) for kind, d in data.items()}
@@ -387,6 +390,308 @@ def select_barriers(
         None if r.group == "practice" else schools[r.kind].get(r.barrier_row) for r in frame.itertuples()
     ]
     return frame
+
+
+def practice_rows(
+    n_practice: int,
+    *,
+    data: dict[str, dict],
+    taken: dict[str, set[int]],
+    stubs: dict[str, set[int]],
+    osm_walls: gpd.GeoDataFrame,
+    context_m: gpd.GeoDataFrame,
+    rng: np.random.Generator,
+    exclude_paired: bool = True,
+) -> list[dict]:
+    """Practice tasks: `osm_offset` barriers whose OSM wall is a tagged noise
+    barrier, at least `PRACTICE_MIN_LENGTH_M` long, not `taken` by another
+    group (nor paired with a panel school, if `exclude_paired`), without a
+    twin record (whose wall could be the one the reviewer picks). Half road,
+    half rail."""
+    if not n_practice:
+        return []
+    tagged = set(osm_walls.loc[osm_walls["wall_type"] == "noise_barrier", "osm_id"].astype("int64"))
+    per_kind = {"road": n_practice - n_practice // 2, "rail": n_practice // 2}
+    rows = []
+    for kind, d in data.items():
+        refs, barriers = d["references"], d["barriers"]
+        ok = (
+            (refs["side_method"] == "osm_offset")
+            & refs["osm_id"].isin(tagged)
+            & (barriers["extent_length_m"].to_numpy() >= PRACTICE_MIN_LENGTH_M)
+        )
+        pool = set(refs.index[ok]) - taken[kind] - stubs[kind]
+        if exclude_paired:
+            pool -= set(d["pairs"]["barrier_row"])
+        pool = [r for r in sorted(pool) if not has_twin(_line_2d(d["barriers_m"].geometry.iat[r]), kind, r, context_m)]
+        picks = rng.choice(len(pool), size=min(per_kind.get(kind, 0), len(pool)), replace=False) if pool else []
+        rows += [{"kind": kind, "barrier_row": int(pool[i]), "group": "practice"} for i in sorted(picks)]
+    return rows
+
+
+# -- national batches ------------------------------------------------------
+
+NATIONAL_PARTS = 5
+SITE_M = 30.0
+SITE_MIN_SHARE = 0.5
+POSITION_ONLY_METHODS = ("parallel_road", "both_sides")
+PRIORITY_TIERS = {
+    1: "side unknown, beside a panel school on its route",
+    2: "side unknown, near another school",
+    3: "side unknown, no school near",
+    4: "side known but not the position (parallel_road, both_sides)",
+    5: "position known from OSM or the rail register",
+}
+
+
+def select_national(
+    spec: dict,
+    *,
+    data: dict[str, dict],
+    previous: pd.DataFrame,
+    osm_walls: gpd.GeoDataFrame,
+    context_m: gpd.GeoDataFrame,
+    rng: np.random.Generator,
+) -> pd.DataFrame:
+    """Every register record of the loaded kinds, but stubs (never shown),
+    records that already have a manual side (the pilot) and records in an
+    earlier batch's key (`previous`: batch A). `target` where the side is
+    unknown, `validation` where an automatic method decided it: every such
+    barrier is audited, a census of each method's accuracy and the only
+    source of a position for `parallel_road` / `both_sides`. Plus
+    `n_practice` practice tasks, whose records keep their OSM position
+    (practice answers are excluded from results). `skolenhetskod`: the
+    nearest paired panel school, for the view centre."""
+    stubs = {kind: set(np.flatnonzero(is_stub(d["barriers_m"])).tolist()) for kind, d in data.items()}
+    taken = {}
+    for kind, d in data.items():
+        refs = d["references"]
+        prev = previous[previous["kind"] == kind]
+        earlier = d["barriers"][KEY_COLUMNS].reset_index(names="barrier_row").merge(prev[KEY_COLUMNS], on=KEY_COLUMNS)
+        manual = refs.index[refs["side_method"].astype(str).str.startswith("manual")]
+        taken[kind] = set(earlier["barrier_row"]) | set(manual)
+    practice = practice_rows(
+        spec["n_practice"], data=data, taken=taken, stubs=stubs, osm_walls=osm_walls, context_m=context_m, rng=rng, exclude_paired=False
+    )
+    in_practice = {(r["kind"], r["barrier_row"]) for r in practice}
+    rows = []
+    for kind, d in data.items():
+        refs = d["references"]
+        nearest = _nearest_school(d["pairs"])
+        for r in refs.index:
+            if r in taken[kind] or r in stubs[kind] or (kind, r) in in_practice:
+                continue
+            group = "target" if refs.at[r, "side_method"] == "unknown" else "validation"
+            rows.append({"kind": kind, "barrier_row": int(r), "group": group, "skolenhetskod": nearest.get(r)})
+    return pd.DataFrame(rows + practice, columns=["kind", "barrier_row", "group", "skolenhetskod"])
+
+
+def _all_pairs(kind: str, root: Path | None) -> pd.DataFrame:
+    """Every school's barrier pairs (not only the panel's)."""
+    return pd.read_parquet(schools_paths(root)["assembled"] / f"schools_{kind}_pairs_network.parquet", columns=["barrier_row"])
+
+
+def national_priority(units: list[pd.DataFrame], data: dict[str, dict], all_pairs: dict[str, pd.DataFrame]) -> list[dict]:
+    """Per task: `priority_tier` (`PRIORITY_TIERS`, the best of its chosen
+    records; 0 for practice) and `timed` (a chosen record has a build year:
+    the analyses can date it). `d["pairs"]` are the panel's pairs."""
+    beside_panel = {k: set(d["pairs"].loc[d["pairs"]["same_route"], "barrier_row"]) for k, d in data.items()}
+    near_school = {k: set(p["barrier_row"]) for k, p in all_pairs.items()}
+
+    def tier(kind: str, row: int) -> int:
+        method = data[kind]["references"].at[row, "side_method"]
+        if method == "unknown":
+            return 1 if row in beside_panel[kind] else 2 if row in near_school[kind] else 3
+        return 4 if method in POSITION_ONLY_METHODS else 5
+
+    info = []
+    for unit in units:
+        kind = unit["kind"].iat[0]
+        chosen = unit[unit["group"] != "chain"]
+        if (chosen["group"] == "practice").all():
+            info.append({"priority_tier": 0, "timed": True})
+            continue
+        years = data[kind]["barriers"]["built_year"].iloc[chosen["barrier_row"]] if "built_year" in data[kind]["barriers"] else pd.Series(dtype=float)
+        info.append({"priority_tier": min(tier(kind, int(r)) for r in chosen["barrier_row"]), "timed": bool(years.notna().any())})
+    return info
+
+
+def site_labels(lines: list[LineString], *, within_m: float = SITE_M, min_share: float = SITE_MIN_SHARE) -> np.ndarray:
+    """Tasks at one site: lines running within `within_m` of one another for
+    at least `min_share` of the shorter one (a wall on each side of a road,
+    the other carriageway's wall, the wall of the next track), chained."""
+    n = len(lines)
+    if n == 0:
+        return np.zeros(0, dtype=int)
+    sindex = gpd.GeoSeries(lines).sindex
+    rows, cols = [], []
+    for i, line in enumerate(lines):
+        zone = line.buffer(within_m)
+        for k in sindex.query(zone, predicate="intersects"):
+            k = int(k)
+            if k <= i:
+                continue
+            shorter = min(line.length, lines[k].length)
+            if lines[k].intersection(zone).length >= min_share * shorter:
+                rows.append(i)
+                cols.append(k)
+    _, labels = connected_components(coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n)), directed=False)
+    return labels
+
+
+def _along_site(xy: np.ndarray) -> np.ndarray:
+    """Order of a site's task centres along its main direction."""
+    if len(xy) < 3:
+        return np.argsort(xy[:, 0] if np.ptp(xy[:, 0]) >= np.ptp(xy[:, 1]) else xy[:, 1], kind="stable")
+    centred = xy - xy.mean(axis=0)
+    axis = np.linalg.svd(centred, full_matrices=False)[2][0]
+    return np.argsort(centred @ axis, kind="stable")
+
+
+def order_national(
+    units: list[pd.DataFrame],
+    centers: list[Point],
+    lines: list[LineString],
+    info: list[dict],
+    data: dict[str, dict],
+    rng: np.random.Generator,
+    *,
+    parts: int = NATIONAL_PARTS,
+    validation_per_method: int = 0,
+) -> tuple[list[list[int]], dict[int, dict]]:
+    """The national tasks in `parts` batches of about equal size.
+
+    **Priority.** Dated barriers first (`timed`), then undated; within each,
+    `priority_tier` 1 -> 5. `validation_per_method` tasks of each automatic
+    method in `VALIDATION_METHODS` are drawn into the first class (dated,
+    tier 1), mixed in area by area, so the first batch alone gives a blind
+    accuracy check.
+
+    **Sites.** Tasks at one site (`site_labels`) are served one after
+    another, along the site, and take the priority of their best task; a
+    batch never splits a site. Within a priority class, sites come area by
+    area (`cluster_order` on their centres).
+
+    Returns the unit indices per batch (practice first, in batch 1) and each
+    task's `area` label, counted within its batch. Adds `site` and `part`
+    (1..) to `info`."""
+    practice = [i for i, u in enumerate(units) if (u["group"] == "practice").all()]
+    rest = [i for i in range(len(units)) if i not in set(practice)]
+    site = dict(zip(rest, site_labels([lines[i] for i in rest])))
+    cls = {i: (0 if info[i]["timed"] else 1, info[i]["priority_tier"]) for i in rest}
+    for method in VALIDATION_METHODS:
+        pool = [
+            i for i in rest
+            if any(
+                data[units[i]["kind"].iat[0]]["references"].at[int(r.barrier_row), "side_method"] == method
+                for r in units[i].itertuples() if r.group == "validation"
+            )
+        ]
+        for j in (rng.choice(len(pool), size=min(validation_per_method, len(pool)), replace=False) if pool else []):
+            cls[pool[j]] = (0, 1)  # among the first class's sites, area by area: blind
+    members: dict[int, list[int]] = {}
+    for i in rest:
+        members.setdefault(site[i], []).append(i)
+    site_cls = {s: min(cls[i] for i in m) for s, m in members.items()}
+
+    sequence = []  # (site, class, area within class)
+    for c in sorted(set(site_cls.values())):
+        in_class = [s for s in members if site_cls[s] == c]
+        xy = np.array([np.mean([[centers[i].x, centers[i].y] for i in members[s]], axis=0) for s in in_class]).reshape(-1, 2)
+        walk, areas = cluster_order(xy, rng)
+        sequence += [(in_class[j], c, a["number"]) for j, a in zip(walk, areas)]
+
+    size = max(len(rest), 1) / parts
+    batches: list[list[int]] = [[] for _ in range(parts)]
+    blocks: list[list[tuple]] = [[] for _ in range(parts)]
+    done = 0
+    for s, c, area in sequence:
+        tasks = members[s]
+        xy = np.array([[centers[i].x, centers[i].y] for i in tasks])
+        tasks = [tasks[k] for k in _along_site(xy)]
+        b = min(parts - 1, int((done + len(tasks) / 2) // size))
+        done += len(tasks)
+        batches[b] += tasks
+        blocks[b] += [(c, area)] * len(tasks)
+        for i in tasks:
+            info[i].update(site=int(s), part=b + 1)
+    for i in practice:
+        info[i].update(site=-1, part=1)
+    batches[0] = practice + batches[0]
+    blocks[0] = [None] * len(practice) + blocks[0]
+
+    area_of: dict[int, dict] = {}
+    for tasks, labels in zip(batches, blocks):
+        runs: list[list[int]] = []
+        previous = object()
+        for i, label in zip(tasks, labels):
+            if label is None:
+                continue
+            if label != previous:
+                runs.append([])
+                previous = label
+            runs[-1].append(i)
+        for number, run in enumerate(runs, start=1):
+            for position, i in enumerate(run, start=1):
+                area_of[i] = {"number": number, "count": len(runs), "size": len(run), "position": position}
+    return batches, area_of
+
+
+def export_national(
+    spec: dict,
+    *,
+    reviewer: str,
+    seed: int,
+    kinds: tuple[str, ...] = BARRIER_KINDS,
+    root: Path | None = None,
+) -> dict:
+    """Write `national_1` .. `national_<parts>`: tasks and keys (see
+    `select_national`, `order_national`)."""
+    rng = np.random.default_rng(seed)
+    data = _load_inputs(kinds, root)
+    osm_walls_m = load_osm_walls(root).to_crs(METRIC_CRS)
+    context_m = context_layer(data)
+    previous = _previous_keys("national", root, skip=("pilot", "national_"))
+    selection = select_national(spec, data=data, previous=previous, osm_walls=osm_walls_m, context_m=context_m, rng=rng)
+    schools = load_geocoded_schools(root)
+    schools_m = schools.set_index(schools["skolenhetskod"].astype(str)).to_crs(METRIC_CRS).geometry
+    schools_m = schools_m[~schools_m.index.duplicated()]
+
+    units = task_units(selection.reset_index(drop=True), data)
+    lines = [unit_line(u, data[u["kind"].iat[0]]) for u in units]
+    centers = [unit_center(u, line, data[u["kind"].iat[0]], schools_m) for u, line in zip(units, lines)]
+    info = national_priority(units, data, {k: _all_pairs(k, root) for k in data})
+    batches, area_of = order_national(
+        units, centers, lines, info, data, rng, parts=spec["parts"], validation_per_method=spec["validation_per_method"]
+    )
+
+    parts = []
+    for number, ordered in enumerate(batches, start=1):
+        batch = f"national_{number}"
+        local = [units[i] for i in ordered]
+        document, key = build_tasks(
+            batch, None, data=data, schools_m=schools_m, osm_walls_m=osm_walls_m, context_m=context_m, reviewer=reviewer,
+            double_code_share=spec["double_code_share"], rng=rng, units=local, ordered=list(range(len(local))),
+            area_of={k: area_of[i] for k, i in enumerate(ordered) if i in area_of},
+            unit_info={k: info[i] for k, i in enumerate(ordered)},
+        )
+        tasks_file, key_file = tasks_path(batch, root), key_path(batch, root)
+        tasks_file.write_text(json.dumps(document, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        key.to_parquet(key_file, index=False)
+        per_task = key.drop_duplicates("task_id")
+        parts.append({
+            "batch": batch,
+            "n_tasks": int(len(per_task)),
+            "n_records": int(len(key)),
+            "tasks_by_tier": {int(k): int(v) for k, v in per_task["priority_tier"].value_counts().sort_index().items()},
+            "tasks_timed": int(per_task["timed"].sum()),
+            "tasks_with_co_located_walls": int((per_task["n_strands"] > 1).sum()),
+            "groups": {f"{g}/{k}": int(n) for (g, k), n in key.groupby(["group", "kind"]).size().items()},
+            "n_double_coded": int(per_task["double_code"].sum()),
+            "tasks_file": str(tasks_file),
+            "key": str(key_file),
+        })
+    return {"batch": "national", "reviewer": reviewer, "parts": parts, "spec": spec, "seed": seed}
 
 
 # -- export ----------------------------------------------------------------
@@ -421,44 +726,93 @@ GROUP_PRIORITY = ("target", "validation", "chain", "practice")
 
 
 def _chains(d: dict) -> pd.DataFrame:
-    """`chain_lines` over one kind's barriers (cached in `d`)."""
+    """`register_chains` over one kind's barriers (cached in `d`)."""
     if "chains" not in d:
-        d["chains"] = chain_lines([_line_2d(g) for g in d["barriers_m"].geometry])
+        d["chains"] = register_chains(d["barriers_m"])
     return d["chains"]
 
 
+def _co_located(d: dict) -> list[set[int]]:
+    """`linear_ref.co_located` over one kind's barriers (cached in `d`)."""
+    if "co_located" not in d:
+        d["co_located"] = co_located([_line_2d(g) for g in d["barriers_m"].geometry])
+    return d["co_located"]
+
+
+def unit_line(unit: pd.DataFrame, d: dict) -> LineString:
+    """The line a task draws: its first wall (`strand` 0), pieces joined."""
+    wall = unit[unit["strand"] == 0] if "strand" in unit else unit
+    pieces = [_line_2d(d["barriers_m"].geometry.iat[r]) for r in wall["barrier_row"]]
+    return pieces[0] if len(pieces) == 1 else join_chain(pieces, wall["chain_orient"].tolist())
+
+
+def _orient_along(piece: LineString, line: LineString) -> int:
+    """+1 if `piece` runs the way `line` does where they meet, else -1."""
+    mid = piece.interpolate(0.5, normalized=True)
+    t_piece, _ = window_frame(piece, mid, 20.0)
+    t_line, _ = window_frame(line, line.interpolate(line.project(mid)), 20.0)
+    return 1 if float(t_piece @ t_line) >= 0 else -1
+
+
 def task_units(selection: pd.DataFrame, data: dict[str, dict]) -> list[pd.DataFrame]:
-    """The records each task covers, in chain order: a practice record on its
-    own, any other chosen record together with every piece of its wall's
-    chain (`chain_lines`). Records of the chain that weren't chosen join as
-    group `chain`: the reviewer sees them in the overlay, so the answer
-    applies to them too. Columns: `kind`, `barrier_row`, `group`,
-    `skolenhetskod`, `chain_orient`."""
+    """The records each task covers: a practice record on its own; any other
+    chosen record together with every piece of its wall (`register_chains`),
+    in chain order; and walls whose records are co-located
+    (`linear_ref.co_located`: a wall on each side of one road, all drawn on
+    its centreline) in one task. Records of a wall that weren't chosen join
+    as group `chain`: the reviewer sees them, so the answer applies to them
+    too.
+
+    Columns: `kind`, `barrier_row`, `group`, `skolenhetskod`, `strand` (0
+    for the wall the task draws -- the longest -- 1.. for the walls
+    co-located with it) and `chain_orient` (+1 if the record is digitised
+    along the task's line, -1 against it)."""
     units = []
     practice = selection[selection["group"] == "practice"]
     for r in practice.itertuples():
         units.append(pd.DataFrame([{"kind": r.kind, "barrier_row": int(r.barrier_row), "group": "practice",
-                                    "skolenhetskod": None, "chain_orient": 1}]))
+                                    "skolenhetskod": None, "strand": 0, "chain_orient": 1}]))
     rest = selection[selection["group"] != "practice"].copy()
     rest["chain_id"] = [int(_chains(data[r.kind])["chain_id"].iat[r.barrier_row]) for r in rest.itertuples()]
-    for (kind, chain_id), chosen in rest.groupby(["kind", "chain_id"], sort=False):
-        chains = _chains(data[kind])
-        members = chains.index[chains["chain_id"] == chain_id]
-        unit = chains.loc[members].sort_values("chain_pos")
-        unit = pd.DataFrame({"kind": kind, "barrier_row": unit.index.astype(int), "chain_orient": unit["chain_orient"].to_numpy()})
-        unit = unit.merge(chosen[["barrier_row", "group", "skolenhetskod"]], on="barrier_row", how="left")
-        unit["group"] = unit["group"].fillna("chain")
-        units.append(unit)
+    for kind, chosen_kind in rest.groupby("kind", sort=False):
+        d = data[kind]
+        chains = _chains(d)
+        walls = []
+        for chain_id, chosen in chosen_kind.groupby("chain_id", sort=False):
+            members = chains.index[chains["chain_id"] == chain_id]
+            wall = chains.loc[members].sort_values("chain_pos")
+            wall = pd.DataFrame({"kind": kind, "barrier_row": wall.index.astype(int), "chain_orient": wall["chain_orient"].to_numpy()})
+            wall = wall.merge(chosen[["barrier_row", "group", "skolenhetskod"]], on="barrier_row", how="left")
+            wall["group"] = wall["group"].fillna("chain")
+            walls.append(wall)
+        # Walls sharing a line: one task.
+        wall_of = {int(r): w for w, wall in enumerate(walls) for r in wall["barrier_row"]}
+        colocated = _co_located(d)
+        pairs = {(w, wall_of[p]) for r, w in wall_of.items() for p in colocated[r] if p in wall_of and wall_of[p] != w}
+        graph = coo_matrix((np.ones(len(pairs)), ([a for a, _ in pairs], [b for _, b in pairs])), shape=(len(walls), len(walls)))
+        _, labels = connected_components(graph, directed=False)
+        for label in pd.unique(labels):
+            group = [walls[w] for w in np.flatnonzero(labels == label)]
+            lengths = [sum(_line_2d(d["barriers_m"].geometry.iat[r]).length for r in w["barrier_row"]) for w in group]
+            group = [group[i] for i in sorted(range(len(group)), key=lambda i: (-lengths[i], i))]  # longest first
+            unit = group[0].assign(strand=0)
+            line = unit_line(unit, d)
+            for strand, wall in enumerate(group[1:], start=1):
+                orient = [_orient_along(_line_2d(d["barriers_m"].geometry.iat[r]), line) for r in wall["barrier_row"]]
+                unit = pd.concat([unit, wall.assign(strand=strand, chain_orient=orient)], ignore_index=True)
+            units.append(unit[["kind", "barrier_row", "group", "skolenhetskod", "strand", "chain_orient"]])
     return units
 
 
 def unit_metadata(unit: pd.DataFrame, d: dict, kind: str) -> dict:
     """The top-bar metadata of a task covering `unit`'s records: the barrier
     type (materials ordered by length; `type_group` for the app's badge), the
-    height (or its range) and the total length."""
+    height (or its range), the length of the wall it draws, and how many
+    walls are registered on that line (`n_strands`)."""
     rows = [d["barriers"].iloc[r] for r in unit["barrier_row"]]
     meta = [display_metadata(row, kind) for row in rows]
     lengths = [_line_2d(d["barriers_m"].geometry.iat[r]).length for r in unit["barrier_row"]]
+    strands = unit["strand"].tolist() if "strand" in unit else [0] * len(unit)
     by_material: dict[str, float] = {}
     for m, length in zip(meta, lengths):
         if m["material"]:
@@ -470,14 +824,28 @@ def unit_metadata(unit: pd.DataFrame, d: dict, kind: str) -> dict:
         "material": ", ".join(materials) or None,
         "type_group": None if not groups else groups.pop() if len(groups) == 1 else "mixed",
         "height_m": None if not heights else [min(heights), max(heights)],
-        "length_m": round(sum(lengths)),
+        "length_m": round(sum(length for length, strand in zip(lengths, strands) if strand == 0)),
         "n_records": len(unit),
+        "n_strands": len(set(strands)),
     }
+
+
+def unit_center(unit: pd.DataFrame, line: LineString, d: dict, schools_m: gpd.GeoSeries) -> Point:
+    """The task's view centre on its `line`: the point nearest the paired
+    school of its highest-group chosen record, else the point beside that
+    record's midpoint."""
+    chosen = unit[unit["group"] != "chain"].copy()
+    chosen["_rank"] = chosen["group"].map(GROUP_PRIORITY.index)
+    for r in chosen.sort_values(["_rank", "barrier_row"]).itertuples():
+        if isinstance(r.skolenhetskod, str) and r.skolenhetskod in schools_m.index:
+            return line.interpolate(line.project(schools_m.loc[r.skolenhetskod]))
+    first = _line_2d(d["barriers_m"].geometry.iat[int(chosen.sort_values("_rank")["barrier_row"].iat[0])])
+    return line.interpolate(line.project(first.interpolate(0.5, normalized=True)))
 
 
 def build_tasks(
     batch: str,
-    selection: pd.DataFrame,
+    selection: pd.DataFrame | None,
     *,
     data: dict[str, dict],
     schools_m: gpd.GeoSeries,
@@ -487,40 +855,36 @@ def build_tasks(
     double_code_share: float,
     rng: np.random.Generator,
     view_m: float = VIEW_M,
+    units: list[pd.DataFrame] | None = None,
+    ordered: list[int] | None = None,
+    area_of: dict[int, dict] | None = None,
+    unit_info: dict[int, dict] | None = None,
 ) -> tuple[dict, gpd.GeoDataFrame]:
     """The blinded tasks document and the key, in task order: practice
-    first (shuffled), then everything else area by area (`cluster_order`).
-    One task per wall (`task_units`); the key has one row per record, each
-    with the point of its own piece nearest the view (`center_x/y`) and the
-    task's left normal there (`n_x/y`), so an answer's offset places every
-    piece's wall."""
+    first (shuffled), then everything else area by area (`cluster_order`),
+    unless `ordered` (indices into `units`, practice first) and `area_of`
+    give the order (the national batches, `order_national`). One task per
+    wall, or per group of co-located walls (`task_units`, or `units` when
+    given); the key has one row per record, each with the point of its own
+    piece nearest the view (`center_x/y`) and the task's left normal there
+    (`n_x/y`), so an answer's offset places every piece's wall. `unit_info`
+    adds per-task columns to the key (the national batches' priority)."""
     walls_by_id = osm_walls_m.set_index(osm_walls_m["osm_id"].astype("int64")).geometry
-    units = task_units(selection.reset_index(drop=True), data)
-    lines, centers = [], []
-    for unit in units:
-        d = data[unit["kind"].iat[0]]
-        pieces = [_line_2d(d["barriers_m"].geometry.iat[r]) for r in unit["barrier_row"]]
-        line = pieces[0] if len(pieces) == 1 else join_chain(pieces, unit["chain_orient"].tolist())
-        chosen = unit[unit["group"] != "chain"].copy()
-        chosen["_rank"] = chosen["group"].map(GROUP_PRIORITY.index)
-        center = None
-        for r in chosen.sort_values(["_rank", "barrier_row"]).itertuples():
-            if isinstance(r.skolenhetskod, str) and r.skolenhetskod in schools_m.index:
-                center = line.interpolate(line.project(schools_m.loc[r.skolenhetskod]))
-                break
-        if center is None:
-            first = _line_2d(d["barriers_m"].geometry.iat[int(chosen.sort_values("_rank")["barrier_row"].iat[0])])
-            center = line.interpolate(line.project(first.interpolate(0.5, normalized=True)))
-        lines.append(line)
-        centers.append(center)
+    if units is None:
+        units = task_units(selection.reset_index(drop=True), data)
+    lines = [unit_line(unit, data[unit["kind"].iat[0]]) for unit in units]
+    centers = [unit_center(unit, line, data[unit["kind"].iat[0]], schools_m) for unit, line in zip(units, lines)]
     is_practice = np.array([u["group"].iat[0] == "practice" for u in units])
-    practice = list(rng.permutation(np.flatnonzero(is_practice)))
-    rest = np.flatnonzero(~is_practice)
-    walk, areas = cluster_order(np.array([[centers[i].x, centers[i].y] for i in rest]).reshape(-1, 2), rng)
-    ordered = [int(i) for i in practice] + [int(rest[j]) for j in walk]
-    area_of = dict(zip(ordered[len(practice):], areas))
-    n_double = int(round(double_code_share * len(rest)))
-    double = set(rng.choice(np.arange(len(practice), len(ordered)), size=n_double, replace=False).tolist()) if n_double else set()
+    if ordered is None:
+        practice = list(rng.permutation(np.flatnonzero(is_practice)))
+        rest = np.flatnonzero(~is_practice)
+        walk, areas = cluster_order(np.array([[centers[i].x, centers[i].y] for i in rest]).reshape(-1, 2), rng)
+        ordered = [int(i) for i in practice] + [int(rest[j]) for j in walk]
+        area_of = dict(zip(ordered[len(practice):], areas))
+    area_of = area_of or {}
+    n_practice = int(is_practice[ordered].sum()) if len(ordered) else 0
+    n_double = int(round(double_code_share * (len(ordered) - n_practice)))
+    double = set(rng.choice(np.arange(n_practice, len(ordered)), size=n_double, replace=False).tolist()) if n_double else set()
 
     ids: set[str] = set()
     tasks, keys = [], []
@@ -541,7 +905,8 @@ def build_tasks(
             "kind": kind,
             **unit_metadata(unit, d, kind),
             **geometry,
-            "others_lonlat": context_barriers(context_m, kind, set(unit["barrier_row"]), center),
+            # Co-located walls (strand 1..) show as other barriers on the line.
+            "others_lonlat": context_barriers(context_m, kind, set(unit.loc[unit["strand"] == 0, "barrier_row"]), center),
             "area": area_of.get(i),
             "practice": task_group == "practice",
         }
@@ -576,12 +941,15 @@ def build_tasks(
                     "outer_track_sign": float(ref.get("outer_track_sign", np.nan)),
                     "skolenhetskod": r.skolenhetskod if isinstance(r.skolenhetskod, str) else None,
                     "n_records": len(unit),
+                    "strand": int(r.strand),
+                    "n_strands": int(unit["strand"].nunique()),
                     "chain_orient": int(r.chain_orient),
                     "center_x": point.x,
                     "center_y": point.y,
                     "n_x": float(normal[0]),
                     "n_y": float(normal[1]),
                     "practice_lateral_m": np.nan if answer is None else answer["lateral_m"],
+                    **(unit_info or {}).get(i, {}),
                     "geometry": piece,
                 }
             )
@@ -612,6 +980,11 @@ def run_barrier_audit_export(
     if batch not in BATCHES:
         raise ValueError(f"unknown batch {batch!r}; one of {sorted(BATCHES)}")
     spec = dict(BATCHES[batch])
+    if spec["target"] == "national":
+        for name, value in {"validation_per_method": validation_per_method, "n_practice": n_practice, "double_code_share": double_code_share}.items():
+            if value is not None:
+                spec[name] = value
+        return export_national(spec, reviewer=reviewer, seed=seed, kinds=kinds, root=root)
     for name, value in {
         "n_targets": n_targets,
         "validation_per_method": validation_per_method,

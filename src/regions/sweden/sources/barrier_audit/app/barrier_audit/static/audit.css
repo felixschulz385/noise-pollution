@@ -11,6 +11,7 @@ body.audit {
   --others: #ffa31a;
   --streetview: #6a3d9a;
   --satellite: #0e6f78;
+  --placed: #29d3ff;
 }
 
 #topbar {
@@ -140,6 +141,18 @@ button.primary kbd { background: transparent; color: inherit; border-color: rgba
 .swatch.overlay { background: var(--overlay); }
 .swatch.wall { background: var(--wall); }
 .swatch.others { background: var(--others); }
+.swatch.placed { background: var(--placed); }
+
+/* Both sides (0.7.0): which wall to line up now; the map stays usable. */
+.both-bar {
+  position: absolute; top: 58px; left: 50%; transform: translateX(-50%); z-index: 4;
+  width: min(560px, calc(100% - 32px)); padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.95); border: 2px solid var(--both); border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35); font-size: 14px; pointer-events: none;
+}
+.both-bar[hidden] { display: none; }
+.both-bar strong { color: var(--both); }
+.both-bar .hint { color: var(--muted); font-size: 12.5px; margin: 4px 0 0; }
 
 .error {
   position: absolute;

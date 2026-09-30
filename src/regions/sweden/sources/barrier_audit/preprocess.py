@@ -30,7 +30,11 @@ one category it decides:
 The aligned point is the view centre moved by the mean `lateral_m` along
 the normal: where the reviewer put the line on the wall. The row's geometry
 is the barrier offset by that distance (shapely's `offset_curve`, positive =
-left, the same convention as the app).
+left, the same convention as the app). A `both_sides` answer from app 0.7.0
+on places both walls: `lateral_m` (> 0, left) and `lateral_other_m` (< 0),
+means over the answers that placed them, and the geometry is both offset
+lines (a MultiLineString); earlier answers, or "both sides but I can't place
+them", leave them empty.
 
 **Report:** answers whose barrier is no longer in the barrier layer
 (`stale`), the `not_visible` and `conflict` barriers, validation accuracy
@@ -51,7 +55,7 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.geometry import Point
+from shapely.geometry import MultiLineString, Point
 
 from src.core.barrier_geometry.linear_ref import signed_side
 from src.regions.sweden.sources._layout import METRIC_CRS
@@ -90,7 +94,7 @@ TWIN_MIN_SHARE = 0.5
 TRACK_OFFSET_MIN_M = 1.0
 
 ANSWER_COLUMNS = [
-    "batch", "reviewer", "task_id", "status", "reason", "note", "lateral_m", "along_residual_m",
+    "batch", "reviewer", "task_id", "status", "reason", "note", "lateral_m", "lateral_other_m", "along_residual_m",
     "zoom", "seconds_on_task", "answered_at", "app_version", "streetview_opens", "satellite_opens", "imagery",
 ]
 
@@ -151,6 +155,35 @@ def decide(categories: list[str]) -> tuple[str, str | None]:
     return DECISIONS[category], category
 
 
+def _record_line(lines: gpd.GeoSeries, index: tuple, row: pd.Series):
+    """The line of the record `row` answered for. Co-located records can
+    share their key (82 road, 65 rail records) and lie on one centreline,
+    possibly digitised against each other: take the one running the way
+    `row["chain_orient"]` says, relative to the task's direction (the left
+    normal `n` turned right)."""
+    candidates = lines.loc[[index]]
+    if len(candidates) == 1:
+        return candidates.iloc[0]
+    along = np.array([row["n_y"], -row["n_x"]]) * row["chain_orient"]
+    center = Point(row["center_x"], row["center_y"])
+    for line in candidates:
+        s = line.project(center)
+        a, b = line.interpolate(max(s - 1.0, 0.0)), line.interpolate(min(s + 1.0, line.length))
+        if (b.x - a.x) * along[0] + (b.y - a.y) * along[1] > 0:
+            return line
+    return candidates.iloc[0]
+
+
+def offset_lines(line, distances: list[float]) -> MultiLineString:
+    """`line` offset by each distance, as one MultiLineString. A curved
+    line's offset can come back in several parts (a spike folds over)."""
+    parts = []
+    for distance in distances:
+        offset = line.offset_curve(distance)
+        parts += [g for g in getattr(offset, "geoms", [offset]) if not g.is_empty]
+    return MultiLineString(parts)
+
+
 def manual_sides(answers: pd.DataFrame, lines: gpd.GeoSeries) -> gpd.GeoDataFrame:
     """One row per barrier with a non-practice answer. `lines` maps a key
     row's (`task_id`, `kind`, *KEY_COLUMNS) to that record's line (EPSG:3006)
@@ -170,6 +203,7 @@ def manual_sides(answers: pd.DataFrame, lines: gpd.GeoSeries) -> gpd.GeoDataFram
             **dict(zip(KEY_COLUMNS, key)),
             "decision": decision,
             "lateral_m": np.nan,
+            "lateral_other_m": np.nan,
             "aligned_x": np.nan,
             "aligned_y": np.nan,
             "n_answers": len(group),
@@ -181,6 +215,17 @@ def manual_sides(answers: pd.DataFrame, lines: gpd.GeoSeries) -> gpd.GeoDataFram
             "notes": " | ".join(n for n in group["note"].dropna() if n) or None,
             "geometry": None,
         }
+        if decision == "both_sides" and "lateral_other_m" in group:
+            placed = group[(group["category"] == "both_sides") & group["lateral_other_m"].notna()]
+            if len(placed):
+                first = placed.iloc[0]
+                left, right = float(placed["lateral_m"].mean()), float(placed["lateral_other_m"].mean())
+                line = _record_line(lines, (first["task_id"], kind, *key), first)
+                record.update(
+                    lateral_m=left,
+                    lateral_other_m=right,
+                    geometry=offset_lines(line, [left * first["chain_orient"], right * first["chain_orient"]]),
+                )
         if decision == "side":
             chosen = group[group["category"] == category]
             first = chosen.iloc[0]
@@ -189,7 +234,7 @@ def manual_sides(answers: pd.DataFrame, lines: gpd.GeoSeries) -> gpd.GeoDataFram
                 lateral_m=lateral,
                 aligned_x=first["center_x"] + lateral * first["n_x"],
                 aligned_y=first["center_y"] + lateral * first["n_y"],
-                geometry=lines.loc[(first["task_id"], kind, *key)].offset_curve(lateral * first["chain_orient"]),
+                geometry=_record_line(lines, (first["task_id"], kind, *key), first).offset_curve(lateral * first["chain_orient"]),
             )
         rows.append(record)
     return gpd.GeoDataFrame(rows, columns=list(rows[0]) if rows else ["kind", *KEY_COLUMNS, "decision", "geometry"],

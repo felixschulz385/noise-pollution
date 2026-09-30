@@ -444,7 +444,11 @@ def command_barrier_audit_export(args: argparse.Namespace) -> int:
         double_code_share=args.double_code_share,
     )
     if not args.no_zip:
-        result["zip"] = build_batch_zip(args.batch)
+        if "parts" in result:
+            for part in result["parts"]:
+                part["zip"] = build_batch_zip(part["batch"])
+        else:
+            result["zip"] = build_batch_zip(args.batch)
     print_json({"domain": "barrier_audit", "stage": "export", **result})
     return 0
 

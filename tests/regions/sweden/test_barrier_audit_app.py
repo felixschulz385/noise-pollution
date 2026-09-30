@@ -128,6 +128,17 @@ def test_walls_on_both_sides_is_its_own_answer(audit):
     assert json.loads(_get(base + "/api/tasks")[2])["answers"]["aaaa0001"]["status"] == "both_sides"
 
 
+def test_both_sides_places_one_wall_on_each_side_up_first(audit):
+    """0.7.0: Both sides records each wall's offset, the upper (left) one in
+    `lateral_m`, whichever the reviewer placed first."""
+    base, _ = audit
+    assert _post(base + "/api/answer", _answer(status="both_sides", lateral_m=-7.1, lateral_other_m=6.2))[0] == 200
+    answer = json.loads(_get(base + "/api/tasks")[2])["answers"]["aaaa0001"]
+    assert (answer["lateral_m"], answer["lateral_other_m"]) == (6.2, -7.1)
+    assert _post(base + "/api/answer", _answer("aaaa0002", status="both_sides", lateral_m=0.0))[0] == 200
+    assert json.loads(_get(base + "/api/tasks")[2])["answers"]["aaaa0002"]["lateral_other_m"] is None
+
+
 @pytest.mark.parametrize(
     "bad",
     [
@@ -149,6 +160,9 @@ def test_walls_on_both_sides_is_its_own_answer(audit):
         {"satellite_opens": 2.0},
         {"imagery": "sepia"},
         {"imagery": None},
+        {"lateral_other_m": -4.0},  # only Both sides places a second wall
+        {"status": "both_sides", "lateral_m": 5.0, "lateral_other_m": 3.0},  # same side
+        {"status": "both_sides", "lateral_m": 5.0, "lateral_other_m": "x"},
     ],
 )
 def test_invalid_answers_are_rejected_and_not_written(audit, bad):

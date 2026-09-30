@@ -121,6 +121,18 @@ def validate_answer(answer: dict, task_ids: set) -> dict:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise ValueError(f"{field} must be a finite number")
         clean[field] = round(float(value), 3)
+    # Both sides with positions (0.7.0): the second wall, on the other side.
+    other = answer.get("lateral_other_m")
+    if other is not None:
+        if status != "both_sides":
+            raise ValueError("only both_sides answers have lateral_other_m")
+        if isinstance(other, bool) or not isinstance(other, (int, float)) or not math.isfinite(other):
+            raise ValueError("lateral_other_m must be a finite number")
+        other = round(float(other), 3)
+        if clean["lateral_m"] * other >= 0:
+            raise ValueError("the two walls must be on opposite sides")
+        clean["lateral_m"], other = max(clean["lateral_m"], other), min(clean["lateral_m"], other)
+    clean["lateral_other_m"] = other
     answered_at = answer.get("answered_at")
     if not isinstance(answered_at, str) or len(answered_at) > 40:
         raise ValueError("answered_at must be an ISO timestamp")

@@ -6,6 +6,9 @@
 
   var C = window.AuditCommon, G = window.AuditGeometry;
   var NUDGE_M = 0.25, NUDGE_SHIFT_M = 2, MIN_SIDE_OFFSET_M = 2;
+  // A Shift nudge lands at 1.99999 m: count it as 2 m (the server rounds).
+  var SIDE_TOLERANCE_M = 0.005;
+  var MAP_START_TIMEOUT_MS = 60000;
   var MIN_ZOOM = 14, MAX_ZOOM = 21;
   // The start view fits the whole wall, but no coarser than this (the
   // finest photo is 0.16 m, served at ~0.15 m/px) and no finer than the
@@ -14,7 +17,8 @@
   var EMPTY = { type: "FeatureCollection", features: [] };
 
   var tasks = [], answers = {}, index = -1, task = null;
-  var phase = "loading";  // loading | start | task | unsure | note | confirm | feedback | done
+  var phase = "loading";  // loading | start | task | both1 | both2 | unsure | note | confirm | feedback | done
+  var firstWall = null;  // Both sides: the offset of the wall placed first
   var shownAt = 0, current = { d: 0, along: 0 }, pendingReason = null;
   var streetViewOpens = 0, satelliteOpens = 0, imagery = "colour";  // imagery: colour | infrared
   var LOOK_TAB = "barrier_lookaround";  // one side tab, shared by Street View and satellite
@@ -23,6 +27,8 @@
   function el(id) { return document.getElementById(id); }
   function show(id, on) { el(id).hidden = !on; }
   function fmt(v, digits) { return (Math.round(v * Math.pow(10, digits)) / Math.pow(10, digits)).toFixed(digits); }
+
+  function onCentre(d) { return Math.abs(d) < MIN_SIDE_OFFSET_M - SIDE_TOLERANCE_M; }
 
   function arrow(d) {
     if (Math.abs(d) < 0.005) return "0.00 m";
@@ -35,11 +41,13 @@
       show(id, p === id || (id === "unsure" && p === "note"));
     });
     show("note-wrap", p === "note");
+    var placing = p === "both1" || p === "both2";
+    show("both-bar", placing);
     var working = p === "task";
-    el("btn-submit").disabled = !working;
+    el("btn-submit").disabled = !(working || placing);
     el("btn-unsure").disabled = !working;
-    el("btn-both").disabled = !working;
-    var looking = p === "task" || p === "unsure";
+    el("btn-both").disabled = !(working || placing);
+    var looking = p === "task" || p === "unsure" || placing;
     el("btn-streetview").disabled = !looking;
     el("btn-satellite").disabled = !looking;
     el("btn-imagery").disabled = !looking;
@@ -84,6 +92,7 @@
           ghost: { type: "geojson", data: EMPTY },
           others: { type: "geojson", data: EMPTY },
           overlay: { type: "geojson", data: EMPTY },
+          placed: { type: "geojson", data: EMPTY },
           wall: { type: "geojson", data: EMPTY }
         },
         layers: [
@@ -95,6 +104,7 @@
           { id: "others", type: "line", source: "others",
             paint: { "line-color": "#ffa31a", "line-opacity": 0.9, "line-width": 2 } },
           { id: "wall", type: "line", source: "wall", paint: { "line-color": "#2bff7a", "line-width": 3 } },
+          { id: "placed", type: "line", source: "placed", paint: { "line-color": "#29d3ff", "line-width": 2.5 } },
           { id: "overlay", type: "line", source: "overlay", paint: { "line-color": "#ff2bd6", "line-width": 2.5 } }
         ]
       }
@@ -174,7 +184,7 @@
     var label = type.label + (t.material && group !== "berm" && group !== "berm_screen" ? ": " + t.material : "");
     el("type-badge").textContent = label;
     el("type-badge").className = "type-badge type-" + group;
-    el("type-hint").textContent = type.hint;
+    el("type-hint").textContent = type.hint + (t.n_strands > 1 ? " " + t.n_strands + " barriers are registered here: check both sides." : "");
   }
 
   function heightText(h) {
@@ -187,13 +197,17 @@
     var parts = [t.kind];
     if (t.height_m) parts.push(heightText(t.height_m));
     if (t.length_m) parts.push(t.length_m + " m long");
-    if (t.n_records > 1) parts.push("one barrier in " + t.n_records + " register pieces");
+    if (t.n_strands > 1) parts.push(t.n_strands + " barriers registered on this line");
+    else if (t.n_records > 1) parts.push("one barrier in " + t.n_records + " register pieces");
     return parts.join(" · ");
   }
 
   function answerText(a) {
     if (!a) return "";
-    if (a.status === "both_sides") return "your answer: both sides";
+    if (a.status === "both_sides") {
+      var placed = a.lateral_other_m !== null && a.lateral_other_m !== undefined;
+      return "your answer: both sides" + (placed ? " (" + arrow(a.lateral_m) + ", " + arrow(a.lateral_other_m) + ")" : "");
+    }
     return "your answer: " + (a.status === "aligned" ? arrow(a.lateral_m) : "unsure (" + a.reason.replace(/_/g, " ") + ")");
   }
 
@@ -223,6 +237,8 @@
     el("previous").textContent = answerText(answers[task.task_id]);
     map.getSource("ghost").setData(lineFeature(task.line_lonlat));
     map.getSource("wall").setData(EMPTY);
+    map.getSource("placed").setData(EMPTY);
+    firstWall = null;
     map.jumpTo(startView(task));
     onMove();
     show("btn-streetview", hasStreetView());
@@ -293,7 +309,7 @@
     }
   }
 
-  function send(status, reason, note) {
+  function send(status, reason, note, walls) {
     if (sending) return;
     sending = true;
     var record = {
@@ -301,7 +317,10 @@
       status: status,
       reason: reason,
       note: note || null,
-      lateral_m: current.d,
+      // Both sides: the wall above the road (up, > 0) and below it (< 0);
+      // without positions, 0 and null.
+      lateral_m: walls ? walls[0] : status === "both_sides" ? 0 : current.d,
+      lateral_other_m: walls ? walls[1] : null,
       along_residual_m: current.along,
       zoom: map.getZoom(),
       seconds_on_task: (performance.now() - shownAt) / 1000,
@@ -318,18 +337,60 @@
         else goNext();
       })
       .catch(function (e) {
-        setPhase("task");
+        setPhase(phase === "both2" ? "both2" : "task");
         error("The answer was not saved (" + e.message + "). Is the black window still open? Try again.");
       })
       .then(function () { sending = false; });
   }
 
   function submit() {
-    if (Math.abs(current.d) < MIN_SIDE_OFFSET_M && phase === "task") {
+    if (phase === "both1" || phase === "both2") { placeWall(); return; }
+    if (onCentre(current.d) && phase === "task") {
       setPhase("confirm");
       return;
     }
     send("aligned", null, null);
+  }
+
+  // Both sides (0.7.0): line up one wall, Enter; the other, Enter.
+  function bothStep(text) {
+    el("both-step").innerHTML = text;
+  }
+
+  function startBoth() {
+    firstWall = null;
+    map.getSource("placed").setData(EMPTY);
+    bothStep("<strong>Both sides, wall 1 of 2:</strong> line up either wall, then press <kbd>Enter</kbd>.");
+    setPhase("both1");
+  }
+
+  function cancelBoth() {
+    firstWall = null;
+    map.getSource("placed").setData(EMPTY);
+    setPhase("task");
+  }
+
+  function placeWall() {
+    var d = current.d;
+    if (onCentre(d)) {
+      error("Line up a wall first: the line is still on the road centre.");
+      return;
+    }
+    error("");
+    if (phase === "both1") {
+      firstWall = d;
+      map.getSource("placed").setData(lineFeature(G.overlayLonLat(task, d)));
+      map.jumpTo({ center: G.centerAt(task, 0, current.along) });
+      bothStep("<strong>Both sides, wall 2 of 2:</strong> <span class=\"swatch placed\"></span> marks the first wall. " +
+        "Now line up the wall on the <em>other</em> side, then press <kbd>Enter</kbd>.");
+      setPhase("both2");
+      return;
+    }
+    if ((d > 0) === (firstWall > 0)) {
+      error("This wall is on the same side as the first one. Line up the wall on the other side of the road or railway.");
+      return;
+    }
+    send("both_sides", null, null, [Math.max(d, firstWall), Math.min(d, firstWall)]);
   }
 
   function chooseReason(reason) {
@@ -356,11 +417,11 @@
       title = "Practice: both sides";
       text = "OpenStreetMap has one wall here, at " + arrow(truth) + " (green line). If you can see a second wall " +
         "on the other side too, your answer may still be right: OpenStreetMap is not complete.";
-    } else if (record.status === "aligned" && Math.abs(record.lateral_m) < MIN_SIDE_OFFSET_M) {
+    } else if (record.status === "aligned" && onCentre(record.lateral_m)) {
       title = "Not quite";
       text = "You left the line on the road centre; the wall is at " + arrow(truth) + ". Drag the photo until the line lies on the green line's wall.";
     } else if (record.status === "aligned") {
-      var sameSide = Math.abs(record.lateral_m) >= MIN_SIDE_OFFSET_M && (record.lateral_m > 0) === (truth > 0);
+      var sameSide = !onCentre(record.lateral_m) && (record.lateral_m > 0) === (truth > 0);
       var off = Math.abs(record.lateral_m - truth);
       title = sameSide ? (off <= 2 ? "Well done" : "Right side") : "Not quite";
       text = "You moved the line " + arrow(record.lateral_m) + "; the wall is at " + arrow(truth) + ". " +
@@ -414,6 +475,25 @@
       else if (e.key === "Escape") { e.preventDefault(); setPhase("task"); }
       return;
     }
+    if (phase === "both1" || phase === "both2") {
+      switch (e.key) {
+        case "ArrowUp": e.preventDefault(); nudge(e.shiftKey ? NUDGE_SHIFT_M : NUDGE_M); break;
+        case "ArrowDown": e.preventDefault(); nudge(-(e.shiftKey ? NUDGE_SHIFT_M : NUDGE_M)); break;
+        case "Enter": e.preventDefault(); placeWall(); break;
+        case "b": case "B": e.preventDefault(); send("both_sides", null, null); break;
+        case "Escape": e.preventDefault(); error(""); cancelBoth(); break;
+        case "g": case "G": e.preventDefault(); openStreetView(); break;
+        case "m": case "M": e.preventDefault(); openSatellite(); break;
+        case "i": case "I": e.preventDefault(); toggleImagery(); break;
+        case "f": case "F": e.preventDefault(); toggleWholeWall(); break;
+        case "r": case "R": e.preventDefault(); map.jumpTo({ center: G.centerAt(task, 0, 0) }); break;
+        case " ":
+          e.preventDefault();
+          if (!e.repeat) map.setLayoutProperty("overlay", "visibility", "none");
+          break;
+      }
+      return;
+    }
     if (phase === "confirm") {
       if (e.key === "Enter") { e.preventDefault(); send("aligned", null, null); }
       else if (e.key === "Escape") { e.preventDefault(); setPhase("task"); }
@@ -433,7 +513,7 @@
       case "ArrowDown": e.preventDefault(); nudge(-(e.shiftKey ? NUDGE_SHIFT_M : NUDGE_M)); break;
       case "Enter": e.preventDefault(); submit(); break;
       case "u": case "U": e.preventDefault(); setPhase("unsure"); break;
-      case "b": case "B": e.preventDefault(); send("both_sides", null, null); break;
+      case "b": case "B": e.preventDefault(); startBoth(); break;
       case "g": case "G": e.preventDefault(); openStreetView(); break;
       case "m": case "M": e.preventDefault(); openSatellite(); break;
       case "i": case "I": e.preventDefault(); toggleImagery(); break;
@@ -456,11 +536,15 @@
   }, true);
   el("btn-submit").addEventListener("click", submit);
   el("btn-unsure").addEventListener("click", function () { setPhase("unsure"); });
-  el("btn-both").addEventListener("click", function () { if (phase === "task") send("both_sides", null, null); });
-  el("btn-streetview").addEventListener("click", function () { if (phase === "task" || phase === "unsure") openStreetView(); });
-  el("btn-satellite").addEventListener("click", function () { if (phase === "task" || phase === "unsure") openSatellite(); });
-  el("btn-imagery").addEventListener("click", function () { if (phase === "task" || phase === "unsure") toggleImagery(); });
-  el("btn-wall").addEventListener("click", function () { if (phase === "task" || phase === "unsure") toggleWholeWall(); });
+  el("btn-both").addEventListener("click", function () {
+    if (phase === "task") startBoth();
+    else if (phase === "both1" || phase === "both2") send("both_sides", null, null);
+  });
+  function looking() { return phase === "task" || phase === "unsure" || phase === "both1" || phase === "both2"; }
+  el("btn-streetview").addEventListener("click", function () { if (looking()) openStreetView(); });
+  el("btn-satellite").addEventListener("click", function () { if (looking()) openSatellite(); });
+  el("btn-imagery").addEventListener("click", function () { if (looking()) toggleImagery(); });
+  el("btn-wall").addEventListener("click", function () { if (looking()) toggleWholeWall(); });
   el("btn-start").addEventListener("click", begin);
   el("btn-note").addEventListener("click", saveNote);
   el("btn-continue").addEventListener("click", goNext);
@@ -508,7 +592,8 @@
         if (!(gl.webgl2 || gl.webgl1)) throw new Error("The map needs WebGL.");
         var imagery = check("Aerial imagery", "pending", "loading…");
         var first = tasks[Math.max(0, nextIndex(-1))];
-        return Promise.all([buildMap(), C.checkTile(first.center[0], first.center[1])]).then(function (res) {
+        var mapStart = C.withTimeout(buildMap(), MAP_START_TIMEOUT_MS, "The map");
+        return Promise.all([mapStart, C.checkTile(first.center[0], first.center[1])]).then(function (res) {
           var r = res[1];
           imagery.remove();
           check("Aerial imagery", r.ok ? (r.warn ? "warn" : "ok") : "fail", r.detail);
@@ -516,7 +601,7 @@
         });
       })
       .catch(function (e) {
-        check("Start", "fail", e.message);
+        check("Start", "fail", e.message + ". Reload the page (F5); if it happens again, restart the black window.");
       });
   }
 

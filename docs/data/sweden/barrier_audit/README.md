@@ -1,27 +1,22 @@
 # `barrier_audit`: manual side audit of noise barriers
 
-**Status (2026-09-25): phases 0-2 done.**
-- The device check passed on the reviewer's laptop.
-- The app (0.6.0), exporter, `import`, `preprocess` and the `manual` side
-  method are built and tested. When the photo isn't clear enough, the
-  reviewer can switch to the infrared photo (I) or open Google satellite
-  (M) or, on road tasks, Street View (G). See
-  [below](#beyond-the-aerial-photo-app-030040-2026-09-25).
-- Since 0.5.0, a wall the register splits into pieces is one task, and a
-  badge on the map says what type of barrier to look for. See
-  [below](#one-task-per-wall-and-the-type-badge-app-050-2026-09-25).
-- Since 0.6.0, the map starts with the whole wall in view where that fits
-  at 0.3 m/px, and F shows the whole wall at any scale. See
-  [below](#whole-wall-view-app-060-2026-09-25).
-- The pilot is complete: 59 answers on 42 barriers, 34 records with a
-  manual side (road 14, rail 20), in the build.
-- Records under 1 m (rail "stubs") are no longer shown, and take their
-  side from their BIS object's other records. See
-  [below](#stub-records-2026-09-25).
-- The batch-A zip (`protected`) was re-exported on 2026-09-25 after the
-  stub fix, with app 0.6.0: 199 tasks covering 421 records,
-  `barrier_audit_protected_20260925.zip`. It has not been sent yet.
-- Next: phase 3, batch A.
+**Status (2026-09-29): phases 0-2 done; six zips ready, none sent.**
+- The device check passed on the reviewer's laptop; the pilot is complete
+  (59 answers on 42 barriers, 34 records with a manual side in the build).
+- **App 0.7.0** (2026-09-29): Both sides places each wall; walls whose
+  records are co-located are one task; a Shift nudge to exactly 2 m no
+  longer asks "still on the centre?"; the map start times out with a
+  message. See [below](#every-barrier-in-the-country-app-070-2026-09-29).
+- **Batch A** (`protected`, 199 tasks, 421 records): the same tasks as
+  exported on 2026-09-25, repackaged with app 0.7.0:
+  `barrier_audit_protected_20260929.zip` (the 0.6.0 zip was removed unsent).
+- **National batches** (2026-09-29): every other barrier in the registers,
+  `barrier_audit_national_1_20260929.zip` … `_5_`: 1,989 tasks, 3,608
+  records, dated barriers first, by priority, one site after another.
+- **Order for the reviewer:** `protected`, then `national_1` … `national_5`.
+- Earlier releases: 0.3.0–0.4.0 (infrared, satellite, Street View), 0.5.0
+  (one task per wall, type badge), 0.6.0 (whole-wall view), stub records
+  hidden; see the sections below.
 
 The app is run by a student assistant (the *reviewer*) on a restricted
 university laptop that allows Anaconda but little else. This document is
@@ -190,12 +185,15 @@ so the reviewer settles one place (e.g. both records of a double track)
 before moving on. Groups are mixed within an area, and the reviewer
 can't tell the groups apart.
 
-| group | batch A (`protected`) | later batch B (`same_side`) |
+| group | batch A (`protected`) | the national batches (`national_1` … `_5`, 2026-09-29) |
 |---|---|---|
-| practice (with feedback, excluded from results) | 10 | — |
-| target: side unknown | 96 records (16 road + 80 rail) in 82 tasks | the remaining ~635 |
-| validation: blind sample of auto-sided barriers | 40 each of `parallel_road`, `track_offset`, `osm_offset` | top-up if needed |
-| double-coded by Felix (for agreement) | 15% random overlap | 15% |
+| practice (with feedback, excluded from results) | 10 | 4 |
+| target: side unknown | 96 records (16 road + 80 rail) in 82 tasks | every other barrier whose side is unknown |
+| validation: auto-sided barriers | blind sample, 40 each of `parallel_road`, `track_offset`, `osm_offset` | all of them (a census); 15 per method drawn into `national_1` |
+| double-coded by Felix (for agreement) | 15% random overlap | 5% |
+
+The national batches replace the planned batch B; see
+[below](#every-barrier-in-the-country-app-070-2026-09-29).
 
 - **Practice tasks** use `osm_offset` barriers whose OSM wall is a tagged
   noise barrier, at least 80 m long, with no second barrier record running
@@ -297,7 +295,8 @@ and never goes into the zip.
 | `task_id`, `batch`, `reviewer` | identity (one task can cover several records of one wall) |
 | `status` | `aligned` / `both_sides` / `unsure` (reasons `occluded`, `not_visible`, `other`, and since 0.5.0 `changes_side`) |
 | `reason`, `note` | only for `unsure` (`note` is optional elsewhere) |
-| `lateral_m` | signed offset; + = left of the barrier's digitised direction |
+| `lateral_m` | signed offset; + = left of the barrier's digitised direction. Both sides (0.7.0): the left wall (> 0), or 0 when the walls weren't placed |
+| `lateral_other_m` | Both sides (0.7.0): the right wall (< 0); `null` otherwise, or when the walls weren't placed |
 | `along_residual_m` | along-road part of the drag (quality check) |
 | `zoom`, `seconds_on_task`, `answered_at` | effort and timing |
 | `streetview_opens`, `satellite_opens` | times Street View / Google satellite was opened on the task (0.3.0 / 0.4.0; 0 when absent) |
@@ -333,7 +332,8 @@ $P preprocess                                   # -> processed/manual_sides.parq
 |---|---|---|---|---|
 | `pilot` | 15 sampled `same_side_unknown` barriers that aren't `protected_unknown` | 5 | 5 | 0 |
 | `protected` | all `protected_unknown` (99) | 40 | 10 | 15% |
-| `same_side` | all `same_side_unknown` not in an earlier batch | 0 | 10 | 15% |
+| `same_side` | all `same_side_unknown` not in an earlier batch (superseded by `national`, never exported) | 0 | 10 | 15% |
+| `national` → `national_1` … `national_5` | every register record not in `protected`, without a manual side, not a stub; auto-sided ones as `validation` (a census) | 15 drawn into `national_1` | 4 (in `national_1`) | 5% |
 
 A barrier already in another batch's key is not drawn again for targets
 or validation. The seed is fixed (`20260924`), so re-exporting a batch
@@ -769,6 +769,88 @@ grouping doesn't join them, because a 2 cm line has no direction.
     100).
   - Rail targets with an `outer_track_sign`: 66 records in 58 tasks (was
     68 in 60).
+
+## Every barrier in the country (app 0.7.0, 2026-09-29)
+
+**Why.** Downstream analyses need the side *and* position of every barrier
+in the registers, not only those beside panel schools. The planned batch B
+(`same_side`) would also have re-asked 110 records already in batch A and
+113 whose barrier side was known (schools past the barrier's end are
+`same_side_unknown` whatever the barrier's side).
+
+**Scope.** Every register record (road 2,172, rail 1,829), except batch A's
+421, the 16 with a manual side from the pilot, and the 49 rail stubs under
+1 m (they take their side from their BIS object). Unknown side → `target`;
+an automatic side → `validation`, so every automatic method is checked in
+full, and `parallel_road` / `both_sides` barriers get a position for the
+first time. Only Trafikverket's registers: OSM maps ≥ 350 noise barriers
+(50 km) more than 100 m from any register barrier, e.g. along municipal
+streets; they are not in the audit.
+
+**Walls and co-located records.** The export uses the new joining rule
+(`../barrier_matching.md` §7.8): road 1,581 → 1,438 walls, rail 1,177 →
+902. Walls whose records are co-located (a wall on each side of a road,
+both drawn on its centreline) are one task: the longest is drawn, the
+others show on the line, and the top bar and type card say "2 barriers
+registered on this line: check both sides". 133 national tasks are such
+groups. 82 road and 65 rail records share their key with a co-located
+partner, so an answer applies to both (`preprocess._record_line` takes
+each record's own direction).
+
+**Both sides places each wall (0.7.0).** B → line up one wall, Enter (a
+blue line marks it, the view returns to the centre) → line up the wall on
+the other side, Enter. A second wall on the same side is refused. B again:
+both sides without positions; Esc cancels. The answer has `lateral_m` (> 0,
+left) and `lateral_other_m` (< 0); `manual_sides.parquet` gets both, and a
+MultiLineString of the two offset lines (curved walls can add parts).
+
+**Priority, timing, sites.** Each task gets a `priority_tier`
+(`export.PRIORITY_TIERS`) and `timed` (a record has a build year):
+
+| tier | meaning |
+|---|---|
+| 1 | side unknown, beside a panel school on its route |
+| 2 | side unknown, near another school |
+| 3 | side unknown, no school near |
+| 4 | side known, no position (`parallel_road`, `both_sides`) |
+| 5 | position known from OSM or the rail register (re-measured) |
+
+Dated tasks come first (tiers 1 → 5), then undated ones (1 → 5). Walls
+within 30 m of each other for half the shorter one's length (both sides of
+a road, both carriageways, neighbouring tracks) form a **site**: its tasks
+come one after another, along the site, with the priority of its best
+task. 1,689 sites, 247 of more than one task. 15 tasks each of
+`parallel_road`, `track_offset` and `osm_offset` are drawn into the first
+class, mixed in by area, so `national_1` alone gives a blind accuracy check.
+
+**Five batches** of about 400 tasks, cut between sites:
+
+| batch | tasks | dated | contents |
+|---|---|---|---|
+| `national_1` | 401 | 381 | 4 practice; dated tiers 1, 2 and part of 3; the validation sample |
+| `national_2` | 397 | 393 | dated: rest of tier 3, most of tier 4 |
+| `national_3` | 397 | 272 | dated: rest of tiers 4–5; undated tier 1 |
+| `national_4` | 397 | 0 | undated tiers 2–3 |
+| `national_5` | 397 | 0 | undated: rest of tier 3, tiers 4–5 |
+
+1,042 of 1,989 tasks are dated. 5% of each batch (20 tasks) is flagged for
+double-coding. Practice: 4 tasks in `national_1` only.
+
+**Checked (2026-09-29).**
+- On the whole register: every record is in batch A or one national task
+  (bar stubs and the pilot's), no co-located pair is split across tasks,
+  all 247 multi-task sites are served back to back, no site is split
+  across batches, and the priority never goes back after `national_1`.
+- In headless Chrome from the unzipped `national_1` zip on Python 3.9:
+  all 401 tasks with scripted answers (Both sides with both walls, a
+  refused same-side second wall, "can't place", Unsure reasons, practice
+  feedback "Well done" 4/4, 48 answers at exactly ±2 m without a prompt),
+  then `import` and `preprocess` in a scratch data root: 25/25 answers put
+  on the OSM wall reproduce `osm_offset`'s side, and all 272 placed Both
+  sides rows have a wall on each side of their own line. That run found
+  two bugs, fixed before release: a curved wall's offset in several parts,
+  and key-sharing records. The repackaged batch A zip ran 40 tasks on
+  0.7.0, including Both sides placements.
 
 ## Decisions (2026-09-24)
 

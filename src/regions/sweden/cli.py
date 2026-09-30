@@ -317,7 +317,10 @@ def _register_barrier_audit(domains: argparse._SubParsersAction) -> None:
         help="Pick a batch's barriers and write its blinded tasks, its key and the reviewer zip. Requires "
         "barrier-protection build, schools assemble and panel assemble",
     )
-    ba_export.add_argument("--batch", required=True, choices=["pilot", "protected", "same_side"])
+    ba_export.add_argument(
+        "--batch", required=True, choices=["pilot", "protected", "same_side", "national"],
+        help="national: every barrier not yet audited, written as national_1..national_5",
+    )
     ba_export.add_argument("--reviewer", default="assistant", help="Name in the answers file (letters, digits, - or _)")
     ba_export.add_argument("--seed", type=int)
     ba_export.add_argument("--n-targets", type=int, help="Default: all (pilot: 15)")

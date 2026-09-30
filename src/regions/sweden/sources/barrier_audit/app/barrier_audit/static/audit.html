@@ -42,7 +42,10 @@
         <p><strong>Drag the photo</strong> (or press <kbd>&uarr;</kbd>/<kbd>&darr;</kbd>) until the line lies on the wall.
           Match the wall's foot or its shadow line, not its top. Then press <strong>Submit</strong> (<kbd>Enter</kbd>).</p>
         <p>If there is a wall on <em>both</em> sides of the road or railway along this stretch, press
-          <strong>Both sides</strong> (<kbd>B</kbd>) instead of choosing one.</p>
+          <strong>Both sides</strong> (<kbd>B</kbd>): then line up one wall and press <kbd>Enter</kbd>, and line up
+          the wall on the other side and press <kbd>Enter</kbd> again. If you can see both walls but can't place
+          them, press <kbd>B</kbd> again. When the top bar says that two barriers are registered on this line,
+          check both sides especially carefully.</p>
         <p>The box at the top left of the map says <strong>what kind of barrier</strong> to look for: an earth
           berm is a grassy bank, not a wall. Long barriers are shown whole, even where the register splits them
           into pieces. The map starts zoomed to show the whole wall where it can do so at full detail;
@@ -77,6 +80,11 @@
       <p class="hint"><kbd>Esc</kbd> back to the map</p>
     </section>
 
+    <div id="both-bar" class="both-bar" hidden>
+      <div id="both-step"></div>
+      <p class="hint"><kbd>Enter</kbd> place this wall · <kbd>B</kbd> both sides, but I can't place them · <kbd>Esc</kbd> cancel</p>
+    </div>
+
     <section id="confirm" class="panel" hidden>
       <h2>The line is still near the road centre</h2>
       <p>The line has moved less than 2 m. That is right for a wall in the middle of the road or between tracks.</p>
@@ -102,7 +110,7 @@
   <button type="button" id="btn-submit" class="side-button submit" disabled><span>Submit</span><kbd>Enter</kbd></button>
 </main>
 <footer id="keys">
-  <kbd>&uarr;</kbd><kbd>&darr;</kbd> nudge 0.25 m (<kbd>Shift</kbd> 2 m) · <kbd>Enter</kbd> submit · <kbd>B</kbd> both sides · <kbd>I</kbd> infrared · <kbd>F</kbd> whole wall · <kbd>M</kbd> satellite · <kbd>G</kbd> Street View (roads) · <kbd>U</kbd> unsure ·
+  <kbd>&uarr;</kbd><kbd>&darr;</kbd> nudge 0.25 m (<kbd>Shift</kbd> 2 m) · <kbd>Enter</kbd> submit · <kbd>B</kbd> both sides (then place each wall) · <kbd>I</kbd> infrared · <kbd>F</kbd> whole wall · <kbd>M</kbd> satellite · <kbd>G</kbd> Street View (roads) · <kbd>U</kbd> unsure ·
   <kbd>R</kbd> reset · <kbd>Space</kbd> hold to hide the line · <kbd>Backspace</kbd> previous task · scroll to zoom
 </footer>
 <script src="/static/vendor/maplibre-gl.js"></script>
