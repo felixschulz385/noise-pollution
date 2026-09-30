@@ -136,9 +136,12 @@ The refinements moved these numbers in both directions:
   rail 62.
 
 **Analysis:** `output/notebooks/sweden/analysis.ipynb` was re-run on
-2026-09-24 with `MATCH_TIER = "protected"`: 42 treated schools, 18 of them
-built inside the 1998–2019 window. See its Summary. It predates the §7.6
-rebuild and has not been re-run since. The manual-audit app
+2026-09-28 with `MATCH_TIER = "same_side"`, an interim until the audit has
+located every barrier: 104 treated schools, 45 of them built inside the
+1998–2019 window, ATT -0.060 (p=0.443), and every robustness check null.
+The 2026-09-24 `protected` run (42 treated, 18 in-window, ATT 0.337,
+p=0.030) predates the §7.6 rebuild; see the notebook's Summary for the
+comparison. The target tier stays `protected`. The manual-audit app
 (§5) is built
 ([`barrier_audit/README.md`](barrier_audit/README.md), 2026-09-24): its
 answers enter as `side_method = "manual"` / `"manual_both_sides"` ahead of
@@ -760,8 +763,8 @@ other 5 were `unknown`. Five answers were
 on the OSM wall's side, includes the two wrong practice matches described
 above.
 
-`output/notebooks/sweden/analysis.ipynb` predates this rebuild; its
-numbers (42 treated schools, ATT 0.337) are stale until it is re-run.
+`output/notebooks/sweden/analysis.ipynb` was re-run on this rebuild on
+2026-09-28, on `same_side` (see the Analysis note at the top).
 
 **Outer tracks, a closer look (2026-09-25).** Two of the checks available
 in the data turn out to be circular, and the one independent source is
