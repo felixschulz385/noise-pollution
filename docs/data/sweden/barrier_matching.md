@@ -832,10 +832,31 @@ stubs. The spacing and twin splits are not yet recounted.) Adopt `outer_track` (
 If co-located records do show walls on both sides, treat similar-length
 co-located pairs like road's `both_sides` before applying `outer_track`.
 
-Before batch A comes back, `audit_report.json` → `outer_track` should
-report agreement split by spacing band, by twin/co-located, and by target
-vs validation (validation = `track_offset` barriers, not independent), and
-count Both sides answers.
+**The report (built 2026-09-25).** `audit_report.json` → `outer_track`
+splits agreement by spacing band, by neighbours (co-located / twin /
+single) and by recorded distance, for targets and validation separately
+(validation = `track_offset` barriers, outer by construction). Its
+`decision_rule` applies the rule above and gives a verdict (see
+[`barrier_audit/README.md`](barrier_audit/README.md)). The spacing is the
+references' new `outer_track_spacing_m`.
+
+**Recount of batch A's rail targets** with the report's definitions
+(co-located: same track, within 1 m, overlapping ≥ half; twin: alongside
+on another track within 25 m, not co-located; similar length: ≥ 0.8):
+
+| spacing | co-located | twin | single | total |
+|---|---|---|---|---|
+| 3.8–10 m | 9 | 26 | 22 | 57 |
+| < 3.8 m | 2 | 1 | 2 | 5 |
+| > 10 m | 0 | 2 | 2 | 4 |
+| total | 11 | 29 | 26 | 66 |
+
+- **The rule scores 57 records in 50 tasks.** None has a recorded distance.
+  At 57 records, 52 must agree (5 may not); counted by wall (50), 46.
+- **Co-located targets:** 11, 4 of similar length.
+- **These counts differ from the ad-hoc ones above** (59 in band, 45 twins,
+  14 co-located, 5 similar length). One reason: twins now exclude co-located
+  records. Another: two stubs were dropped.
 
 **Audit app 0.2.0** (see [`barrier_audit/README.md`](barrier_audit/README.md)):
 Both sides is its own answer (key B), not an Unsure reason. Other barrier

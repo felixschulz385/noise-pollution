@@ -290,9 +290,11 @@ def test_outer_track_sign_points_away_from_the_other_tracks_and_is_not_a_side_me
     refs = br.build_barrier_references(_rail_barrier(np.nan), _double_track(), osm_walls=None, kind="rail")
     assert refs.table.loc[0, "side_method"] == "unknown"
     assert refs.table.loc[0, "outer_track_sign"] == -1.0
+    assert refs.table.loc[0, "outer_track_spacing_m"] == pytest.approx(5.0)  # T2 runs 5 m to the left
     three = pd.concat([_double_track(), _road([("T0", 0.0, 1.0, LineString([(0, -5), (2000, -5)]))])], ignore_index=True)
     refs = br.build_barrier_references(_rail_barrier(np.nan), three, osm_walls=None, kind="rail")
     assert np.isnan(refs.table.loc[0, "outer_track_sign"])  # a middle track
+    assert np.isnan(refs.table.loc[0, "outer_track_spacing_m"])
     road = br.build_barrier_references(_barrier("A", 0.20, 0.25, LineString([(400, 0), (500, 0)])), _divided_road(), osm_walls=None, kind="road")
     assert np.isnan(road.table.loc[0, "outer_track_sign"])
 

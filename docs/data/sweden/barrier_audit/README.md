@@ -362,12 +362,16 @@ conformal, so screen-up is `n`.
 `barrier_row` changes when the barrier layer is rebuilt. Other columns:
 - `decision`, `lateral_m`, and the aligned point `aligned_x`/`aligned_y`
 - the offset line (EPSG:3006, shapely `offset_curve(lateral_m)`)
-- `n_answers`, `reviewers`, `categories`, `notes`, `stale`, and
-  `manual_sign` (against the saved through-line, for the report)
+- `n_answers`, `n_superseded`, `reviewers`, `categories`, `notes`,
+  `stale`, and `manual_sign` (against the saved through-line, for the
+  report)
 
 **From answers to one decision per barrier.**
 - Each reviewer's last answer per task counts, and practice answers are
   excluded.
+- A reviewer who answered the same barrier in several tasks counts once,
+  with their latest answer (since 2026-09-25; `n_superseded` counts the
+  others). Different reviewers still have to agree.
 - Each answer gets a category: `left` / `right` (aligned, `|lateral_m| ≥
   2 m`), `centre` (aligned, smaller offset), `both_sides`, or its Unsure
   reason.
@@ -403,7 +407,24 @@ conformal, so screen-up is `n`.
     in the key), how often the manual side is the one away from the other
     tracks, for targets and validation separately. This decides whether
     `outer_track` becomes a side method
-    ([`../barrier_matching.md`](../barrier_matching.md) §7.6).
+    ([`../barrier_matching.md`](../barrier_matching.md) §7.6). Since
+    2026-09-25, each group is also split:
+    - by the other track's spacing (`<3.8`, `3.8-10`, `>10` m; from the
+      references' `outer_track_spacing_m`)
+    - by neighbours: `co_located` (another record on the same track,
+      within 1 m, overlapping ≥ half the shorter), else `twin` (a record
+      alongside on another track, the exporter's 25 m test), else
+      `single`
+    - by whether a distance from the track is recorded
+
+    Each split gives records and walls (`n_walls_sided`). `decision_rule`
+    applies the adoption rule to the targets (spacing 3.8–10 m: agreement
+    ≥ 90%, Wilson lower bound ≥ 80%, no co-located target answered Both
+    sides) and gives a `verdict`: `adopt`; `do not adopt` (agreement
+    under 90%, or Both sides on a co-located target); `too few answers`
+    (agreement high enough, but the lower bound still under 80%); or `no
+    answers yet`. The pilot's 8/8 is `too few answers`. It also counts co-located targets of similar length (the
+    shorter ≥ 0.8 of the longer; §7.6 gave no threshold).
 
   To be written up in `barrier_matching.md` once batch A is in.
 - **Later, not in v1.** The manual offset line gives the wall's real

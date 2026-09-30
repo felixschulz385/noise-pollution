@@ -93,6 +93,10 @@ One row per barrier, keyed by `barrier_row`:
 - `span_start_m` / `span_end_m`: the barrier's stretch along its
   through-line
 - `route` (rail `bandel`)
+- rail: `outer_track_sign` (the side away from the other tracks, where
+  parallel tracks run on one side only) and `outer_track_spacing_m` (that
+  track's distance, since 2026-09-25). Neither is a side method; the audit
+  report scores them
 - `chain_id`, `chain_orient`: pieces of one physical wall that the register
   splits (`linear_ref.chain_lines`, 2026-09-25). The audit asks one task per
   chain; nothing else uses them yet

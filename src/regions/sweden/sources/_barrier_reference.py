@@ -55,7 +55,9 @@ M. `manual` / `manual_both_sides` -- a reviewer aligned the barrier with the
 6. `unknown` -- none of the above. Never counted as the protected side.
 
 Rail also records `outer_track_sign`: where parallel tracks run on one side
-only, the side away from them (the wall of an outer track stands outside).
+only, the side away from them (the wall of an outer track stands outside),
+and `outer_track_spacing_m`, that track's distance from the barrier's
+midpoint (the audit report splits agreement by it).
 Not a side method yet: it agrees 22/26 with OSM walls where no twin record
 lies on the other track; the audit validates it (2026-09-24).
 
@@ -324,13 +326,16 @@ def build_barrier_references(
             neighbours = [] if nearest is None else [nearest]
         else:
             neighbours = list(parallel_neighbors_by_side(anchor, own_line, own_rows, geoms, network_sindex, endpoints).values())
-        neighbour_signs, neighbour_lines = [], []
+        neighbour_signs, neighbour_lines, neighbour_dists = [], [], []
         for neighbour in neighbours:
             near = geoms[neighbour].interpolate(geoms[neighbour].project(anchor))
             neighbour_signs.append(float(signed_side(line, [near])[0][0]))
+            neighbour_dists.append(anchor.distance(near))
             neighbour_lines.append(through_line(neighbour, near, geoms, endpoints, budget_m=budget_m)[0])
         neighbour_sign = neighbour_signs[0] if neighbour_signs else None
-        outer_track_sign = -neighbour_signs[0] if kind == "rail" and len(neighbour_signs) == 1 else np.nan
+        outer = kind == "rail" and len(neighbour_signs) == 1
+        outer_track_sign = -neighbour_signs[0] if outer else np.nan
+        outer_track_spacing_m = neighbour_dists[0] if outer else np.nan
 
         osm = None
         if osm_walls is not None:
@@ -362,6 +367,7 @@ def build_barrier_references(
             "barrier_sign": sign,
             "osm_id": osm_id,
             "outer_track_sign": outer_track_sign,
+            "outer_track_spacing_m": outer_track_spacing_m,
             "span_start_m": span_start,
             "span_end_m": span_end,
         }

@@ -446,3 +446,109 @@ def test_import_checks_ids_and_refuses_an_older_copy(tmp_path):
     bad.write_text(json.dumps({"task_id": "zzz", "batch": "pilot", "reviewer": "assistant", "status": "aligned"}) + "\n")
     with pytest.raises(ValueError, match="not in batch"):
         imp.run_barrier_audit_import(bad, root=root)
+
+
+# -- one answer per reviewer and barrier, outer-track report -------------------------
+
+def _answers_for(rows):
+    """rows: (task_id, reviewer, answered_at, status, lateral_m, reason) for road barrier E0 along y = 0."""
+    frame = pd.DataFrame(rows, columns=["task_id", "reviewer", "answered_at", "status", "lateral_m", "reason"]).assign(
+        batch="pilot", note=None, group="target", kind="road", element_id="E0", start_measure=0.0, end_measure=1.0,
+        center_x=150.0, center_y=0.0, n_x=0.0, n_y=1.0, chain_orient=1,
+    )
+    frame["category"] = pp.categorize(frame)
+    lines = pd.Series(
+        [LineString([(0, 0), (300, 0)])] * frame["task_id"].nunique(),
+        index=pd.MultiIndex.from_tuples([(t, "road", "E0", 0.0, 1.0) for t in frame["task_id"].unique()]),
+    )
+    return frame, lines
+
+
+def test_a_reviewers_later_answer_to_the_same_barrier_replaces_their_earlier_one():
+    # The pilot's earth berm: "no wall visible" in one task, aligned in a later one.
+    answers, lines = _answers_for([
+        ("t_later", "felix", "2026-09-25T13:15:30Z", "aligned", 13.1, None),
+        ("t_early", "felix", "2026-09-24T15:18:02Z", "unsure", -13.3, "not_visible"),
+    ])
+    sides = pp.manual_sides(answers, lines)
+    assert sides.loc[0, ["decision", "n_answers", "n_superseded", "categories"]].tolist() == ["side", 1, 1, "left"]
+    assert sides.loc[0, "lateral_m"] == pytest.approx(13.1)
+    # Different reviewers still disagree.
+    answers, lines = _answers_for([
+        ("t_later", "felix", "2026-09-25T13:15:30Z", "aligned", 13.1, None),
+        ("t_early", "assistant", "2026-09-24T15:18:02Z", "unsure", -13.3, "not_visible"),
+    ])
+    assert pp.manual_sides(answers, lines).loc[0, "decision"] == "conflict"
+
+
+def test_rail_neighbour_classes(tmp_path, monkeypatch):
+    root = _repo_root(tmp_path)
+    lines = [
+        LineString([(0, 0), (300, 0)]),  # 0: co-located with 1 (similar length) and 4
+        LineString([(0, 0.5), (290, 0.5)]),  # 1: same track, similar length
+        LineString([(0, 5), (300, 5)]),  # 2: the other track: a twin
+        LineString([(0, 1000), (300, 1000)]),  # 3: alone; the stub beside it doesn't count
+        LineString([(100, 0), (150, 0)]),  # 4: nested in 0: co-located, not similar
+        LineString([(0, 1000.2), (0.02, 1000.2)]),  # 5: a stub
+    ]
+    barriers = gpd.GeoDataFrame(
+        {"element_id": [f"R{i}" for i in range(6)], "start_measure": 0.0, "end_measure": 1.0,
+         "distance_from_track_center_m": [4.0, np.nan, np.nan, 0.5, np.nan, np.nan]},
+        geometry=lines, crs=CRS,
+    )
+    monkeypatch.setattr(pp, "load_noise_barriers", lambda kind, root=None: barriers)
+    path = references_path("rail", root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"barrier_row": range(6), "outer_track_spacing_m": [5.0, 4.5, 5.0, np.nan, 5.0, np.nan]}).to_parquet(path)
+    classes = pp.rail_neighbour_classes(root).set_index("element_id")
+    assert classes["neighbours"].tolist() == ["co_located", "co_located", "twin", "single", "co_located", "single"]
+    assert classes["similar_length"].tolist() == [True, True, False, False, False, False]
+    assert classes["recorded_distance"].tolist() == [True, False, False, False, False, False]
+    assert classes.loc["R1", "outer_track_spacing_m"] == 4.5
+
+
+def _outer_track_inputs(n_in_band, n_miss=0, both_sides_co_located=False):
+    """Rail targets with outer_track_sign +1: `n_in_band` spaced 5 m (the
+    first `n_miss` answered on the other side), one spaced 2 m that
+    disagrees, and one co-located, answered left or Both sides."""
+    rows = []
+    for i in range(n_in_band):
+        rows.append((f"R{i}", "target", 5.0, "single", "side", -1.0 if i < n_miss else 1.0))
+    rows.append(("Rnear", "target", 2.0, "single", "side", -1.0))
+    rows.append(("Rco", "target", 5.0, "co_located", "both_sides" if both_sides_co_located else "side",
+                 np.nan if both_sides_co_located else 1.0))
+    rows.append(("Rval", "validation", 5.0, "twin", "side", 1.0))
+    keys = {"start_measure": 0.0, "end_measure": 1.0}
+    answers = pd.DataFrame([{"element_id": r[0], "group": r[1], "kind": "rail", "outer_track_sign": 1.0, "task_id": f"t_{r[0]}", **keys}
+                            for r in rows])
+    sides = pd.DataFrame([{"element_id": r[0], "kind": "rail", "decision": r[4], "manual_sign": r[5], **keys} for r in rows])
+    classes = pd.DataFrame([{"element_id": r[0], "neighbours": r[3], "similar_length": False, "recorded_distance": False,
+                             "outer_track_spacing_m": r[2], **keys} for r in rows])
+    return answers, sides, classes
+
+
+@pytest.mark.parametrize(
+    "n_in_band,n_miss,both,verdict",
+    [
+        (20, 0, False, "adopt"),  # 21/21 in band (the co-located one is 5 m out too): Wilson lower 0.845
+        (59, 5, False, "adopt"),  # 55/60: 0.917, lower 0.819
+        (59, 6, False, "too few answers"),  # 54/60: 0.9, lower 0.799
+        (59, 7, False, "do not adopt"),  # 53/60: 0.883
+        (7, 0, False, "too few answers"),  # 8/8 (the pilot): lower 0.676
+        (20, 0, True, "do not adopt"),  # a co-located target has walls on both sides
+    ],
+)
+def test_outer_track_decision_rule(n_in_band, n_miss, both, verdict):
+    report = pp.outer_track_report(*_outer_track_inputs(n_in_band, n_miss, both))
+    assert report["decision_rule"]["verdict"] == verdict
+    assert report["decision_rule"]["co_located_targets_both_sides"] == int(both)
+    # The 2 m target disagrees but sits outside the band; the validation one is reported, never scored.
+    assert report["target"]["by_spacing"]["<3.8"]["agree"] == 0
+    assert set(report["target"]["by_neighbours"]) == {"single", "co_located"}
+    assert report["validation"]["by_neighbours"]["twin"]["agree"] == 1
+
+
+def test_outer_track_rule_without_answers():
+    answers, sides, classes = _outer_track_inputs(0)
+    answers = answers[answers["group"] == "validation"]
+    assert pp.outer_track_report(answers, sides, classes)["decision_rule"]["verdict"] == "no answers yet"
