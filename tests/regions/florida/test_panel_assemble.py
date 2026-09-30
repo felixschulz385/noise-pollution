@@ -249,6 +249,16 @@ def test_school_missing_from_rollup_is_never_treated_not_missing():
         assert pd.isna(row[f"first_treat_year_{definition}"])
 
 
+def test_proposed_protected_flag_carried_and_false_when_missing():
+    assessments = _assessments([("a", "03", "ELA", 2020, {}), ("b", "03", "ELA", 2020, {})])
+    school_year_panel = _school_year_panel([("a", 2020, 500), ("b", 2020, 500)])
+    cross_section = _cross_section([("a", 0, 0), ("b", 1, 1)])
+    rollup = _rollup([("a", {"proposed_protected": True})])  # "b" has no rollup row
+
+    panel = build_event_study_panel(assessments, school_year_panel, cross_section, rollup, EMPTY_AADT_PANEL, EMPTY_ROAD_PROJECTS, EMPTY_SHOCKS_PANEL, EMPTY_DISTRICT_STAFF_PANEL, EMPTY_SCHOOL_STAFF_PANEL, EMPTY_ACS_PANEL, EMPTY_ZHVI_PANEL)
+    assert panel.set_index("msid")["proposed_protected"].to_dict() == {"a": True, "b": False}
+
+
 def test_event_time_is_year_minus_first_treat_year():
     assessments = _assessments([
         ("a", "03", "ELA", 2015, {}),

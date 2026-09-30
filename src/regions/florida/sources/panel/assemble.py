@@ -543,7 +543,7 @@ def build_event_study_panel(
     )
     static_cols = cross_section[STATIC_SCHOOL_COLUMNS + ["geometry"]].rename(columns=STATIC_SCHOOL_RENAMES)
     panel = panel.merge(static_cols, on="msid", how="left", validate="m:1")
-    rollup_columns = TREATMENT_COLUMNS + [c for c in ("protected_road_id",) if c in rollup.columns]
+    rollup_columns = TREATMENT_COLUMNS + [c for c in ("protected_road_id", "proposed_protected") if c in rollup.columns]
     panel = panel.merge(rollup[rollup_columns], on="msid", how="left", validate="m:1")
     panel = attach_traffic(panel, school_aadt_panel, max_traffic_year_gap)
     if school_nearby_aadt is not None:
@@ -562,8 +562,9 @@ def build_event_study_panel(
         panel[f"ever_treated_{definition}"] = panel[f"ever_treated_{definition}"].fillna(False)
         panel[f"timing_unknown_{definition}"] = panel[f"timing_unknown_{definition}"].fillna(False)
         panel[f"event_time_{definition}"] = panel["year"] - panel[f"first_treat_year_{definition}"]
-    for flag in SIDE_UNKNOWN_FLAGS:
-        panel[flag] = panel[flag].fillna(False).astype(bool)
+    for flag in (*SIDE_UNKNOWN_FLAGS, "proposed_protected"):
+        if flag in panel.columns:
+            panel[flag] = panel[flag].fillna(False).astype(bool)
 
     return gpd.GeoDataFrame(panel, geometry="geometry", crs=cross_section.crs)
 
@@ -624,6 +625,9 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
             }
             for definition in TREATMENT_DEFINITIONS
         },
+        "proposed_protected_schools": (
+            int(panel.loc[panel["proposed_protected"], "msid"].nunique()) if "proposed_protected" in panel.columns else 0
+        ),
         "rows_missing_enrollment_covariate": int(panel["enrollment"].isna().sum()),
         "rows_missing_geometry": int(panel.geometry.isna().sum()),
         "max_traffic_year_gap": MAX_TRAFFIC_YEAR_GAP,

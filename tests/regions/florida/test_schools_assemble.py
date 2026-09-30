@@ -172,3 +172,18 @@ def test_match_barriers_road_covers_other_wall_category_too():
     assert out.iloc[0]["road_id"] == "r1"
     assert out.iloc[0]["same_route"] == True  # noqa: E712
     assert out.iloc[0]["protected"] == True  # noqa: E712
+
+
+def test_proposed_wall_flags_its_protected_schools_but_never_treats_them():
+    schools = _schools([("behind", "N1", 500, 30), ("across", "N2", 500, -30)])
+    barriers = _barriers([("rec", "proposed_barrier", None, 495, 505, 5)])
+    refs = build_barrier_references(barriers, _road_network([("r1", 0, 2000, 0)]), budget_m=200.0, buffer_m=50.0)
+
+    pair, rollup = match_barriers_point(schools, barriers, max_dist=1500)
+    pair = match_barriers_road(pair, schools, barriers, refs)
+    rollup = add_road_treatment_definitions(pair, rollup).set_index("msid")
+
+    assert rollup.loc[["behind", "across"], "proposed_protected"].tolist() == [True, False]
+    for name in ("point", "same_route", "same_side", "protected"):
+        assert not rollup[f"ever_treated_{name}"].any()
+    assert (rollup["nearest_fdot_dist_m"] == float("inf")).all()

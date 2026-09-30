@@ -21,7 +21,10 @@ Treatment timing: ``treat_year = built_year`` of the matched wall for
 ``noise_barriers``, so ``REPLACED`` walls use their original year too);
 ``NA`` + ``timing_unknown`` when the wall's ``built_year`` is unknown;
 ``other_wall`` (private/perimeter, non-FDOT) is carried as a potential
-shielding covariate but never as treatment (``treat_year`` always ``NA``).
+shielding covariate but never as treatment (``treat_year`` always ``NA``);
+``proposed_barrier`` (a wall a noise study recommended, never built) is never
+treatment either, but the rollup's ``proposed_protected`` flags schools in
+such a wall's protected area, a candidate comparison group.
 """
 from __future__ import annotations
 
@@ -160,6 +163,10 @@ def add_road_treatment_definitions(pair: pd.DataFrame, rollup: pd.DataFrame) -> 
     )
     out["protected_gcid"] = out["msid"].map(protecting["gcid"])
     out["protected_road_id"] = out["msid"].map(protecting["road_id"])
+    # Schools a proposed (recommended, never built) wall would have
+    # protected: sited like the treated schools, so a comparison group.
+    proposed = pair[pair["category"].eq("proposed_barrier") & pair["protected"].fillna(False).astype(bool)]
+    out["proposed_protected"] = out["msid"].isin(set(proposed["msid"]))
     return out
 
 
@@ -253,6 +260,10 @@ def run_schools_assemble(
         },
         "schools_same_side_unknown": int(rollup["same_side_unknown"].sum()),
         "schools_protected_unknown": int(rollup["protected_unknown"].sum()),
+        "schools_proposed_protected": int(rollup["proposed_protected"].sum()),
+        "schools_proposed_protected_never_treated": int(
+            (rollup["proposed_protected"] & ~rollup["ever_treated_protected"]).sum()
+        ),
         "fdot_pairs_by_side_method": {
             str(k): int(v) for k, v in fdot_pairs.loc[fdot_pairs["same_route"].fillna(False).astype(bool), "side_method"].value_counts().items()
         },

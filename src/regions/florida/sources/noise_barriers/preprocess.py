@@ -16,7 +16,11 @@ notebook ``src/experiments/florida/barriers.ipynb`` this crystallizes):
 * **Physically-present walls only.** ``TYPE in {CONSTRUCTED, REPLACED}`` becomes
   ``category = "fdot_barrier"``; ``PRIVATE WALL`` / ``PERIMETER WALL`` are kept
   in the same file as ``category = "other_wall"`` (potential noise-shielding
-  confounders); ``RECOMMENDED`` / ``PLANNED`` / ``REMOVED`` are dropped.
+  confounders); ``RECOMMENDED`` walls (proposed by a noise study, never
+  built) are kept as ``category = "proposed_barrier"``, so the schools behind
+  them can be told apart within the control pool; ``PLANNED`` / ``REMOVED``
+  are dropped. A proposed wall drawn exactly on a kept wall's geometry is
+  dropped, never the kept wall.
 * **CRS EPSG:3087** (Florida GDL Albers, metres) is preserved, so downstream
   distance / buffer / network work needs no reprojection.
 * **Schema drift between releases is tolerated** — only columns present in the
@@ -54,6 +58,8 @@ BUILT_YEAR_MAX = 2026
 # TYPE -> category. Any TYPE not listed here is dropped.
 FDOT_BARRIER_TYPES = ("CONSTRUCTED BARRIERS", "REPLACED BARRIERS")
 OTHER_WALL_TYPES = ("PRIVATE WALL", "PERIMETER WALL")
+PROPOSED_BARRIER_TYPES = ("RECOMMENDED BARRIERS",)
+KEEP_TYPES = (*FDOT_BARRIER_TYPES, *OTHER_WALL_TYPES, *PROPOSED_BARRIER_TYPES)
 
 # FLAG value marking a programmed / under-construction wall at snapshot time.
 PROGRAMMED_FLAG = "FNV"
@@ -170,20 +176,26 @@ def load_raw_barriers(version: str | None = None) -> tuple[gpd.GeoDataFrame, dic
 def _category(type_series: pd.Series) -> pd.Series:
     mapping = {value: "fdot_barrier" for value in FDOT_BARRIER_TYPES}
     mapping.update({value: "other_wall" for value in OTHER_WALL_TYPES})
+    mapping.update({value: "proposed_barrier" for value in PROPOSED_BARRIER_TYPES})
     return type_series.map(mapping)
 
 
 def preprocess_barriers(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    """Filter to physically-present walls, tidy the columns, and return a
-    GeoDataFrame in EPSG:3087 with the :data:`OUTPUT_COLUMNS` schema."""
+    """Filter to physically-present and proposed walls, tidy the columns, and
+    return a GeoDataFrame in EPSG:3087 with the :data:`OUTPUT_COLUMNS` schema."""
     if gdf.crs is not None and gdf.crs.to_epsg() != TARGET_EPSG:
         gdf = gdf.to_crs(TARGET_EPSG)
 
-    keep_types = set(FDOT_BARRIER_TYPES) | set(OTHER_WALL_TYPES)
-    walls = gdf[gdf["TYPE"].isin(keep_types)].copy()
-
     # Drop exact-geometry duplicates (a handful recur among constructed walls).
-    walls = walls[~walls.geometry.to_wkb().duplicated()].copy()
+    built = gdf[gdf["TYPE"].isin(set(FDOT_BARRIER_TYPES) | set(OTHER_WALL_TYPES))]
+    built = built[~built.geometry.to_wkb().duplicated()]
+    # Proposed walls are deduplicated after, and against, the physical ones,
+    # so a proposal recorded on a built wall's line never displaces it.
+    proposed = gdf[gdf["TYPE"].isin(PROPOSED_BARRIER_TYPES)]
+    proposed_wkb = proposed.geometry.to_wkb()
+    built_wkb = set(built.geometry.to_wkb())  # `Series.isin` does not match bytes, so a plain set test
+    proposed = proposed[~proposed_wkb.duplicated() & ~proposed_wkb.map(built_wkb.__contains__).astype(bool)]
+    walls = pd.concat([built, proposed]).copy()
 
     out = gpd.GeoDataFrame(
         {"geometry": walls.geometry.to_numpy()}, geometry="geometry", crs=walls.crs
@@ -252,8 +264,7 @@ def run_barrier_preprocess(version: str | None = None) -> dict[str, object]:
     """Load one raw release, clean it, and persist the tidy layer + sidecar."""
     raw_gdf, metadata = load_raw_barriers(version)
 
-    keep_types = set(FDOT_BARRIER_TYPES) | set(OTHER_WALL_TYPES)
-    kept = int(raw_gdf["TYPE"].isin(keep_types).sum())
+    kept = int(raw_gdf["TYPE"].isin(KEEP_TYPES).sum())
 
     processed = preprocess_barriers(raw_gdf)
     metadata["duplicates_dropped"] = kept - int(len(processed))

@@ -58,12 +58,13 @@ def test_category_mapping_and_type_filter():
     ])
     out = preprocess_barriers(gdf)
 
-    assert set(out["gcid"]) == {"a", "b", "c", "d"}  # study-only / removed dropped
+    assert set(out["gcid"]) == {"a", "b", "c", "d", "e"}  # removed dropped
     assert dict(zip(out["gcid"], out["category"])) == {
         "a": "fdot_barrier",
         "b": "fdot_barrier",
         "c": "other_wall",
         "d": "other_wall",
+        "e": "proposed_barrier",
     }
     assert out.crs.to_epsg() == TARGET_EPSG
 
@@ -106,6 +107,18 @@ def test_exact_geometry_duplicates_dropped():
     ])
     out = preprocess_barriers(gdf)
     assert len(out) == 2
+
+
+def test_proposed_wall_on_a_built_walls_line_never_displaces_it():
+    shared = LineString([(0, 0), (10, 0)])
+    gdf = _raw([
+        _row("proposed_first", "RECOMMENDED BARRIERS", shared, FED_YRCON=9999),
+        _row("built", "CONSTRUCTED BARRIERS", LineString([(0, 0), (10, 0)])),  # identical
+        _row("proposed_twice", "RECOMMENDED BARRIERS", LineString([(0, 1), (10, 1)])),
+        _row("proposed_twice_dup", "RECOMMENDED BARRIERS", LineString([(0, 1), (10, 1)])),
+    ])
+    out = preprocess_barriers(gdf)
+    assert dict(zip(out["gcid"], out["category"])) == {"built": "fdot_barrier", "proposed_twice": "proposed_barrier"}
 
 
 def test_tolerates_missing_optional_columns():

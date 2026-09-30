@@ -82,6 +82,7 @@ layer).
 | `built_year` unknown | `treat_year = NA`, `timing_unknown = True`. |
 | `REPLACED` walls | Use the **original** construction year (`built_year` as carried from `FED_YRCON`). |
 | Non-FDOT `other_wall` | `treat_year = NA`; carried as a shielding covariate, never as treatment. |
+| `proposed_barrier` (recommended, never built) | `treat_year = NA`, never treatment; the rollup's `proposed_protected` flags schools in such a wall's protected area (since 2026-09-29). |
 
 ---
 
@@ -406,7 +407,7 @@ identity + geometry (static) plus:
 | column | type | notes |
 |---|---|---|
 | `msid` / `ncessch` / `gcid` | str | keys |
-| `category` | cat | `fdot_barrier` \| `other_wall` |
+| `category` | cat | `fdot_barrier` \| `other_wall` \| `proposed_barrier` |
 | `dist_m` | float | school point → wall geometry |
 | `built_year` / `treat_year` | Int | `treat_year = built_year` for `fdot_barrier` (original year, incl. `REPLACED`); `NA` for `other_wall` |
 | `timing_unknown` | bool | `fdot_barrier` with no `built_year` (~2.7%) |
@@ -545,7 +546,12 @@ algorithm 5.
   `FED_YRCON` is not overwritten with the replacement date for these rows.
 - `category == 'other_wall'` (private / perimeter, non-FDOT) → `treat_year = NA`;
   carried as a potential noise-shielding **covariate**, never as treatment.
-- `REMOVED` / `RECOMMENDED` / `PLANNED` never reach here (dropped in
+- `category == 'proposed_barrier'` (`RECOMMENDED`, never built, since
+  2026-09-29) → `treat_year = NA`, never treatment. The rollup's
+  `proposed_protected` is `True` for a school in the protected area of one:
+  43 placed schools, 38 of them never treated by a built wall (2026-09-29
+  run). A candidate comparison group, sited like the treated schools.
+- `REMOVED` / `PLANNED` never reach here (dropped in
   `noise_barriers preprocess`).
 
 ---

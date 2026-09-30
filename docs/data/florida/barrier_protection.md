@@ -71,6 +71,26 @@ number was measured on 2026-09-24 against the current Florida outputs
 Outputs from before the switch are kept in
 `data/florida/_backup_pre_protection_2026-09-24/`.
 
+**2026-09-29: proposed walls added.** `noise_barriers preprocess` now keeps
+FDOT's `RECOMMENDED BARRIERS` (walls a noise study proposed, never built)
+as `category = "proposed_barrier"`, and this stage builds their references
+and zones like any other wall's:
+
+| | result |
+|---|---|
+| walls built | 1,811 (1,245 `fdot_barrier`, 18 `other_wall`, 548 `proposed_barrier`) |
+| build time | 66s |
+| proposed walls' `side_method` | `geometric_offset` 542, `bloc_side` 5, `unknown` 1 |
+| built walls' references | byte-identical to the 2026-09-24 build |
+| protected area (dissolved, all categories) | 515.6 km² |
+| schools `proposed_protected` | 43 placed schools, 38 never treated; 37 in the panel |
+| treatment counts, all four tiers | unchanged (578 / 348 / 260 / 128) |
+
+`schools assemble` adds the rollup's `proposed_protected`, and the panel
+carries it. `florida/analysis.ipynb` §8 uses it as a restricted control
+group. The pre-change outputs are in
+`data/florida/_backup_pre_proposed_2026-09-29/`.
+
 ## Summary
 
 - **Florida's data is better suited than Sweden's.** Trafikverket draws
@@ -209,6 +229,8 @@ Cross-checks:
 - **`other_wall`** (private and perimeter walls, 18 rows) gets zones too,
   flagged by `category`. They stay a shielding covariate and never become
   treatment, as today.
+- **`proposed_barrier`** (recommended walls, never built, 548 rows; since
+  2026-09-29) gets zones too. See the 2026-09-29 note under Status.
 
 ### 3. A Florida `barrier-protection build` stage
 

@@ -80,9 +80,15 @@ Cleaning rules (crystallized from `src/experiments/florida/barriers.ipynb`):
 1. **Physically-present walls only.** `TYPE ∈ {CONSTRUCTED BARRIERS, REPLACED
    BARRIERS}` → `category = "fdot_barrier"`; `TYPE ∈ {PRIVATE WALL, PERIMETER
    WALL}` → `category = "other_wall"` (non-FDOT screening, kept in the same
-   file as potential noise-shielding confounders). `RECOMMENDED` / `PLANNED` /
-   `REMOVED` are dropped.
-2. **Deduplicate** on exact geometry (WKB).
+   file as potential noise-shielding confounders). `RECOMMENDED` →
+   `category = "proposed_barrier"` (since 2026-09-29): a wall a noise study
+   proposed but that was never built, never treatment; kept so the schools
+   behind one can be singled out as a comparison group (`proposed_protected`
+   in the panel). `PLANNED` / `REMOVED` are dropped.
+2. **Deduplicate** on exact geometry (WKB). Proposed walls are deduplicated
+   after, and against, the built ones, so a proposal recorded on a built
+   wall's line never displaces it (none in `jul26`; one proposed duplicate
+   of another proposed wall is dropped, 549 → 548).
 3. **`built_year`** from `FED_YRCON`, kept only inside the fixed window
    **1990–2026** (the `9999` / `0` sentinels and any out-of-range value →
    `NA`). `built_year` is the intended treatment-timing input for the event
