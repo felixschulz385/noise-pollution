@@ -98,8 +98,12 @@ One row per barrier, keyed by `barrier_row`:
   track's distance, since 2026-09-25). Neither is a side method; the audit
   report scores them
 - `chain_id`, `chain_orient`: pieces of one physical wall that the register
-  splits (`linear_ref.chain_lines`, 2026-09-25). The audit asks one task per
-  chain; nothing else uses them yet
+  splits (`_barrier_reference.register_chains`, 2026-09-25; rules revised
+  2026-09-29: each end joins its best continuation -- within 2 m, 5 m in
+  line or 25 m within one rail BIS object, turning < 30° -- ranked by the
+  `side` label, and never two co-located records in one chain; road 1,581 →
+  1,438 walls, rail 1,177 → 902). The audit asks one task per chain;
+  nothing else uses them yet
 - two geometries: the through-line (`geometry`, the side reference) and
   the `same_route` corridor lines (`corridor`)
 

@@ -223,7 +223,45 @@ def test_chain_lines_runs_the_way_most_of_the_wall_is_digitised():
     assert chains["chain_orient"].tolist() == [1, 1, -1]
 
 
-def test_chain_lines_leaves_branches_apart():
-    # Two co-located records meet the same end: not a simple path.
+@pytest.mark.parametrize("labels,joins", [(["left", "left", "right"], 1), (["right", "left", "right"], 2)])
+def test_at_a_branch_the_piece_with_the_consistent_label_continues_the_wall(labels, joins):
+    # A wall on each side of the next link, both records on its centreline:
+    # piece 0 continues into one of them, the other starts its own wall.
     pieces = [LineString([(0, 0), (100, 0)]), LineString([(100, 0), (200, 0)]), LineString([(100, 0.5), (200, 0.5)])]
-    assert lr.chain_lines(pieces)["chain_size"].tolist() == [1, 1, 1]
+    chains = lr.chain_lines(pieces, labels=labels)
+    assert chains["chain_id"][joins] == chains["chain_id"][0]
+    assert chains["chain_size"].tolist().count(1) == 1
+
+
+def test_a_label_flips_with_the_digitising_direction():
+    # Piece 1 runs the other way, so the same wall carries the other label.
+    pieces = [LineString([(0, 0), (100, 0)]), LineString([(200, 0), (100, 0)]), LineString([(200, 0.5), (100, 0.5)])]
+    chains = lr.chain_lines(pieces, labels=["left", "left", "right"])
+    assert chains["chain_id"][2] == chains["chain_id"][0] and chains["chain_size"][1] == 1
+
+
+def test_two_co_located_records_never_end_up_in_one_wall():
+    # A hairpin inside piece 1 would bring the chain back along piece 0.
+    pieces = [
+        LineString([(0, 0), (100, 0)]),
+        LineString([(100, 0), (102, 0.25), (100, 0.5)]),
+        LineString([(100, 0.5), (0, 0.5)]),
+    ]
+    assert lr.co_located(pieces)[0] == {2}
+    chains = lr.chain_lines(pieces)
+    assert chains["chain_id"][0] != chains["chain_id"][2]
+
+
+@pytest.mark.parametrize(
+    "second,groups,joined",
+    [
+        (LineString([(104, 0), (200, 0)]), None, True),  # a 4 m gap in line: one wall
+        (LineString([(104, 3), (200, 3)]), None, False),  # 3 m sideways: another wall
+        (LineString([(120, 0), (200, 0)]), None, False),  # a 20 m opening
+        (LineString([(120, 0), (200, 0)]), ["B1", "B1"], True),  # ... but one BIS object
+        (LineString([(120, 0), (200, 0)]), ["B1", "B2"], False),
+    ],
+)
+def test_chain_lines_bridges_small_gaps_and_one_objects_openings(second, groups, joined):
+    chains = lr.chain_lines([LineString([(0, 0), (100, 0)]), second], groups=groups)
+    assert (chains["chain_size"].tolist() == [2, 2]) is joined

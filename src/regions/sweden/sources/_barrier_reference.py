@@ -75,12 +75,14 @@ from __future__ import annotations
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-from shapely.geometry import Point
+from shapely import force_2d
+from shapely.geometry import LineString, Point
 
 from src.core.barrier_geometry.linear_ref import (
     DEFAULT_CORRIDOR_BUDGET_M,
     DEFAULT_CORRIDOR_BUFFER_M,
     build_adjacency,
+    chain_lines,
     local_tangent,
     nearest_segment,
     parallel_neighbor,
@@ -239,6 +241,25 @@ def is_stub(barriers_m: gpd.GeoDataFrame) -> np.ndarray:
     """Records whose geometry is under `STUB_MAX_M`: nothing to see or
     match, whatever their kilometre posts say."""
     return barriers_m.geometry.length.to_numpy() < STUB_MAX_M
+
+
+def barrier_line(geom) -> LineString:
+    """A record's geometry as one 2-D line (the longest part of a multi-line)."""
+    geom = force_2d(geom)
+    return geom if geom.geom_type == "LineString" else max(geom.geoms, key=lambda part: part.length)
+
+
+def register_chains(barriers_m: gpd.GeoDataFrame) -> pd.DataFrame:
+    """The register's pieces of one physical wall (`linear_ref.chain_lines`),
+    one row per record in `barriers_m` (metric CRS), in its order. Joins are
+    ranked by the `side` label and, for rail, the BIS object
+    (`bis_object_number`), which may bridge a gap of up to 25 m. Used by
+    `barrier-protection build` (`chain_id` / `chain_orient` in the
+    references) and the audit export (one task per wall)."""
+    lines = [barrier_line(g) for g in barriers_m.geometry]
+    labels = barriers_m["side"].tolist() if "side" in barriers_m else None
+    groups = barriers_m["bis_object_number"].tolist() if "bis_object_number" in barriers_m else None
+    return chain_lines(lines, labels=labels, groups=groups)
 
 
 def bis_sibling_signs(barriers_m: gpd.GeoDataFrame, table: pd.DataFrame, lines: dict) -> dict[int, float]:

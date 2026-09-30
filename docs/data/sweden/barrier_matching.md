@@ -883,6 +883,62 @@ on other records of the same BIS object: 40 of the 63 share their
   that are themselves unknown, mostly audit targets, so they follow once
   the answers are in.
 
+### 7.8 One wall, many records; co-located records (2026-09-29)
+
+The register splits a wall wherever the road link, track element, height
+or material changes. The audit joins the pieces into one task per wall
+(`linear_ref.chain_lines`, called through
+`_barrier_reference.register_chains`). The first rule (2026-09-25) joined
+ends within 2 m turning < 30° and gave up on a whole group wherever an end
+met two others. Checked on the whole register:
+
+| problem with the first rule | road | rail |
+|---|---|---|
+| groups left unjoined because of one branch | 35 groups / 215 records | 63 / 351 |
+| pieces continuing each other with a < 5 m gap, not joined | 32 | 111 |
+| rail BIS objects (one wall in the asset register) split over several walls | — | 105 |
+
+**Co-located records cause most branches.** Records on the same line
+(within 1 m, overlapping ≥ half the shorter; `linear_ref.co_located`):
+134 road and 330 rail. A road with a wall on each side has one record per
+wall, both drawn on its centreline, so the record before them meets two
+continuations. 82 road and 65 rail records even share their key
+(`element_id`, measures) with such a partner, so answers keyed on it apply
+to both.
+
+**The `side` label marks which piece continues which wall.** It says
+nothing about the physical side (§3b), but it is relative to the record's
+own direction and consistent along a wall: consecutive pieces digitised
+the same way keep it (road 571/574, rail 648/649 joints), and pieces
+digitised against each other flip it (18/18).
+
+**The rule since 2026-09-29.** Each end joins at most one other, best
+first: consistent label, then the same BIS object, then the smaller gap,
+then the smaller turn. Ends may join within 2 m, within 5 m if at most
+1.5 m sideways, or within 25 m (1.5 m sideways) on one BIS object. A join
+is skipped if it would close a loop or put two co-located records in one
+wall.
+
+| | walls before | walls after | BIS objects split |
+|---|---|---|---|
+| road | 1,581 | 1,438 | — |
+| rail | 1,177 | 902 | 105 → 33 |
+
+Co-located pairs in one wall: 0. Larger gaps and corners stay separate
+walls; the audit serves them one after another by site.
+
+**In the audit** (app 0.7.0), co-located walls are one task: the longest
+is drawn, the others show on the same line, the top bar says how many
+barriers are registered there, and Both sides places each wall
+(`lateral_m` > 0, `lateral_other_m` < 0). Which record is which wall is not
+identifiable where their extents match; both records get both walls
+(`manual_both_sides`, a two-line geometry in `manual_sides.parquet`).
+
+**Dual carriageways** need nothing new: each carriageway is its own link
+with its own records, 10–30 m apart, so the 1.5 m sideways limit never
+joins across them; `parallel_road` gives the side (outer), the audit the
+position, and both carriageways' walls are one site, served back to back.
+
 ## Notes on reproduction
 
 - Every number above was computed with ad-hoc scripts on 2026-09-23 against

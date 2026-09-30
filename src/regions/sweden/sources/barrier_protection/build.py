@@ -11,11 +11,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from shapely import force_2d
-
-from src.core.barrier_geometry.linear_ref import DEFAULT_CORRIDOR_BUDGET_M, DEFAULT_CORRIDOR_BUFFER_M, chain_lines
+from src.core.barrier_geometry.linear_ref import DEFAULT_CORRIDOR_BUDGET_M, DEFAULT_CORRIDOR_BUFFER_M
 from src.core.barrier_geometry.protection import protection_zones
-from src.regions.sweden.sources._barrier_reference import build_barrier_references
+from src.regions.sweden.sources._barrier_reference import build_barrier_references, register_chains
 from src.regions.sweden.sources._layout import METRIC_CRS
 from src.regions.sweden.sources.barrier_audit.shared import load_manual_sides
 from src.regions.sweden.sources.barrier_protection.shared import (
@@ -56,10 +54,8 @@ def run_barrier_protection_build(
         path = references_path(kind, root)
         path.parent.mkdir(parents=True, exist_ok=True)
         frame = references_frame(refs, barriers_gdf, METRIC_CRS)
-        # Pieces of one physical wall that the register splits (see `chain_lines`).
-        pieces = [g if g.geom_type == "LineString" else max(g.geoms, key=lambda part: part.length)
-                  for g in force_2d(barriers_gdf.to_crs(METRIC_CRS).geometry.to_numpy())]  # as barrier-audit export does
-        chains = chain_lines(pieces)
+        # Pieces of one physical wall that the register splits (see `register_chains`).
+        chains = register_chains(barriers_gdf.to_crs(METRIC_CRS))
         frame[["chain_id", "chain_orient"]] = chains[["chain_id", "chain_orient"]].to_numpy()
         frame.to_parquet(path, index=False)
 

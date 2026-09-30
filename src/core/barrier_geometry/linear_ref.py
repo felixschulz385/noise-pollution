@@ -343,7 +343,12 @@ def parallel_neighbors_by_side(
 
 
 CHAIN_JOIN_M = 2.0
+CHAIN_GAP_M = 5.0
+CHAIN_GAP_LATERAL_M = 1.5
+CHAIN_GROUP_GAP_M = 25.0
 CHAIN_MAX_TURN_DEG = 30.0
+CO_LOCATED_M = 1.0
+CO_LOCATED_MIN_SHARE = 0.5
 
 
 def _outward_ends(line) -> list[tuple[np.ndarray, np.ndarray]] | None:
@@ -354,65 +359,145 @@ def _outward_ends(line) -> list[tuple[np.ndarray, np.ndarray]] | None:
     return [(coords[0], _unit(coords[0] - coords[1])), (coords[-1], _unit(coords[-1] - coords[-2]))]
 
 
-def chain_lines(lines, *, join_m: float = CHAIN_JOIN_M, max_turn_deg: float = CHAIN_MAX_TURN_DEG) -> "pd.DataFrame":
-    """Group lines that continue one another end to end -- ends within
-    `join_m`, turning by less than `max_turn_deg` -- into chains: pieces of
-    one physical wall that its register splits wherever an attribute (height,
-    material) or the road link / track element changes.
+def co_located(lines, *, within_m: float = CO_LOCATED_M, min_share: float = CO_LOCATED_MIN_SHARE) -> list[set[int]]:
+    """Per line, the other lines on the same line: within `within_m`, over at
+    least `min_share` of the shorter one's length. A road with a wall on each
+    side, or a track with several walls, has one register record per wall,
+    all drawn on the centreline. Lines under 1 m (stubs) have no partners."""
+    lines = list(lines)
+    tree = shapely.STRtree(lines)
+    partners: list[set[int]] = [set() for _ in lines]
+    for i, line in enumerate(lines):
+        if line.length < 1.0:
+            continue
+        zone = line.buffer(within_m)
+        for k in tree.query(zone, predicate="intersects"):
+            k = int(k)
+            if k <= i or lines[k].length < 1.0:
+                continue
+            if lines[k].intersection(zone).length >= min_share * min(line.length, lines[k].length):
+                partners[i].add(k)
+                partners[k].add(i)
+    return partners
+
+
+def chain_lines(
+    lines,
+    *,
+    labels=None,
+    groups=None,
+    join_m: float = CHAIN_JOIN_M,
+    gap_m: float = CHAIN_GAP_M,
+    gap_lateral_m: float = CHAIN_GAP_LATERAL_M,
+    group_gap_m: float = CHAIN_GROUP_GAP_M,
+    max_turn_deg: float = CHAIN_MAX_TURN_DEG,
+) -> "pd.DataFrame":
+    """Group lines that continue one another end to end into chains: pieces
+    of one physical wall that its register splits wherever an attribute
+    (height, material) or the road link / track element changes.
+
+    **Which ends may join.** Both ends point away from their lines within
+    `max_turn_deg` of opposite directions, and either lie within `join_m`,
+    or within `gap_m` with at most `gap_lateral_m` sideways (a small gap in
+    the register), or within `group_gap_m`, at most `gap_lateral_m`
+    sideways, on two lines of the same `groups` value (rail: one BIS
+    object, i.e. one wall in the asset register).
+
+    **Best continuation.** Each end joins at most one other: candidates are
+    taken best first -- consistent `labels`, then the same group, then the
+    smaller gap, then the smaller turn -- and a join is skipped if an end is
+    already taken, if it would close a loop, or if it would put two
+    `co_located` lines (a wall on each side of one road) into one chain.
+    `labels` is Trafikverket's `side` (left/right of the record's own
+    direction): it says nothing about the physical side, but consecutive
+    pieces of one wall keep it when digitised the same way (road 571/574,
+    rail 648/649 joints) and flip it when not (18/18), so a joint is
+    consistent when "same label" equals "same direction". Other labels
+    (both_sides, center, missing) are neutral.
 
     One row per input line: `chain_id` (shared by a chain's members, numbered
     by their lowest index), `chain_pos` (0.. along the chain), `chain_orient`
     (+1 if the line is digitised along the chain's direction, -1 against it;
     the chain runs the way most of its length is digitised) and
-    `chain_size`. Only simple paths are chained: where a line end meets two
-    others, or the pieces close a loop, each line stays a chain of its own."""
+    `chain_size`."""
     import pandas as pd
-    from scipy.sparse import coo_matrix
-    from scipy.sparse.csgraph import connected_components
     from scipy.spatial import cKDTree
 
     lines = list(lines)
     n = len(lines)
+    labels = [None] * n if labels is None else list(labels)
+    groups = [None] * n if groups is None else list(groups)
     ends = [_outward_ends(line) for line in lines]
     nodes = [(i, j) for i, e in enumerate(ends) if e is not None for j in (0, 1)]
-    partners: dict[tuple[int, int], list[tuple[int, int]]] = {node: [] for node in nodes}
+    min_cos = np.cos(np.radians(max_turn_deg))
+    candidates = []
     if nodes:
-        tree = cKDTree(np.array([ends[i][j][0] for i, j in nodes]))
-        min_cos = np.cos(np.radians(max_turn_deg))
-        for a, b in tree.query_pairs(join_m):
+        points = np.array([ends[i][j][0] for i, j in nodes])
+        tree = cKDTree(points)
+        for a, b in tree.query_pairs(max(join_m, gap_m, group_gap_m)):
             (i, j), (k, m) = nodes[a], nodes[b]
-            if i != k and float(-(ends[i][j][1] @ ends[k][m][1])) >= min_cos:
-                partners[(i, j)].append((k, m))
-                partners[(k, m)].append((i, j))
-    rows = [i for (i, _), others in partners.items() for k, _ in others]
-    cols = [k for others in partners.values() for k, _ in others]
-    _, labels = connected_components(coo_matrix((np.ones(len(rows)), (rows, cols)), shape=(n, n)), directed=False)
+            if i == k:
+                continue
+            turn = float(-(ends[i][j][1] @ ends[k][m][1]))
+            if turn < min_cos:
+                continue
+            step = points[b] - points[a]
+            gap = float(np.hypot(*step))
+            direction = ends[i][j][1]
+            sideways = abs(float(step[0] * direction[1] - step[1] * direction[0]))
+            same_group = groups[i] is not None and not pd.isna(groups[i]) and groups[i] == groups[k]
+            if gap > join_m and (sideways > gap_lateral_m or gap > (group_gap_m if same_group else gap_m)):
+                continue
+            label_i, label_k = labels[i], labels[k]
+            if label_i in ("left", "right") and label_k in ("left", "right"):
+                consistent = (label_i == label_k) == (j != m)  # an end meeting a start: digitised the same way
+            else:
+                consistent = True
+            candidates.append(((not consistent, not same_group, gap, 1.0 - turn), a, b))
+    candidates.sort()
+
+    colocated = co_located(lines)
+    root = list(range(n))
+    members = {i: {i} for i in range(n)}
+
+    def find(x: int) -> int:
+        while root[x] != x:
+            root[x] = root[root[x]]
+            x = root[x]
+        return x
+
+    partner: dict[tuple[int, int], tuple[int, int]] = {}
+    for _, a, b in candidates:
+        if nodes[a] in partner or nodes[b] in partner:
+            continue
+        ra, rb = find(nodes[a][0]), find(nodes[b][0])
+        if ra == rb:  # would close a loop
+            continue
+        if any(colocated[x] & members[rb] for x in members[ra]):
+            continue
+        partner[nodes[a]], partner[nodes[b]] = nodes[b], nodes[a]
+        root[ra] = rb
+        members[rb] |= members.pop(ra)
 
     chain_id, pos, orient, size = np.arange(n), np.zeros(n, int), np.ones(n, int), np.ones(n, int)
-    for label in np.unique(labels):
-        members = np.flatnonzero(labels == label)
-        if len(members) < 2:
+    for chain in members.values():
+        if len(chain) < 2:
             continue
-        degrees = [len(partners[(i, j)]) for i in members for j in (0, 1)]
-        free = [(i, j) for i in members for j in (0, 1) if not partners[(i, j)]]
-        if max(degrees) > 1 or not free:  # a branch or a loop: leave the pieces apart
-            continue
-        # Walk from the free end of the lowest-index end piece.
-        i, j = min(free)
+        # Each end has at most one partner and there are no loops: a simple
+        # path. Walk it from the free end of its lowest-index end piece.
+        i, j = min((i, j) for i in chain for j in (0, 1) if (i, j) not in partner)
         walk = []
         while True:
             walk.append((i, 1 if j == 0 else -1))  # entering at the start: digitised along the walk
-            exit_end = 1 - j
-            if not partners[(i, exit_end)]:
+            exit_end = (i, 1 - j)
+            if exit_end not in partner:
                 break
-            i, j = partners[(i, exit_end)][0]
-        if len(walk) != len(members):
-            continue
+            i, j = partner[exit_end]
         along = sum(lines[i].length * o for i, o in walk)
         if along < 0:
             walk = [(i, -o) for i, o in reversed(walk)]
         for p, (i, o) in enumerate(walk):
-            chain_id[i], pos[i], orient[i], size[i] = members.min(), p, o, len(walk)
+            chain_id[i], pos[i], orient[i], size[i] = min(chain), p, o, len(walk)
     return pd.DataFrame({"chain_id": chain_id, "chain_pos": pos, "chain_orient": orient, "chain_size": size})
 
 
