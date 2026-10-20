@@ -15,8 +15,8 @@ worth remembering if the two ever get parsed side by side.
 8-digit `skolenhetskod` format) for `GR`/`GY`/`VUX`-type rows; preschool
 (`FORSK`) rows carry a Skolkoll-synthetic `forsk-######` code instead (no
 real Skolverket id exists for those) -- left as-is, not filtered out here,
-since `panel/vanished_recovery.py`'s exact-id join against SIRIS's
-`skolenhetskod`s naturally never matches a synthetic code.
+since an exact-id join against SIRIS's `skolenhetskod`s naturally never
+matches a synthetic code.
 
 Renamed to this repo's existing Swedish-term column names where a direct
 Skolenhetsregistret analogue exists (`skolenhetskod`, `namn`, `kommunkod`,

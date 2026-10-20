@@ -30,9 +30,9 @@ Requires:
 - `network preprocess-tracks`
 - `osm-walls preprocess`
 
-Re-run it whenever any of those inputs change. `schools
-assemble-*-network`, `panel recover-vanished-schools` and `grid assemble`
-read its output. They refuse a reference file that no longer lines up with
+Re-run it whenever any of those inputs change. `schools assemble` and
+`grid assemble` read its output (until 2026-10-20 also `panel
+recover-vanished-schools`, since removed). They refuse a reference file that no longer lines up with
 the current barrier layer.
 
 ## Outputs (`data/sweden/barrier_protection/processed/`)

@@ -96,19 +96,33 @@ def test_match_barriers_point_is_nearest_flag():
     assert s1_pairs.loc["b2", "is_nearest"] == False  # noqa: E712
 
 
-def test_build_combined_rollup_fills_untreated_schools_with_false_not_na():
-    schools_gdf = _schools_gdf()
-    _, road_rollup = sa.match_barriers_point(schools_gdf, _barriers_gdf(), max_dist=1000.0)
-    empty_rail = pd.DataFrame(
-        {"skolenhetskod": [], "ever_treated": [], "timing_unknown": [], "nearest_dist_m": [], "nearest_element_id": [], "first_treat_year": []}
-    )
+def _isolated_paths(tmp_path, monkeypatch) -> dict:
+    paths = {"raw": tmp_path / "raw", "processed": tmp_path / "processed", "assembled": tmp_path / "assembled"}
+    for path in paths.values():
+        path.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(sa, "schools_paths", lambda root=None: paths)
+    return paths
 
-    combined = sa.build_combined_rollup(schools_gdf, {"road": road_rollup, "rail": empty_rail})
 
-    assert list(combined["skolenhetskod"]) == ["s1", "s2"]
-    assert combined["rail_ever_treated"].tolist() == [False, False]
-    assert combined["rail_timing_unknown"].tolist() == [False, False]
-    assert combined["road_ever_treated"].tolist() == [True, False]
+def test_assembled_tables_round_trip_by_kind(tmp_path, monkeypatch):
+    """Both kinds go into one long file; loading one kind gives back that
+    kind's own table, without the other kind's route column."""
+    paths = _isolated_paths(tmp_path, monkeypatch)
+    road = pd.DataFrame({"skolenhetskod": ["s1", "s2"], "barrier_row": [0, 1], "dist_m": [50.0, 900.0]})
+    rail = pd.DataFrame({"skolenhetskod": ["s1"], "barrier_row": [0], "dist_m": [80.0], "bandel": ["412"]})
+    sa._stack({"road": road, "rail": rail}).to_parquet(paths["assembled"] / sa.PAIRS_FILENAME, index=False)
+
+    assert list(sa.load_barrier_pairs()["kind"]) == ["road", "road", "rail"]
+    pd.testing.assert_frame_equal(sa.load_barrier_pairs("road"), road)
+    pd.testing.assert_frame_equal(sa.load_barrier_pairs("rail"), rail)
+    with pytest.raises(ValueError, match="Unknown barrier kind"):
+        sa.load_barrier_pairs("water")
+
+
+def test_load_barrier_rollup_raises_a_clear_error_when_missing(tmp_path, monkeypatch):
+    _isolated_paths(tmp_path, monkeypatch)
+    with pytest.raises(FileNotFoundError, match="schools assemble"):
+        sa.load_barrier_rollup("road")
 
 
 def test_load_geocoded_schools_raises_a_clear_error_when_missing(tmp_path, monkeypatch):
@@ -262,11 +276,7 @@ def test_add_network_treatment_definitions_same_side_is_a_subset_of_same_route()
     assert not bool(out["same_side_unknown"])
 
 
-def test_run_schools_assemble_network_requires_schools_preprocess_to_have_run_first(tmp_path, monkeypatch):
-    paths = {"raw": tmp_path / "raw", "processed": tmp_path / "processed", "assembled": tmp_path / "assembled"}
-    for path in paths.values():
-        path.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(sa, "schools_paths", lambda root=None: paths)
-
+def test_run_schools_assemble_requires_schools_preprocess_to_have_run_first(tmp_path, monkeypatch):
+    _isolated_paths(tmp_path, monkeypatch)
     with pytest.raises(FileNotFoundError, match="schools preprocess"):
-        sa.run_schools_assemble_network("road")
+        sa.run_schools_assemble()

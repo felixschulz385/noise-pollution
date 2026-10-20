@@ -14,9 +14,92 @@ variable) is a separate domain, [`assessments`](../assessments/README.md)
 separation (identity/treatment vs. outcome are independently-changing
 concerns, eventually joined by a `panel`-equivalent step, not built yet).
 
+## API v2, closed schools, two assembled files (2026-10-20, read this first)
+
+**Why v1 never had closed schools.** Until 2026-10-20 `fetch` read API
+v1, which Skolverket's own spec now marks "Retired". v1's list leaves out
+closed (`UPPHORT`) units, and its detail endpoint answers HTTP 410 ("har
+upphört") for them. API v2 (`/v2/school-units`) lists every unit in one
+call, closed ones included, with an `endDate`. Checked against the
+register's own Excel export (2026-10-19): same 12,037 units.
+
+**Real run, 2026-10-20** (`fetch` 12,037/12,037, none failed, ~45 min at
+4 parallel requests; `preprocess` ~1 min):
+
+| status | units | with coordinates | with `nedlaggningsdatum` |
+|---|---|---|---|
+| `AKTIV` | 7,461 | 7,435 | 11 (scheduled) |
+| `VILANDE` | 3,118 | 2,044 | 3,118 |
+| `UPPHORT` | 1,380 | 1,004 | 1,188 |
+| `PLANERAD` | 78 | 48 | 0 |
+| total | 12,037 | 10,531 | 4,317 |
+
+For the 10,648 units in both pulls, v1 and v2 agree: coordinates moved
+over 1 km for 11 units (register updates since 2026-09-15), grades differ
+for 2.
+
+**What changed in `preprocess`'s table** (`schools.{csv,geojson}`):
+statuses, operator types and school forms are v2's codes (`AKTIV`,
+`KOMMUN`, `GR,FTH`); `kommun_namn` is gone (v2 has only `kommunkod`); new
+columns `skolenhetstyp`, `nedlaggningsdatum`, `senast_andrad` (was
+`skolenhet_valid_from`). v2 gives a closed unit's SWEREF 99 coordinates
+with a decimal comma (`708435,088`). **v1 had the same comma for 1,264
+units (1,242 `Vilande`) and `preprocess` read them as missing**; geocoding
+was unaffected (it uses WGS84), but `build-lineage` groups units by SWEREF
+coordinates and never saw those units.
+
+**`build-lineage`**: `UPPHORT` units now retire like `VILANDE` ones;
+sites are matched to the metre (closed units' coordinates have
+millimetres); and a link between two units with grundskola grades that
+share no grade (`Henåns skola F-3` -> `Henåns skola 7-9`, two bands of
+one site) is dropped. The register's Excel export has an official
+predecessor field (`Omorganiserad från`, not in the API): all 21
+confirmed links with grades overlap, and this rule dropped 15 of 127
+candidate links. Result: 381 mixed-status sites, **112 links** (was 40:
+34 kept, 6 dropped -- 4 across grade bands, 2 no longer a mutual best
+match -- and 78 new, 44 of them from closed units).
+
+**`assemble` writes two files instead of thirteen**, and runs all four
+tiers in one stage (`assemble-rail-network` / `assemble-road-network`
+removed; ~40 s):
+
+| file | rows | grain |
+|---|---|---|
+| `schools_barrier_pairs.parquet` | 15,261 | school x barrier within 1000 m, `kind` = road/rail, every tier's pair columns (`bandel` rail only) |
+| `schools_barrier_rollup.parquet` | 21,062 | school x `kind`, every tier's `first_treat_year_*` / `ever_treated_*` / `timing_unknown_*` |
+
+Read them with `schools/assemble.py::load_barrier_pairs(kind)` /
+`load_barrier_rollup(kind)`. The old files (point and network versions
+per kind, the wide `schools_barrier_rollup`, and the four
+`schools_vanished_*`) are in `_archive_v1_2026-09-15/assembled/`, with
+the v1 raw and processed files. Experiment notebooks under
+`src/experiments/sweden/` still name the old files.
+
+**Vanished-school recovery removed.** All 306 schools Skolkoll recovered
+are in the v2 register at exactly the same point, and Skolkoll has
+coordinates for none of the SIRIS codes v2 still lacks, so `panel
+recover-vanished-schools` (`panel/vanished_recovery.py`) is gone. Of the
+2,651 SIRIS-assessed codes, 2,301 are in the register (2,058 with
+coordinates); 350 are not (267 of them legacy 9-digit codes); 243 are in
+it without coordinates (147 `UPPHORT`, 96 `VILANDE`), all with a street
+address -- the candidates for geocoding.
+
+**Effect on the panel** (`panel assemble`, 2026-10-20, vs. 2026-09-25):
+2,642 schools (was 2,649, the larger crosswalk merges 7); treated schools
+by tier road point/same_route/same_side/protected 273/220/113/36 (was
+273/219/112/37), rail 315/232/66/24 (was 317/234/67/25). With the old
+crosswalk only `road_protected` moves (37 -> 36, one school's coordinates
+updated in the register); the rest comes from the crosswalk. The
+barrier-reference rebuild of 2026-09-30 changes no count (checked by
+matching the archived v1 schools against today's references). The
+recovered schools now also get `traffic` and `neighbourhood` covariates
+(both re-run): schools with a traffic match 1,209 (was 1,021), with a
+neighbourhood match 1,959 (was 1,670).
+
 **Status (2026-09-15): Phase 1 (`Skolenhetsregistret` directory) and
 `assemble` (barrier matching) are both implemented and run against real
-data.**
+data.** (Sections below describe v1 and the thirteen-file layout; see
+above for what changed.)
 
 ## Phase 1 — `Skolenhetsregistret` directory: implemented
 
@@ -568,6 +651,11 @@ schools build-lineage`).
 
 ### Vanished pre-registry schools: assessed, but no registry entry at all
 
+> **Superseded 2026-10-20.** Most of these "vanished" schools were closed
+> (`UPPHORT`) units that API v1 hid; v2 lists them, and the Skolkoll
+> recovery stage below was removed. 350 SIRIS codes remain outside the
+> register (267 legacy 9-digit). See "API v2" at the top.
+
 **Cross-registry vanishing** (assessed, but no registry entry at all — not
 even `Vilande`) is a separate, larger gap than the within-registry churn
 above: **803 SIRIS-assessed schools have no entry anywhere in the current
@@ -657,12 +745,16 @@ distance, the rest genuinely (not by default) still `False`.
 
 ## Open questions (not blocking, flag for whoever builds this)
 
-1. Confirm whether `Skolenhetsregistret` v2 differs materially from v1
-   (deprecation timeline makes v2 the right build target either way).
-2. ~~Confirm how school closures are represented~~ — resolved 2026-09-22:
-   closures are represented (`Status=Vilande`), but reorganizations create
-   a brand-new `Skolenhetskod` with no closure-to-successor link in the
-   public data at all. See `build-lineage` above.
+1. ~~Confirm whether `Skolenhetsregistret` v2 differs materially from v1~~
+   — resolved 2026-10-20, it does: v2 lists closed units, see "API v2"
+   at the top.
+2. ~~Confirm how school closures are represented~~ — resolved 2026-09-22,
+   corrected 2026-10-20: a dormant unit is `VILANDE`, a closed one
+   `UPPHORT` with an `endDate` (v1 hid closed units). Reorganizations
+   create a brand-new `Skolenhetskod`; the API has no
+   closure-to-successor link, but Skolverket's Excel export of the
+   register does (`Omorganiserad från`, filled for 1,197 units on
+   2026-10-19) -- not used yet. See `build-lineage` above.
 
 ## Relationship to the existing exposure sources
 

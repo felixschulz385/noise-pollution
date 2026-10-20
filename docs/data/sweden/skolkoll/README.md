@@ -13,8 +13,15 @@ fetch) remains the primary, authoritative identity/geocoding source for
 every school still in the live register; `skolkoll` only covers the ones
 that aren't.
 
-`fetch`/`preprocess` are implemented and wired into
-`panel/vanished_recovery.py`'s recovery stage.
+**Not used by the pipeline since 2026-10-20.** `schools fetch` now reads
+the register's API v2, which lists closed (`UPPHORT`) units with their
+coordinates. All 306 schools this source recovered are in it at exactly
+the same point, and Skolkoll has coordinates for none of the SIRIS codes
+v2 still lacks, so `panel recover-vanished-schools` was removed (see
+`schools/README.md`, "API v2"). `fetch`/`preprocess` still work; the
+pupil, teacher and merit-value columns remain a possible covariate
+source. The sections below describe the source as it was used until
+then.
 
 ## Why a third-party source, not another Skolverket API call
 
@@ -74,7 +81,6 @@ attributed to Skolverket. Both are done here: this README +
 ```
 sweden data skolkoll fetch        # downloads schools.csv to raw/
 sweden data skolkoll preprocess   # parses into skolkoll_schools.parquet
-sweden data panel recover-vanished-schools   # the actual recovery + barrier match, see schools/README.md
 ```
 
 No manual download step — unlike `traffic`/`road_network`/`noise_barriers`

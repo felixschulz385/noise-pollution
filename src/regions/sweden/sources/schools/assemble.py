@@ -1,12 +1,17 @@
 """Stage: match geocoded schools to nearby road/rail noise barriers.
 
-REQUIRES `noise_barriers preprocess` and `schools preprocess`; the network
-stage additionally `barrier-protection build` (which in turn needs
-`road-network preprocess` / `network preprocess-tracks` and
-`osm-walls preprocess`). Kept as its own step rather than folded into
-`schools preprocess`, same isolation reason Florida's `schools/assemble.py`
-is separate: editing a geocoding rule should never re-run this geospatial
-join, and vice versa.
+REQUIRES `noise_barriers preprocess`, `schools preprocess` and
+`barrier-protection build` (which in turn needs `road-network preprocess`
+/ `network preprocess-tracks` and `osm-walls preprocess`). Kept as its own
+step rather than folded into `schools preprocess`, same isolation reason
+Florida's `schools/assemble.py` is separate: editing a geocoding rule
+should never re-run this geospatial join, and vice versa.
+
+Writes two files (since 2026-10-20; before, thirteen: point and network
+versions per kind, a wide combined rollup, and the vanished-school
+recovery's own): `schools_barrier_pairs.parquet` and
+`schools_barrier_rollup.parquet`, both long by `kind` -- read them with
+`load_barrier_pairs` / `load_barrier_rollup`.
 
 Algorithms 1-2 (`match_barriers_point`): a dense school x barrier distance
 matrix in SWEREF 99 TM, then a pair table + per-school rollup. Algorithms
@@ -171,64 +176,67 @@ def add_network_treatment_definitions(pair: pd.DataFrame, rollup: pd.DataFrame) 
     return out
 
 
-def run_schools_assemble_network(kind: str, *, root: Path | None = None) -> dict:
-    """CLI-facing orchestrator for algorithms 4+5, one barrier kind. Loads
-    `schools assemble`'s saved `schools_{kind}_{pairs,rollup}.parquet`
-    rather than recomputing the point match, and writes to separate
-    `_network` files so both stay available."""
-    schools_gdf = load_geocoded_schools(root)
-    refs = load_barrier_references(kind, root, barriers_gdf=load_noise_barriers(kind, root))
-
-    pair_path = assembled_dir(root) / f"schools_{kind}_pairs.parquet"
-    rollup_path = assembled_dir(root) / f"schools_{kind}_rollup.parquet"
-    if not pair_path.exists() or not rollup_path.exists():
-        raise FileNotFoundError(f"{pair_path} / {rollup_path} missing -- run `sweden data schools assemble` first.")
-    pair = pd.read_parquet(pair_path)
-    rollup = pd.read_parquet(rollup_path)
-
-    annotated_pair = match_barriers_network(pair, schools_gdf, refs, kind=kind)
-    annotated_rollup = add_network_treatment_definitions(annotated_pair, rollup)
-
-    out_pair_path = assembled_dir(root) / f"schools_{kind}_pairs_network.parquet"
-    out_rollup_path = assembled_dir(root) / f"schools_{kind}_rollup_network.parquet"
-    annotated_pair.to_parquet(out_pair_path, index=False)
-    annotated_rollup.to_parquet(out_rollup_path, index=False)
-
-    routed = annotated_pair[annotated_pair["same_route"]]
-    return {
-        "kind": kind,
-        "n_pairs": int(len(annotated_pair)),
-        "n_pairs_same_route": int(len(routed)),
-        "n_pairs_same_side": int(annotated_pair["same_side"].sum()),
-        "n_pairs_same_side_unknown": int(annotated_pair["same_side_unknown"].sum()),
-        "same_route_pairs_by_side_method": {k: int(v) for k, v in routed["side_method"].value_counts().items()},
-        "n_schools_ever_treated_same_route": int(annotated_rollup["ever_treated_same_route"].sum()),
-        "n_schools_ever_treated_same_side": int(annotated_rollup["ever_treated_same_side"].sum()),
-        "n_schools_same_side_unknown": int(annotated_rollup["same_side_unknown"].sum()),
-        "n_pairs_protected": int(annotated_pair["protected"].sum()),
-        "n_pairs_protected_unknown": int(annotated_pair["protected_unknown"].sum()),
-        "n_schools_ever_treated_protected": int(annotated_rollup["ever_treated_protected"].sum()),
-        "n_schools_protected_unknown": int(annotated_rollup["protected_unknown"].sum()),
-        "saved": {"pairs": str(out_pair_path), "rollup": str(out_rollup_path)},
-    }
-
-
-def build_combined_rollup(schools_gdf: gpd.GeoDataFrame, rollups: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """One row per geocoded school, `{kind}_`-prefixed columns from each
-    kind's rollup (outer join -- a school absent from a kind's pair table
-    still gets a row, with `ever_treated_{kind}=False`, a real value, not
-    NA, matching Florida's `ever_treated_*` convention)."""
-    combined = schools_gdf[["skolenhetskod"]].copy()
-    for kind, rollup in rollups.items():
-        renamed = rollup.rename(columns={col: f"{kind}_{col}" for col in rollup.columns if col != "skolenhetskod"})
-        combined = combined.merge(renamed, on="skolenhetskod", how="left")
-        combined[f"{kind}_ever_treated"] = combined[f"{kind}_ever_treated"].fillna(False)
-        combined[f"{kind}_timing_unknown"] = combined[f"{kind}_timing_unknown"].fillna(False)
-    return combined
+PAIRS_FILENAME = "schools_barrier_pairs.parquet"
+ROLLUP_FILENAME = "schools_barrier_rollup.parquet"
 
 
 def assembled_dir(root: Path | None = None) -> Path:
     return schools_paths(root)["assembled"]
+
+
+def match_barriers(
+    schools_gdf: gpd.GeoDataFrame,
+    kind: str,
+    *,
+    max_dist: float = MAX_DIST_M,
+    root: Path | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """One barrier kind, all four tiers: the point match (algorithms 1-2),
+    then the network annotation (4-5) against the references `barrier-
+    protection build` saved. Returns the annotated pair table and the
+    per-school rollup with every tier's treatment timing."""
+    barriers_gdf = load_noise_barriers(kind, root)
+    pair, rollup = match_barriers_point(schools_gdf, barriers_gdf, max_dist=max_dist)
+    refs = load_barrier_references(kind, root, barriers_gdf=barriers_gdf)
+    annotated_pair = match_barriers_network(pair, schools_gdf, refs, kind=kind)
+    return annotated_pair, add_network_treatment_definitions(annotated_pair, rollup)
+
+
+def _stack(tables: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    return pd.concat([table.assign(kind=kind) for kind, table in tables.items()], ignore_index=True)[
+        ["kind", *dict.fromkeys(col for table in tables.values() for col in table.columns)]
+    ]
+
+
+def _load_assembled(filename: str, kind: str | None, root: Path | None) -> pd.DataFrame:
+    if kind is not None and kind not in BARRIER_KINDS:
+        raise ValueError(f"Unknown barrier kind '{kind}'. Use one of: {BARRIER_KINDS}.")
+    path = assembled_dir(root) / filename
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing -- run `sweden data schools assemble` first.")
+    table = pd.read_parquet(path)
+    if kind is None:
+        return table
+    other_route_columns = [col for k, col in ROUTE_COLUMNS.items() if col and k != kind]
+    return (
+        table[table["kind"] == kind]
+        .drop(columns=["kind", *[c for c in other_route_columns if c in table.columns]])
+        .reset_index(drop=True)
+    )
+
+
+def load_barrier_pairs(kind: str | None = None, root: Path | None = None) -> pd.DataFrame:
+    """`schools_barrier_pairs.parquet`: one row per school x barrier within
+    `MAX_DIST_M`, with a `kind` column; `kind` given, that kind's rows
+    without the column (the per-kind table `match_barriers` returned)."""
+    return _load_assembled(PAIRS_FILENAME, kind, root)
+
+
+def load_barrier_rollup(kind: str | None = None, root: Path | None = None) -> pd.DataFrame:
+    """`schools_barrier_rollup.parquet`: one row per geocoded school and
+    barrier kind, every tier's treatment timing; `kind` as in
+    :func:`load_barrier_pairs`."""
+    return _load_assembled(ROLLUP_FILENAME, kind, root)
 
 
 def run_schools_assemble(
@@ -242,27 +250,26 @@ def run_schools_assemble(
     pairs: dict[str, pd.DataFrame] = {}
     rollups: dict[str, pd.DataFrame] = {}
     for kind in kinds:
-        barriers_gdf = load_noise_barriers(kind, root)
-        pair, rollup = match_barriers_point(schools_gdf, barriers_gdf, max_dist=max_dist)
-        pairs[kind] = pair
-        rollups[kind] = rollup
-        pair.to_parquet(assembled_dir(root) / f"schools_{kind}_pairs.parquet", index=False)
-        rollup.to_parquet(assembled_dir(root) / f"schools_{kind}_rollup.parquet", index=False)
+        pairs[kind], rollups[kind] = match_barriers(schools_gdf, kind, max_dist=max_dist, root=root)
 
-    combined = build_combined_rollup(schools_gdf, rollups)
-    combined_path = assembled_dir(root) / "schools_barrier_rollup.parquet"
-    combined.to_parquet(combined_path, index=False)
+    pairs_path = assembled_dir(root) / PAIRS_FILENAME
+    rollup_path = assembled_dir(root) / ROLLUP_FILENAME
+    _stack(pairs).to_parquet(pairs_path, index=False)
+    _stack(rollups).to_parquet(rollup_path, index=False)
 
     return {
         "n_schools": int(len(schools_gdf)),
         "kinds": {
             kind: {
-                "n_barriers": int(len(load_noise_barriers(kind, root))),
                 "n_pairs": int(len(pairs[kind])),
-                "n_ever_treated": int(rollups[kind]["ever_treated"].sum()),
-                "n_timing_unknown": int(rollups[kind]["timing_unknown"].sum()),
+                **{
+                    f"n_ever_treated_{tier}": int(rollups[kind][column].sum())
+                    for tier, column in [("point", "ever_treated"), *((t, f"ever_treated_{t}") for t in NETWORK_TIERS)]
+                },
+                "n_same_side_unknown": int(rollups[kind]["same_side_unknown"].sum()),
+                "n_protected_unknown": int(rollups[kind]["protected_unknown"].sum()),
             }
             for kind in kinds
         },
-        "combined_rollup_path": str(combined_path),
+        "saved": {"pairs": str(pairs_path), "rollup": str(rollup_path)},
     }

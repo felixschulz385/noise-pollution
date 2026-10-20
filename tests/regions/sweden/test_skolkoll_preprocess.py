@@ -79,7 +79,6 @@ def test_preprocess_skolkoll_schools_builds_geometry_only_when_coords_present():
 def test_preprocess_skolkoll_schools_keeps_synthetic_forsk_codes_as_is():
     """Preschool rows carry a Skolkoll-synthetic `forsk-######` id, not a
     real Skolverket `skolenhetskod` -- kept as-is (not filtered here), since
-    `vanished_recovery.py`'s exact-id join against SIRIS codes naturally
-    never matches one."""
+    an exact-id join against SIRIS codes naturally never matches one."""
     gdf = skp.preprocess_skolkoll_schools(RAW_CSV)
     assert "forsk-868358" in set(gdf["skolenhetskod"])

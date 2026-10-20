@@ -4,29 +4,21 @@ road/rail x point/same_route/same_side/protected treatment-timing
 definitions into one long analysis panel.
 
 `REQUIRES` `assessments {preprocess-kvalitetssystem,preprocess-siris}` and
-`schools {assemble,assemble-rail-network,assemble-road-network,
-build-lineage}` to have already run -- this module does no fetching or
+`schools {assemble,build-lineage}` to have already run -- this module does no fetching or
 cleaning of its own, only joining already-processed local artifacts. Kept
 as its own stage (not folded into `schools/assemble.py` or
 `assessments/*.py`), same isolation reason Florida's `panel/assemble.py`
 is separate: editing an outcome parser or the barrier match should never
 have to re-run this join, and vice versa.
 
-**Vanished-school coordinate recovery (2026-09-23, optional)** --
-`vanished_recovery.py` recovers real coordinates (via Skolkoll, a
-third-party aggregator that retains school units Skolverket's own live
-registry purges outright) for 306 of the 803 SIRIS-assessed schools that
-have no registry entry at all (see that module's docstring and
-`docs/data/sweden/schools/README.md`'s "vanished pre-registry schools"
-section). Unlike every other input above, this one is genuinely optional:
-`load_treatment_rollup_with_recovery` falls back to the registry-only
-rollup, unchanged, if `sweden data panel recover-vanished-schools` hasn't
-been run yet -- the panel already produced a complete, working (if
-incomplete for this one population) result before this existed, so making
-it a hard requirement the way `assessments`/`schools` are would break
-every existing full-pipeline run over one additive enhancement. Still only
-reaches the 536 *modern* 8-digit vanished codes, not the 267 legacy
-9-digit pre-2013 ones -- Skolkoll's ids are themselves modern-format.
+**Closed schools (2026-10-20)** -- `schools fetch` reads the register's
+API v2, which lists closed (`UPPHORT`) units with their coordinates, so
+SIRIS-assessed schools that closed before the register snapshot are in
+`schools assemble`'s rollup like any other. Until then (API v1 left them
+out) a separate `vanished_recovery.py` stage recovered 306 of them from
+Skolkoll; every one of those is now in the register at the same point, so
+that stage was removed. The SIRIS codes still without a register entry
+are mostly legacy 9-digit pre-2013 `Skolkod`s.
 
 **`skolenhetskod` lineage remap (2026-09-22)** -- applied right after
 `build_outcomes_long`/`build_treatment_rollup`, before the outcome/
@@ -160,8 +152,8 @@ from src.regions.sweden.sources.assessments.shared import assessments_paths
 from src.regions.sweden.sources.assessments.siris import IDENTITY_COLUMNS as SIRIS_IDENTITY_COLUMNS
 from src.regions.sweden.sources.neighbourhood.shared import assembled_school_neighbourhood_path
 from src.regions.sweden.sources.panel.shared import assembled_metadata_path, assembled_panel_path
+from src.regions.sweden.sources.schools.assemble import load_barrier_rollup
 from src.regions.sweden.sources.schools.lineage import load_lineage_crosswalk
-from src.regions.sweden.sources.schools.shared import schools_paths
 from src.regions.sweden.sources.traffic.shared import (
     assembled_barrier_traffic_segments_path,
     assembled_school_traffic_nearby_path,
@@ -277,33 +269,8 @@ def load_siris(dataset_key: str, root: Path | None = None) -> pd.DataFrame:
 
 
 def load_treatment_rollup(kind: str, root: Path | None = None) -> pd.DataFrame:
-    if kind not in BARRIER_KINDS:
-        raise ValueError(f"Unknown barrier kind '{kind}'. Use one of: {BARRIER_KINDS}.")
-    path = schools_paths(root)["assembled"] / f"schools_{kind}_rollup_network.parquet"
-    if not path.exists():
-        raise FileNotFoundError(
-            f"{path} missing -- run `sweden data schools assemble` then `assemble-{kind}-network` first."
-        )
-    return pd.read_parquet(path)
-
-
-def load_treatment_rollup_with_recovery(kind: str, root: Path | None = None) -> pd.DataFrame:
-    """`load_treatment_rollup` plus, if present, the vanished-school
-    recovery rollup for the same `kind` (see `vanished_recovery.py`'s
-    module docstring) -- the two populations are disjoint by construction
-    (recovery only ever covers codes absent from the registry, which is
-    exactly what `load_treatment_rollup`'s own population excludes), so a
-    plain concat is safe: no `skolenhetskod` can appear in both. Imports
-    `vanished_recovery` lazily (not at module top) since that module
-    imports back from here (`find_vanished_codes` needs `build_outcomes_long`/
-    `load_siris`) -- see its docstring for why."""
-    from src.regions.sweden.sources.panel.vanished_recovery import load_vanished_recovery_rollup
-
-    base = load_treatment_rollup(kind, root)
-    recovered = load_vanished_recovery_rollup(kind, root)
-    if recovered is None or recovered.empty:
-        return base
-    return pd.concat([base, recovered], ignore_index=True)
+    """One barrier kind's rows of `schools assemble`'s rollup."""
+    return load_barrier_rollup(kind, root)
 
 
 def load_traffic_extras(root: Path | None = None) -> dict[str, pd.DataFrame] | None:
@@ -569,7 +536,7 @@ TIER_STAT_RENAME = {
 
 
 def _rollup_treatment_columns(rollup: pd.DataFrame, kind: str) -> pd.DataFrame:
-    """One barrier kind's `schools_{kind}_rollup_network.parquet` -> just
+    """One barrier kind's rows of `schools_barrier_rollup.parquet` -> just
     the columns this panel needs, `{kind}_`-prefixed and with the point
     tier's originally-unsuffixed columns (`first_treat_year`/`ever_treated`/
     `timing_unknown`) renamed to `_point` for a uniform
@@ -591,7 +558,7 @@ def _rollup_treatment_columns(rollup: pd.DataFrame, kind: str) -> pd.DataFrame:
 
 
 def build_treatment_rollup(rollups: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """`{road,rail}_rollup_network.parquet` -> one row per school, all eight
+    """Road and rail rollups -> one row per school, all eight
     `{kind}_{stat}_{definition}` treatment columns side by side (outer join
     -- both kinds are built from the same full geocoded-school set in
     `schools/assemble.py`, so this is a no-op in practice, but outer is the
@@ -851,17 +818,6 @@ def save_panel(panel: pd.DataFrame, metadata: dict[str, object], root: Path | No
     return {"panel": str(panel_path), "metadata": str(meta_path)}
 
 
-def _vanished_recovery_counts(root: Path | None = None) -> dict[str, int]:
-    """`0` for a `kind` whose recovery rollup hasn't been built yet -- see
-    `load_treatment_rollup_with_recovery`."""
-    from src.regions.sweden.sources.panel.vanished_recovery import load_vanished_recovery_rollup
-
-    return {
-        kind: int(len(rollup)) if (rollup := load_vanished_recovery_rollup(kind, root)) is not None else 0
-        for kind in BARRIER_KINDS
-    }
-
-
 def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
     """Load `assessments` (SIRIS only -- `kvalitetssystem` is deliberately
     excluded, see the module docstring) + `schools assemble`'s road/rail
@@ -870,12 +826,9 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
     See the module docstring for the grain, the `meritvärde_z` cross-era
     stitching decision, how the traffic vs. neighbourhood joins differ
     (interval-overlap vs. plain year merge), and the lineage remap's two
-    different merge policies. Also picks up `vanished_recovery.py`'s
-    Skolkoll-recovered rollups if `sweden data panel
-    recover-vanished-schools` has been run -- optional, see
-    `load_treatment_rollup_with_recovery`."""
+    different merge policies."""
     siris_datasets = {key: load_siris(key, root) for key in SIRIS_DATASET_KEYS}
-    rollups = {kind: load_treatment_rollup_with_recovery(kind, root) for kind in BARRIER_KINDS}
+    rollups = {kind: load_treatment_rollup(kind, root) for kind in BARRIER_KINDS}
     school_traffic = load_school_traffic(root)
     school_neighbourhood = load_school_neighbourhood(root)
     lineage_crosswalk = load_lineage_crosswalk(root)
@@ -910,7 +863,6 @@ def run_panel_assemble(root: Path | None = None) -> dict[str, object]:
             }
             for flag in SIDE_UNKNOWN_FLAGS
         },
-        "vanished_schools_recovered": _vanished_recovery_counts(root),
         **{
             f"schools_with_{column}": int(panel.loc[panel[column].notna(), "skolenhetskod"].nunique())
             for column in ("traffic_max_adt_250m", "traffic_max_adt_500m", "traffic_protected_road_adt")

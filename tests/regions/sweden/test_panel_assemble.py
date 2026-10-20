@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from src.regions.sweden.sources.panel import assemble as pa
+from src.regions.sweden.sources.schools import assemble as schools_assemble
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +17,7 @@ def isolated_paths(tmp_path, monkeypatch):
     for path in paths.values():
         path.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(pa, "assessments_paths", lambda root=None: paths)
-    monkeypatch.setattr(pa, "schools_paths", lambda root=None: paths)
+    monkeypatch.setattr(schools_assemble, "schools_paths", lambda root=None: paths)
     monkeypatch.setattr(pa, "assembled_panel_path", lambda root=None: paths["assembled"] / "event_study_panel.parquet")
     monkeypatch.setattr(pa, "assembled_metadata_path", lambda root=None: paths["assembled"] / "event_study_panel.json")
     monkeypatch.setattr(
@@ -375,8 +376,9 @@ def test_run_panel_assemble_end_to_end(isolated_paths):
     empty_salsa.to_parquet(paths["processed"] / "siris_salsa.parquet", index=False)
     road = _rollup_df(first_treat_year_point=2015, first_treat_year_same_route=2015, first_treat_year_same_side=2015)
     rail = _rollup_df(first_treat_year_point=pd.NA, first_treat_year_same_route=pd.NA, first_treat_year_same_side=pd.NA)
-    road.to_parquet(paths["assembled"] / "schools_road_rollup_network.parquet", index=False)
-    rail.to_parquet(paths["assembled"] / "schools_rail_rollup_network.parquet", index=False)
+    pd.concat([road.assign(kind="road"), rail.assign(kind="rail")], ignore_index=True).to_parquet(
+        paths["assembled"] / "schools_barrier_rollup.parquet", index=False
+    )
     _school_traffic_df().to_parquet(paths["assembled"] / "school_traffic.parquet", index=False)
     _school_neighbourhood_df().to_parquet(paths["assembled"] / "school_neighbourhood.parquet", index=False)
 
@@ -407,32 +409,17 @@ def test_load_treatment_rollup_rejects_unknown_kind():
         pa.load_treatment_rollup("water")
 
 
-def test_load_treatment_rollup_with_recovery_falls_back_when_recovery_not_built(isolated_paths, monkeypatch):
-    """`vanished_recovery.py` is additive/optional (see `panel/assemble.py`'s
-    module docstring) -- `load_treatment_rollup_with_recovery` must return
-    the base rollup unchanged, not raise, when `panel
-    recover-vanished-schools` hasn't been run yet."""
-    from src.regions.sweden.sources.panel import vanished_recovery as vr
+def test_load_treatment_rollup_reads_one_kind_from_the_combined_rollup(isolated_paths):
+    road = _rollup_df(first_treat_year_point=2015, first_treat_year_same_route=2015, first_treat_year_same_side=2015)
+    rail = _rollup_df(first_treat_year_point=2018, first_treat_year_same_route=2018, first_treat_year_same_side=2018)
+    pd.concat([road.assign(kind="road"), rail.assign(kind="rail")], ignore_index=True).to_parquet(
+        isolated_paths["assembled"] / "schools_barrier_rollup.parquet", index=False
+    )
 
-    monkeypatch.setattr(vr, "load_vanished_recovery_rollup", lambda kind, root=None: None)
-    base = _rollup_df(first_treat_year_point=2015, first_treat_year_same_route=2015, first_treat_year_same_side=2015)
-    base_path = isolated_paths["assembled"] / "schools_road_rollup_network.parquet"
-    base.to_parquet(base_path, index=False)
-
-    out = pa.load_treatment_rollup_with_recovery("road")
-    pd.testing.assert_frame_equal(out.reset_index(drop=True), pd.read_parquet(base_path).reset_index(drop=True))
-
-
-def test_load_treatment_rollup_with_recovery_concatenates_recovered_rows(isolated_paths, monkeypatch):
-    from src.regions.sweden.sources.panel import vanished_recovery as vr
-
-    base = _rollup_df(first_treat_year_point=2015, first_treat_year_same_route=2015, first_treat_year_same_side=2015)
-    base.to_parquet(isolated_paths["assembled"] / "schools_road_rollup_network.parquet", index=False)
-    recovered = pd.DataFrame({"skolenhetskod": ["v1"], "ever_treated": [True], "first_treat_year": [2018]})
-    monkeypatch.setattr(vr, "load_vanished_recovery_rollup", lambda kind, root=None: recovered)
-
-    out = pa.load_treatment_rollup_with_recovery("road")
-    assert set(out["skolenhetskod"]) == {"s1", "s2", "v1"}
+    out = pa.load_treatment_rollup("rail")
+    assert "kind" not in out.columns
+    assert list(out.columns) == list(rail.columns)
+    assert out["first_treat_year"].tolist()[0] == 2018
 
 
 def test_load_kvalitetssystem_missing_file_raises_with_guidance():

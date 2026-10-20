@@ -15,8 +15,6 @@ from src.core.cli.main import build_parser
         ["sweden", "data", "schools", "fetch"],
         ["sweden", "data", "schools", "preprocess"],
         ["sweden", "data", "schools", "assemble"],
-        ["sweden", "data", "schools", "assemble-rail-network"],
-        ["sweden", "data", "schools", "assemble-road-network"],
         ["sweden", "data", "schools", "build-lineage"],
         ["sweden", "data", "network", "preprocess-tracks"],
         ["sweden", "data", "road-network", "preprocess"],

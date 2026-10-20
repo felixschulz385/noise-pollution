@@ -356,22 +356,6 @@ def command_schools_assemble(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_schools_assemble_rail_network(args: argparse.Namespace) -> int:
-    from src.regions.sweden.sources.schools.assemble import run_schools_assemble_network
-
-    result = run_schools_assemble_network("rail")
-    print_json({"domain": "schools", "stage": "assemble-rail-network", **result})
-    return 0
-
-
-def command_schools_assemble_road_network(args: argparse.Namespace) -> int:
-    from src.regions.sweden.sources.schools.assemble import run_schools_assemble_network
-
-    result = run_schools_assemble_network("road")
-    print_json({"domain": "schools", "stage": "assemble-road-network", **result})
-    return 0
-
-
 def command_schools_build_lineage(args: argparse.Namespace) -> int:
     from src.regions.sweden.sources.schools.lineage import run_schools_lineage
 
@@ -393,14 +377,6 @@ def command_panel_assemble(args: argparse.Namespace) -> int:
 
     result = run_panel_assemble()
     print_json({"domain": "panel", "stage": "assemble", **result})
-    return 0
-
-
-def command_panel_recover_vanished_schools(args: argparse.Namespace) -> int:
-    from src.regions.sweden.sources.panel.vanished_recovery import run_recover_vanished_schools
-
-    result = run_recover_vanished_schools(max_dist=args.max_dist)
-    print_json({"domain": "panel", "stage": "recover-vanished-schools", **result})
     return 0
 
 

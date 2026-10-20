@@ -1,15 +1,14 @@
 """Paths and constants for the Sweden `skolkoll` source: a third-party
 aggregation of Skolverket's own `api.skolverket.se` school-unit data
-(skolkoll.se), fetched here specifically to recover coordinates for school
-units purged from Skolverket's own live `Skolenhetsregistret` snapshot --
-see `panel/vanished_recovery.py`'s module docstring for why our own
-`schools` domain can't do this on its own (Skolverket's live API has no
-history endpoint; a purged code is gone without a trace).
+(skolkoll.se), fetched to recover coordinates for closed school units
+that the register's API v1 left out.
 
-Not a general-purpose school register for this project -- `schools/` (the
-`Skolenhetsregistret` fetch) remains the primary, authoritative identity/
-geocoding source for every school that's still in the live register.
-`skolkoll` is used narrowly, only for the codes that aren't.
+**Not used by the pipeline since 2026-10-20**: `schools fetch` now reads
+the register's API v2, which lists closed (`UPPHORT`) units with their
+coordinates -- the same points Skolkoll mirrored (all 306 it had
+recovered match exactly), so the `panel recover-vanished-schools` stage
+that read this source was removed. Kept for its pupil, teacher and
+merit-value columns, a possible covariate source.
 
 Checked live 2026-09-23: a public flat-file CSV download, no
 authentication, `;`-delimited, UTF-8 with a BOM, `#`-prefixed metadata/

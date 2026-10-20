@@ -218,7 +218,7 @@ def add_side_treatment_definitions(rollup: pd.DataFrame, side: pd.DataFrame) -> 
 
 def build_combined_rollup(cells_gdf: gpd.GeoDataFrame, rollups: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """One row per grid cell, `{kind}_`-prefixed columns from each kind's
-    rollup -- mirrors `schools/assemble.py::build_combined_rollup`. The
+    rollup -- the wide layout `schools/assemble.py` used before 2026-10-20. The
     `same_route`/`same_side` tier columns are only filled when present --
     callers passing a bare `match_grid_point` rollup (no
     `add_side_treatment_definitions` applied, a legitimate standalone use)

@@ -94,8 +94,7 @@ from src.regions.sweden.sources.barrier_protection.shared import references_path
 from src.regions.sweden.sources.noise_barriers.shared import BARRIER_KINDS, load_noise_barriers
 from src.regions.sweden.sources.osm_walls.shared import load_osm_walls
 from src.regions.sweden.sources.panel.shared import assembled_panel_path
-from src.regions.sweden.sources.schools.assemble import load_geocoded_schools
-from src.regions.sweden.sources.schools.shared import schools_paths
+from src.regions.sweden.sources.schools.assemble import load_barrier_pairs, load_geocoded_schools
 
 VIEW_M = 150.0
 VALIDATION_METHODS = {"parallel_road": ("road",), "track_offset": ("rail",), "osm_offset": ("road", "rail")}
@@ -285,8 +284,7 @@ def _panel_schools(root: Path | None) -> set[str]:
 
 
 def _pairs(kind: str, panel: set[str], root: Path | None) -> pd.DataFrame:
-    path = schools_paths(root)["assembled"] / f"schools_{kind}_pairs_network.parquet"
-    pairs = pd.read_parquet(path)
+    pairs = load_barrier_pairs(kind, root)
     pairs["skolenhetskod"] = pairs["skolenhetskod"].astype(str)
     return pairs[pairs["skolenhetskod"].isin(panel)]
 
@@ -488,7 +486,7 @@ def select_national(
 
 def _all_pairs(kind: str, root: Path | None) -> pd.DataFrame:
     """Every school's barrier pairs (not only the panel's)."""
-    return pd.read_parquet(schools_paths(root)["assembled"] / f"schools_{kind}_pairs_network.parquet", columns=["barrier_row"])
+    return load_barrier_pairs(kind, root)[["barrier_row"]]
 
 
 def national_priority(units: list[pd.DataFrame], data: dict[str, dict], all_pairs: dict[str, pd.DataFrame]) -> list[dict]:

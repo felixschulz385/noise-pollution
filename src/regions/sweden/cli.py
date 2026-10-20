@@ -174,21 +174,9 @@ def _register_schools(domains: argparse._SubParsersAction) -> None:
     sc_pre.add_argument("--csv-filename", default="schools.csv")
     sc_pre.set_defaults(func=h.command_schools_preprocess)
 
-    sc_asm = cmd.add_parser("assemble", help="Match geocoded schools to nearby road/rail noise barriers")
+    sc_asm = cmd.add_parser("assemble", help="Match geocoded schools to nearby road/rail noise barriers, all four tiers (point/same_route/same_side/protected). Requires barrier-protection build first")
     sc_asm.add_argument("--max-dist", type=float, default=1000.0)
     sc_asm.set_defaults(func=h.command_schools_assemble)
-
-    sc_rail_net = cmd.add_parser(
-        "assemble-rail-network",
-        help="Algorithms 4+5 (same_route/same_side/protected): annotate the rail match with the saved barrier references. Requires assemble + barrier-protection build first",
-    )
-    sc_rail_net.set_defaults(func=h.command_schools_assemble_rail_network)
-
-    sc_road_net = cmd.add_parser(
-        "assemble-road-network",
-        help="Algorithms 4+5 (same_route/same_side/protected): annotate the road match with the saved barrier references. Requires assemble + barrier-protection build first",
-    )
-    sc_road_net.set_defaults(func=h.command_schools_assemble_road_network)
 
     sc_lineage = cmd.add_parser(
         "build-lineage",
@@ -360,13 +348,6 @@ def _register_panel(domains: argparse._SubParsersAction) -> None:
         help="Final event-study panel: joins assessments (both vintages) + schools assemble's treatment timing",
     )
     cmd = panel.add_subparsers(dest="stage", required=True)
-
-    p_recover = cmd.add_parser(
-        "recover-vanished-schools",
-        help="Recover coordinates (via Skolkoll) for SIRIS-assessed schools absent from the registry entirely, then match them to barriers. Optional -- requires skolkoll preprocess, schools assemble, barrier-protection build first",
-    )
-    p_recover.add_argument("--max-dist", type=float, default=1000.0)
-    p_recover.set_defaults(func=h.command_panel_recover_vanished_schools)
 
     p_assemble = cmd.add_parser(
         "assemble",
