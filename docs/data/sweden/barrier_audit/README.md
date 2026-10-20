@@ -11,6 +11,11 @@ built in; `national_4` and `_5` to do.**
   methods with the manual side: `osm_offset` 97% (n=164), `parallel_road`
   95% (757), `track_offset` 96% (512); answers under 10 s agree as often
   as slower ones.
+- **Not visible** (106 barriers: road 41, rail 65) is its own status:
+  `audit_decision = "not_visible"` in the barrier references. The side
+  stays the automatic one: road 21 `parallel_road`, 18 `unknown`, 2
+  `osm_offset`; rail 53 `unknown`, 10 `track_offset`, 1 `osm_offset`, 1
+  `bis_sibling`. The status is recorded, not used yet.
 - **`outer_track` dropped** (2026-10-20): 99% agreement in band, but 3
   co-located targets were answered Both sides, and the targets now have
   manual sides. See [`../barrier_matching.md`](../barrier_matching.md)
@@ -21,8 +26,17 @@ built in; `national_4` and `_5` to do.**
   each time one of the two. On 67 more co-located tasks (mostly rail)
   Felix agreed in 59. His recheck answers now decide
   ([below](#pipeline-integration)).
-- **Still to do:** `national_4` and `_5`, and the blind double coding
-  (2 tasks so far, so no κ yet).
+- **Still to do:** the blind double coding (2 tasks so far, so no κ yet),
+  next; then `national_4` and `_5`.
+- **`national_4` and `_5` don't hold up the grid** (counted on the
+  2026-10-20 grid). All their barriers are undated, and a cell an undated
+  barrier protects has unknown timing, so they can't add a dated treated
+  cell. When they come back and the grid is rebuilt:
+  - **controls:** 7,077 road and 4,912 rail cells are `side_unknown` only
+    because of an undated barrier whose side is unknown. Each becomes a
+    clean control or a treated cell with unknown timing.
+  - **dated treated cells:** 9 of 10,968 road and 53 of 11,668 rail could
+    lose their year, if such a barrier turns out to protect them too.
 
 **Status (2026-09-29): phases 0-2 done; six zips ready, none sent.**
 - The device check passed on the reviewer's laptop; the pilot is complete
@@ -418,7 +432,7 @@ conformal, so screen-up is `n`.
 | `side` (`left`/`right`) | `side_method = "manual"`, sign = `signed_side(through-line, [aligned point])`, the same test `_osm_side` applies to an OSM wall, so no new sign convention. The aligned point is the view centre moved by the mean `lateral_m` along `n`: where the reviewer put the line on the wall. The build used this point instead of the plan's "midpoint of the offset line", which on a long, curved barrier can lie far from the stretch the reviewer looked at. |
 | `both_sides` | `side_method = "manual_both_sides"`, sign 0, protected on both sides (`protection.BOTH_SIDES_METHODS`) |
 | `centre`, `unsure` (only abstentions), `conflict` | ignored; the automatic method stands |
-| `not_visible` | reported, not acted on: `preprocess` lists these barriers (possible data errors or removed walls), and the automatic method stands |
+| `not_visible` | its own status, not acted on: `preprocess` lists these barriers (possible data errors or removed walls), the automatic method stands, and the references carry `audit_decision = "not_visible"` (since 2026-10-20) |
 
 - **Stale answers.** Answers whose key no longer exists in the current
   barrier layer are flagged `stale` and listed by `preprocess`, not
@@ -863,6 +877,18 @@ double-coding. Practice: 4 tasks in `national_1` only.
   two bugs, fixed before release: a curved wall's offset in several parts,
   and key-sharing records. The repackaged batch A zip ran 40 tasks on
   0.7.0, including Both sides placements.
+
+## Decisions (2026-10-20)
+
+1. **`not_visible`:** its own status (`audit_decision` in the references),
+   still never demotes a barrier. This updates decision 2 below.
+2. **`outer_track`:** dropped, not a side method.
+3. **Next:** the blind double coding, then `national_4` and `_5`. The grid
+   doesn't wait for them (see the status above).
+4. **Construction years:** a separate source is being looked for. OSM walls
+   outside Trafikverket's registers are ignored for now
+   ([`../barrier_protection/README.md`](../barrier_protection/README.md),
+   "Known gaps").
 
 ## Decisions (2026-09-24)
 

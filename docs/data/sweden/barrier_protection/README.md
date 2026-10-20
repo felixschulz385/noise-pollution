@@ -93,10 +93,14 @@ One row per barrier, keyed by `barrier_row`:
 - `span_start_m` / `span_end_m`: the barrier's stretch along its
   through-line
 - `route` (rail `bandel`)
-- rail: `outer_track_sign` (the side away from the other tracks, where
-  parallel tracks run on one side only) and `outer_track_spacing_m` (that
-  track's distance, since 2026-09-25). Neither is a side method; the audit
-  report scores them
+- `audit_decision` (2026-10-20): the audit's decision on the barrier, NA
+  if it was never audited. `side` and `both_sides` set `side_method` to
+  `manual` / `manual_both_sides`. `not_visible` (the reviewer saw no wall),
+  `unsure`, `centre` and `conflict` leave the automatic side standing, so
+  only this column marks them. Records that share a key with a co-located
+  record share its decision. (Rail's `outer_track_sign` and
+  `outer_track_spacing_m` were removed the same day, with the rule:
+  [`../barrier_matching.md`](../barrier_matching.md) §7.6.)
 - `chain_id`, `chain_orient`: pieces of one physical wall that the register
   splits (`_barrier_reference.register_chains`, 2026-09-25; rules revised
   2026-09-29: each end joins its best continuation -- within 2 m, 5 m in
@@ -190,6 +194,24 @@ barrier's side, with its nearest road point beside the stretch ±50m, and
 - **Voronoi fallback:** the zone code checks its Voronoi cells and nudges
   the samples by up to 1mm when GEOS returns wrong cells. That happens for
   long runs of exactly collinear samples; no real line triggers it.
+
+## Known gaps in the register (2026-10-20)
+
+**Construction years: being worked on.** Trafikverket records no
+`built_year` for 1,114 of 2,172 road records (51%; 813 of 1,438 walls) and
+487 of 1,829 rail records (27%; 281 of 902 walls). Everything downstream
+treats an undated protecting barrier as unknown timing, never as a year:
+- schools: `timing_unknown`; the 2026-10-20 `protected` analysis drops 59
+  treated schools for it
+- grid: `{kind}_timing_unknown`, 8,228 of 19,196 treated road cells and
+  3,670 of 15,338 rail cells
+Another source of construction dates is being looked for.
+
+**Barriers outside the register: ignored for now.** Only Trafikverket's
+registers are used. OSM maps at least 350 noise barriers (about 50 km) more
+than 100 m from any register barrier, e.g. along municipal streets
+(measured 2026-09-29). They are not in the protected areas or the audit, so
+a unit behind one of them can sit among the controls.
 
 ## Why a separate stage
 

@@ -48,6 +48,10 @@ def built(tmp_path, monkeypatch):
     monkeypatch.setattr(bpb, "load_noise_barriers", lambda kind, root=None: _barriers())
     monkeypatch.setattr(bpb, "NETWORK_LOADERS", {"road": lambda root=None: _network()})
     monkeypatch.setattr(bpb, "load_osm_walls", lambda root=None: None)
+    monkeypatch.setattr(bpb, "load_manual_sides", lambda kind, root=None: None)
+    # The reviewer could not see barrier C.
+    decisions = pd.DataFrame({"element_id": ["C"], "start_measure": [0.40], "end_measure": [0.45], "decision": ["not_visible"]})
+    monkeypatch.setattr(bpb, "load_audit_decisions", lambda kind, root=None: decisions)
     report = bpb.run_barrier_protection_build(kinds=("road",))
     return report
 
@@ -60,6 +64,14 @@ def test_saved_references_load_back_and_classify_identically(built):
     rows = np.array([0, 0, 1, 1, 0])
     pd.testing.assert_frame_equal(classify_points(points, rows, loaded), classify_points(points, rows, fresh))
     assert built["kinds"]["road"]["side_method"] == {"parallel_road": 1, "unknown": 1}
+
+
+def test_not_visible_is_its_own_audit_status_and_keeps_the_automatic_side(built):
+    refs = pd.read_parquet(bps.references_path("road"), columns=["element_id", "side_method", "audit_decision"])
+    assert refs["side_method"].tolist() == ["parallel_road", "unknown"]
+    assert pd.isna(refs["audit_decision"].iloc[0])  # never audited
+    assert refs["audit_decision"].iloc[1] == "not_visible"
+    assert built["kinds"]["road"]["audit_decision"] == {"not_visible": 1}
 
 
 def test_stale_references_are_refused(built):

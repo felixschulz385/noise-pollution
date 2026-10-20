@@ -100,3 +100,15 @@ def load_manual_sides(kind: str, root: Path | None = None) -> pd.DataFrame | Non
     sides = pd.read_parquet(path, columns=["kind", *KEY_COLUMNS, "decision", "aligned_x", "aligned_y"])
     sides = sides[(sides["kind"] == kind) & sides["decision"].isin(USABLE_DECISIONS)]
     return sides.drop(columns="kind").reset_index(drop=True)
+
+
+def load_audit_decisions(kind: str, root: Path | None = None) -> pd.DataFrame | None:
+    """Every audited barrier of one kind (KEY_COLUMNS) and its `decision`,
+    usable or not (`not_visible`, `unsure`, `centre`, `conflict`,
+    `changes_side` included); None when the audit has not been
+    preprocessed."""
+    path = manual_sides_path(root)
+    if not path.exists():
+        return None
+    sides = pd.read_parquet(path, columns=["kind", *KEY_COLUMNS, "decision"])
+    return sides[sides["kind"] == kind].drop(columns="kind").reset_index(drop=True)
