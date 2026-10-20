@@ -1,4 +1,5 @@
-"""Pure-function tests for the schools `preprocess` stage -- no network."""
+"""Pure-function tests for the schools `preprocess` stage (API v2 records) --
+no network."""
 import pytest
 
 from src.regions.sweden.sources.schools.preprocess import (
@@ -8,97 +9,81 @@ from src.regions.sweden.sources.schools.preprocess import (
 )
 
 
-GRUNDSKOLA_SKOLFORMER = [
-    {
-        "type": "Grundskola",
-        "SkolformKod": "11",
-        "Ak1": False,
-        "Ak2": False,
-        "Ak3": False,
-        "Ak4": True,
-        "Ak5": True,
-        "Ak6": True,
-        "Ak7": True,
-        "Ak8": True,
-        "Ak9": True,
-    },
-    {"type": "Fritidshem", "SkolformKod": "15"},
-]
-
-GYMNASIUM_SKOLFORMER = [{"type": "Gymnasieskola", "SkolformKod": "21", "NA": True, "SA": True}]
-
-
-def _detail(**overrides) -> dict:
-    base = {
-        "Namn": "Fjällskolan",
-        "Skolenhetskod": "57004269",
-        "Status": "Aktiv",
-        "Startdatum": "2026-07-01",
-        "Skolenhet_ValidFrom": "2026-07-01T00:00:00",
-        "Resursskola": True,
-        "Besoksadress": {
-            "Adress": "Sångvägen 19",
-            "Postnr": "45171",
-            "Ort": "Uddevalla",
-            "GeoData": {
-                "Koordinat_SweRef_E": "320304.352",
-                "Koordinat_SweRef_N": "6474401.621",
-                "Koordinat_WGS84_Lat": "58.37352579255229",
-                "Koordinat_WGS84_Lng": "11.927218742989618",
+def _detail(code: str = "57004269", **overrides) -> dict:
+    attributes = {
+        "displayName": "Fjällskolan",
+        "status": "AKTIV",
+        "schoolUnitType": "SKOLENHET",
+        "startdate": "2013-10-01",
+        "specialSupportSchool": True,
+        "addresses": [
+            {
+                "type": "BESOKSADRESS",
+                "streetAddress": "Sångvägen 19",
+                "postalCode": "45171",
+                "locality": "Uddevalla",
+                "geoCoordinates": {
+                    "coordinateSweRefE": "320304",
+                    "coordinateSweRefN": "6474401",
+                    "latitude": "58.37352579255229",
+                    "longitude": "11.927218742989618",
+                },
             },
-        },
-        "Kommun": {"Kommunkod": "1485", "Namn": "Uddevalla"},
-        "Huvudman": {"PeOrgNr": "2120001397", "Namn": "UDDEVALLA KOMMUN", "Typ": "Kommun"},
-        "Skolformer": GRUNDSKOLA_SKOLFORMER,
+            {"type": "POSTADRESS", "streetAddress": "Box 1", "postalCode": "45180", "locality": "Uddevalla"},
+        ],
+        "municipalityCode": "1485",
+        "schoolTypes": ["GR", "FTH"],
+        "schoolTypeProperties": {"gr": {"grades": ["4", "5", "6", "7", "8", "9"]}},
     }
-    base.update(overrides)
-    return base
+    attributes.update(overrides)
+    return {
+        "data": {"attributes": attributes, "schoolUnitCode": code, "type": "schoolunit"},
+        "included": {
+            "attributes": {"displayName": "UDDEVALLA KOMMUN", "organizerType": "KOMMUN"},
+            "organizationNumber": "2120001397",
+            "type": "organizer",
+        },
+        "meta": {"created": "2013-10-01", "modified": "2026-07-01"},
+    }
 
 
 def test_extract_grundskola_grades_reads_the_grade_span():
-    grades = extract_grundskola_grades(GRUNDSKOLA_SKOLFORMER)
-    assert grades == {
-        "ak1": False,
-        "ak2": False,
-        "ak3": False,
-        "ak4": True,
-        "ak5": True,
-        "ak6": True,
-        "ak7": True,
-        "ak8": True,
-        "ak9": True,
-    }
+    grades = extract_grundskola_grades({"gr": {"grades": ["4", "5", "6", "7", "8", "9"]}})
+    assert grades["ak1"] is False
+    assert grades["ak3"] is False
+    assert grades["ak4"] is True
+    assert grades["ak9"] is True
 
 
-def test_extract_grundskola_grades_returns_all_none_for_a_gymnasium():
-    grades = extract_grundskola_grades(GYMNASIUM_SKOLFORMER)
+def test_extract_grundskola_grades_returns_all_none_without_grundskola():
+    grades = extract_grundskola_grades({"gy": {"programs": ["NA"]}})
     assert set(grades.values()) == {None}
-    assert set(grades.keys()) == {f"ak{n}" for n in range(1, 10)}
-
-
-def test_extract_grundskola_grades_handles_empty_skolformer():
-    grades = extract_grundskola_grades([])
-    assert set(grades.values()) == {None}
+    assert extract_grundskola_grades(None) == grades
 
 
 def test_flatten_skolenhet_pulls_geocoding_operator_and_grades():
     row = flatten_skolenhet(_detail())
     assert row["skolenhetskod"] == "57004269"
+    assert row["status"] == "AKTIV"
     assert row["kommunkod"] == "1485"
+    assert row["adress"] == "Sångvägen 19"
     assert row["huvudman_orgnr"] == "2120001397"
-    assert row["huvudman_typ"] == "Kommun"
-    assert row["sweref_e"] == "320304.352"
+    assert row["huvudman_typ"] == "KOMMUN"
+    assert row["sweref_e"] == "320304"
     assert row["wgs84_lat"] == "58.37352579255229"
-    assert row["skolformer_typer"] == "Fritidshem,Grundskola"
+    assert row["skolformer_typer"] == "FTH,GR"
+    assert row["senast_andrad"] == "2026-07-01"
+    assert row["nedlaggningsdatum"] is None
     assert row["ak4"] is True
     assert row["ak1"] is False
 
 
-def test_flatten_skolenhet_tolerates_missing_besoksadress():
-    row = flatten_skolenhet({"Skolenhetskod": "1", "Skolformer": []})
+def test_flatten_skolenhet_tolerates_missing_addresses_and_organizer():
+    row = flatten_skolenhet({"data": {"schoolUnitCode": "1", "attributes": {}}})
     assert row["sweref_e"] is None
     assert row["wgs84_lat"] is None
     assert row["kommunkod"] is None
+    assert row["huvudman_orgnr"] is None
 
 
 def test_preprocess_schools_builds_geometry_from_wgs84():
@@ -110,12 +95,23 @@ def test_preprocess_schools_builds_geometry_from_wgs84():
     assert point.y == pytest.approx(58.37352579255229)
 
 
+def test_preprocess_schools_parses_a_closed_units_decimal_comma_coordinates():
+    closed = _detail(status="UPPHORT", endDate="2017-02-07")
+    closed["data"]["attributes"]["addresses"][0]["geoCoordinates"].update(
+        coordinateSweRefE="708435,088", coordinateSweRefN="7029297,022"
+    )
+    row = preprocess_schools([closed]).iloc[0]
+    assert row["sweref_e"] == pytest.approx(708435.088)
+    assert row["sweref_n"] == pytest.approx(7029297.022)
+    assert row["nedlaggningsdatum"] == "2017-02-07"
+
+
 def test_preprocess_schools_keeps_a_row_with_no_coordinates_but_null_geometry():
-    schools_gdf = preprocess_schools([{"Skolenhetskod": "1", "Skolformer": []}])
+    schools_gdf = preprocess_schools([{"data": {"schoolUnitCode": "1", "attributes": {"addresses": []}}}])
     assert len(schools_gdf) == 1
     assert schools_gdf.geometry.iloc[0] is None
 
 
 def test_preprocess_schools_sorts_by_skolenhetskod():
-    schools_gdf = preprocess_schools([_detail(Skolenhetskod="2"), _detail(Skolenhetskod="1")])
+    schools_gdf = preprocess_schools([_detail("2"), _detail("1")])
     assert list(schools_gdf["skolenhetskod"]) == ["1", "2"]

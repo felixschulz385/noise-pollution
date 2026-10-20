@@ -7,8 +7,8 @@ history endpoint, no predecessor/successor field, and Skolverket's own
 is kept internally but never published via the API ("Registret innehåller
 i dag vissa detaljer som inte publiceras i API:et, t.ex. mer detaljerade
 uppgifter om omorganisationer"). A school that splits, merges, or gets
-renamed shows up in the register as one `Vilande` (retired) unit and a
-separate `Aktiv`/`Planerad` unit at the exact same coordinates, with no
+renamed shows up in the register as one `VILANDE`/`UPPHORT` (retired) unit
+and a separate `AKTIV`/`PLANERAD` unit at the exact same coordinates, with no
 official link between them -- even though SIRIS assessment history is
 keyed by the same `skolenhetskod` and genuinely splits across old/new IDs
 when this happens.
@@ -45,8 +45,11 @@ from src.regions.sweden.sources.schools.shared import schools_paths
 
 NAME_SIM_THRESHOLD = 0.8
 COORD_COLS = ["sweref_e", "sweref_n"]
-RETIRING_STATUS = "Vilande"
-CANDIDATE_STATUSES = ("Aktiv", "Planerad")
+# API v2 status codes. A closed (`UPPHORT`) unit retires like a dormant
+# (`VILANDE`) one; v1 never listed closed units, so before 2026-10-20 only
+# `VILANDE` could retire.
+RETIRING_STATUSES = ("VILANDE", "UPPHORT")
+CANDIDATE_STATUSES = ("AKTIV", "PLANERAD")
 
 
 #  Sweden renamed "särskola"/"grundsärskola" (the old special-education
@@ -116,19 +119,44 @@ def _is_bare_digit_twin(old_name: str, new_name: str) -> bool:
     return old_name != new_name and strip_trailing_digit(old_name) == strip_trailing_digit(new_name)
 
 
+GRADE_COLUMNS = [f"ak{n}" for n in range(1, 10)]
+
+
+def _disjoint_grades(schools: pd.DataFrame, old_code: str, new_code: str) -> bool:
+    """True when both units teach grundskola grades and share none
+    (`Henåns skola F-3` -> `Henåns skola 7-9`): two grade bands of one
+    site, not a succession. `norm_name` strips the grade range, so the
+    names alone look identical. Checked 2026-10-20 against the register's
+    own `Omorganiserad från` field (Excel export only): all 21 officially
+    confirmed links with grades overlap; this guard drops 15 of 127."""
+    columns = [col for col in GRADE_COLUMNS if col in schools.columns]
+    if not columns:
+        return False
+    spans = schools.set_index("skolenhetskod")[columns]
+    old, new = spans.loc[old_code], spans.loc[new_code]
+    if old.isna().all() or new.isna().all():
+        return False
+    taught = lambda row: {col for col, value in row.items() if value is True or value == "True"}
+    return not (taught(old) & taught(new))
+
+
 def mixed_status_groups(schools: pd.DataFrame) -> list[pd.DataFrame]:
-    """Co-located (exact `sweref_e`/`sweref_n`) groups that mix a
-    `Vilande` unit with an `Aktiv`/`Planerad` one -- the ID-churn
+    """Co-located (same `sweref_e`/`sweref_n`, to the metre) groups that
+    mix a `VILANDE`/`UPPHORT` unit with an `AKTIV`/`PLANERAD` one -- the
+    ID-churn
     signature. Most co-location is benign (Komvux/SFI/gymnasium units
     sharing one building each keep their own code); this narrower
     signature is what a split/merge/rename reorganization looks like in a
     snapshot register."""
+    # Rounded: v2 gives a closed unit's coordinates to the millimetre and
+    # an open unit's to the metre.
     coords = schools.dropna(subset=COORD_COLS)
+    site = coords[COORD_COLS].round().astype("int64")
     return [
         grp
-        for _, grp in coords.groupby(COORD_COLS)
+        for _, grp in coords.groupby([site[col] for col in COORD_COLS])
         if len(grp) >= 2
-        and (grp["status"] == RETIRING_STATUS).any()
+        and grp["status"].isin(RETIRING_STATUSES).any()
         and grp["status"].isin(CANDIDATE_STATUSES).any()
     ]
 
@@ -136,9 +164,10 @@ def mixed_status_groups(schools: pd.DataFrame) -> list[pd.DataFrame]:
 def build_lineage_crosswalk(schools: pd.DataFrame) -> pd.DataFrame:
     """High-confidence `old_code -> new_code` links only -- see the module
     docstring for the mutual-best + no-tie + `name_sim >= 0.8` +
-    not-a-bare-digit-twin criteria. Every excluded candidate (ambiguous,
-    low-similarity, or a bare-digit twin) is left out entirely, not kept
-    with a lower-confidence flag: downstream code treats this table as
+    not-a-bare-digit-twin criteria, plus overlapping grades
+    (`_disjoint_grades`). Every excluded candidate (ambiguous,
+    low-similarity, a bare-digit twin, or a different grade band) is left
+    out entirely, not kept with a lower-confidence flag: downstream code treats this table as
     "safe to auto-apply", not as a fuller list to filter further."""
     schools = schools.copy()
     schools["name_norm"] = schools["namn"].map(norm_name)
@@ -147,7 +176,7 @@ def build_lineage_crosswalk(schools: pd.DataFrame) -> pd.DataFrame:
 
     link_rows = []
     for grp in mixed_status_groups(schools):
-        retiring = grp[grp["status"] == RETIRING_STATUS]
+        retiring = grp[grp["status"].isin(RETIRING_STATUSES)]
         candidates = grp[grp["status"].isin(CANDIDATE_STATUSES)]
         scored = pd.DataFrame(
             [
@@ -184,7 +213,8 @@ def build_lineage_crosswalk(schools: pd.DataFrame) -> pd.DataFrame:
     if confident.empty:
         return confident.sort_values("old_code").reset_index(drop=True)
     twin_risk = confident.apply(lambda r: _is_bare_digit_twin(r["old_name"], r["new_name"]), axis=1)
-    return confident[~twin_risk].sort_values("old_code").reset_index(drop=True)
+    grade_split = confident.apply(lambda r: _disjoint_grades(schools, r["old_code"], r["new_code"]), axis=1)
+    return confident[~twin_risk & ~grade_split].sort_values("old_code").reset_index(drop=True)
 
 
 def load_schools_table(root: Path | None = None) -> pd.DataFrame:

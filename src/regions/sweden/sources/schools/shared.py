@@ -1,14 +1,12 @@
 """Paths and constants for the Sweden `schools` source.
 
-Phase 1 only: the `Skolenhetsregistret` (school unit register) directory --
-identity, geocoding, grade span, operator. See
-`docs/data/sweden/schools/README.md` for the full multi-phase design (the
-register here, plus the historical SIRIS archive and the live PxWeb
-`kvalitetssystem` API for achievement data, not yet built).
+The `Skolenhetsregistret` (school unit register) directory -- identity,
+geocoding, grade span, operator, start and closing dates. See
+`docs/data/sweden/schools/README.md`.
 
-API v1 is used deliberately (confirmed live 2026-09-15); v2 exists but its
-field differences from v1 were not checked -- see the README's open
-questions before migrating.
+API v2 since 2026-10-20. v1 (used until then) is marked "Retired" in
+Skolverket's own spec, and leaves closed (`UPPHORT`) units out of its list
+and answers HTTP 410 for them; v2 lists them, with an `endDate`.
 """
 from __future__ import annotations
 
@@ -17,12 +15,14 @@ from pathlib import Path
 from src.regions.sweden.sources._layout import domain_dirs
 
 
-SKOLENHETSREGISTRET_BASE = "https://api.skolverket.se/skolenhetsregistret/v1"
+SKOLENHETSREGISTRET_BASE = "https://api.skolverket.se/skolenhetsregistret/v2"
 
-# `Ak1`..`Ak9` are the grade-span booleans Skolverket returns on a Grundskola
-# `Skolformer` entry (confirmed live: a school serving grades 4-9 returns
-# `Ak4`..`Ak9=true`, `Ak1`..`Ak3=false`).
-GRUNDSKOLA_GRADE_FIELDS = [f"Ak{n}" for n in range(1, 10)]
+# v2's `CodeSchoolUnitStatus` enum.
+SCHOOL_UNIT_STATUSES = ("AKTIV", "VILANDE", "UPPHORT", "PLANERAD")
+
+# Grundskola grades 1-9 (`schoolTypeProperties.gr.grades`), kept as one
+# boolean column each.
+GRUNDSKOLA_GRADES = [str(n) for n in range(1, 10)]
 
 
 def schools_paths(root: Path | None = None) -> dict[str, Path]:
@@ -30,8 +30,8 @@ def schools_paths(root: Path | None = None) -> dict[str, Path]:
 
 
 def skolenhet_list_url() -> str:
-    return f"{SKOLENHETSREGISTRET_BASE}/skolenhet"
+    return f"{SKOLENHETSREGISTRET_BASE}/school-units"
 
 
 def skolenhet_detail_url(skolenhetskod: str) -> str:
-    return f"{SKOLENHETSREGISTRET_BASE}/skolenhet/{skolenhetskod}"
+    return f"{SKOLENHETSREGISTRET_BASE}/school-units/{skolenhetskod}"

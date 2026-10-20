@@ -69,11 +69,11 @@ def test_bare_digit_twin_detects_numbered_siblings_not_grade_ranges():
 def test_mixed_status_groups_requires_retiring_and_active_at_same_coords():
     schools = pd.DataFrame(
         [
-            _school("1", "A", "Vilande", e=1, n=1),
-            _school("2", "A", "Aktiv", e=1, n=1),
-            _school("3", "B", "Aktiv", e=2, n=2),  # alone at its own site -- no group
-            _school("4", "C", "Vilande", e=3, n=3),
-            _school("5", "C", "Vilande", e=3, n=3),  # two retiring, no active -- not a churn signature
+            _school("1", "A", "VILANDE", e=1, n=1),
+            _school("2", "A", "AKTIV", e=1, n=1),
+            _school("3", "B", "AKTIV", e=2, n=2),  # alone at its own site -- no group
+            _school("4", "C", "VILANDE", e=3, n=3),
+            _school("5", "C", "VILANDE", e=3, n=3),  # two retiring, no active -- not a churn signature
         ]
     )
     groups = lineage.mixed_status_groups(schools)
@@ -84,8 +84,8 @@ def test_mixed_status_groups_requires_retiring_and_active_at_same_coords():
 def test_build_lineage_crosswalk_links_a_real_grade_band_reorg():
     schools = pd.DataFrame(
         [
-            _school("old1", "Älvegårdsskolan F-3", "Vilande", e=1, n=1),
-            _school("new1", "Älvegårdsskolan 1-9", "Aktiv", e=1, n=1),
+            _school("old1", "Älvegårdsskolan F-3", "VILANDE", e=1, n=1),
+            _school("new1", "Älvegårdsskolan 1-9", "AKTIV", e=1, n=1),
         ]
     )
     crosswalk = lineage.build_lineage_crosswalk(schools)
@@ -94,11 +94,51 @@ def test_build_lineage_crosswalk_links_a_real_grade_band_reorg():
     assert crosswalk.loc[0, "name_sim"] >= lineage.NAME_SIM_THRESHOLD
 
 
+def test_build_lineage_crosswalk_retires_a_closed_unit_at_millimetre_coordinates():
+    """A closed (`UPPHORT`) unit retires like a dormant one, and v2's
+    millimetre coordinates for it still meet its successor's whole metres."""
+    schools = pd.DataFrame(
+        [
+            _school("old1", "Älvegårdsskolan F-3", "UPPHORT", e=708435.088, n=7029297.022),
+            _school("new1", "Älvegårdsskolan 1-9", "AKTIV", e=708435.0, n=7029297.0),
+        ]
+    )
+    crosswalk = lineage.build_lineage_crosswalk(schools)
+    assert list(zip(crosswalk["old_code"], crosswalk["new_code"])) == [("old1", "new1")]
+
+
+def _with_grades(school: dict, grades: set[int]) -> dict:
+    return {**school, **{f"ak{n}": n in grades for n in range(1, 10)}}
+
+
+def test_build_lineage_crosswalk_rejects_two_grade_bands_of_one_site():
+    schools = pd.DataFrame(
+        [
+            _with_grades(_school("old1", "Henåns skola F-3", "UPPHORT", e=1, n=1), {1, 2, 3}),
+            _with_grades(_school("new1", "Henåns skola 7-9", "AKTIV", e=1, n=1), {7, 8, 9}),
+        ]
+    )
+    assert lineage.build_lineage_crosswalk(schools).empty
+
+
+def test_build_lineage_crosswalk_keeps_overlapping_grades_and_units_without_grades():
+    schools = pd.DataFrame(
+        [
+            _with_grades(_school("old1", "Älvegårdsskolan 4-9", "VILANDE", e=1, n=1), {4, 5, 6, 7, 8, 9}),
+            _with_grades(_school("new1", "Älvegårdsskolan 1-9", "AKTIV", e=1, n=1), set(range(1, 10))),
+            {**_school("old2", "Komvux Väst", "UPPHORT", e=2, n=2), **{f"ak{n}": None for n in range(1, 10)}},
+            _with_grades(_school("new2", "Komvux Väst", "AKTIV", e=2, n=2), set()),
+        ]
+    )
+    crosswalk = lineage.build_lineage_crosswalk(schools)
+    assert list(zip(crosswalk["old_code"], crosswalk["new_code"])) == [("old1", "new1"), ("old2", "new2")]
+
+
 def test_build_lineage_crosswalk_links_a_sarskola_terminology_reform():
     schools = pd.DataFrame(
         [
-            _school("old1", "Vegalyckan särskola", "Vilande", e=1, n=1),
-            _school("new1", "Vegalyckan", "Aktiv", e=1, n=1),
+            _school("old1", "Vegalyckan särskola", "VILANDE", e=1, n=1),
+            _school("new1", "Vegalyckan", "AKTIV", e=1, n=1),
         ]
     )
     crosswalk = lineage.build_lineage_crosswalk(schools)
@@ -114,8 +154,8 @@ def test_build_lineage_crosswalk_excludes_bare_digit_twins():
     appear in the crosswalk even though normalized-name similarity is 1.0."""
     schools = pd.DataFrame(
         [
-            _school("old1", "Vasaskolan 2", "Vilande", e=1, n=1),
-            _school("new1", "Vasaskolan 1", "Aktiv", e=1, n=1),
+            _school("old1", "Vasaskolan 2", "VILANDE", e=1, n=1),
+            _school("new1", "Vasaskolan 1", "AKTIV", e=1, n=1),
         ]
     )
     crosswalk = lineage.build_lineage_crosswalk(schools)
@@ -129,8 +169,8 @@ def test_build_lineage_crosswalk_excludes_low_similarity_matches():
     rejects it, not the mutual-best ranking itself."""
     schools = pd.DataFrame(
         [
-            _school("old1", "Komvux", "Vilande", e=1, n=1),
-            _school("new1", "Henåns skola F-6", "Aktiv", e=1, n=1),
+            _school("old1", "Komvux", "VILANDE", e=1, n=1),
+            _school("new1", "Henåns skola F-6", "AKTIV", e=1, n=1),
         ]
     )
     crosswalk = lineage.build_lineage_crosswalk(schools)
@@ -143,9 +183,9 @@ def test_build_lineage_crosswalk_drops_ambiguous_ties():
     unlinked than guess."""
     schools = pd.DataFrame(
         [
-            _school("old1", "Hallernaskolan 7-9 enhet 2", "Vilande", e=1, n=1),
-            _school("new1", "Hallernaskolan 7-9 enhet 1", "Aktiv", e=1, n=1),
-            _school("new2", "Hallernaskolan 7-9 enhet 3", "Aktiv", e=1, n=1),
+            _school("old1", "Hallernaskolan 7-9 enhet 2", "VILANDE", e=1, n=1),
+            _school("new1", "Hallernaskolan 7-9 enhet 1", "AKTIV", e=1, n=1),
+            _school("new2", "Hallernaskolan 7-9 enhet 3", "AKTIV", e=1, n=1),
         ]
     )
     crosswalk = lineage.build_lineage_crosswalk(schools)
@@ -166,10 +206,10 @@ def test_run_schools_lineage_saves_and_reports(tmp_path, monkeypatch):
     )
     schools = pd.DataFrame(
         [
-            _school("old1", "Älvegårdsskolan F-3", "Vilande", e=1, n=1),
-            _school("new1", "Älvegårdsskolan 1-9", "Aktiv", e=1, n=1),
-            _school("old2", "Vasaskolan 2", "Vilande", e=2, n=2),
-            _school("new2", "Vasaskolan 1", "Aktiv", e=2, n=2),
+            _school("old1", "Älvegårdsskolan F-3", "VILANDE", e=1, n=1),
+            _school("new1", "Älvegårdsskolan 1-9", "AKTIV", e=1, n=1),
+            _school("old2", "Vasaskolan 2", "VILANDE", e=2, n=2),
+            _school("new2", "Vasaskolan 1", "AKTIV", e=2, n=2),
         ]
     )
     schools.to_csv(tmp_path / "schools.csv", index=False)

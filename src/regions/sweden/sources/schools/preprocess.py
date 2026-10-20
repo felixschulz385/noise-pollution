@@ -1,6 +1,12 @@
-"""Turn fetched `Skolenhetsregistret` detail records into a tidy, geocoded
-school-unit table. EPSG:4326, matching this repo's other Sweden processed
-layers (`noise_barriers`, `stations` both reproject/build to WGS84)."""
+"""Turn fetched `Skolenhetsregistret` (API v2) detail records into a tidy,
+geocoded school-unit table. EPSG:4326, matching this repo's other Sweden
+processed layers (`noise_barriers`, `stations` both reproject/build to
+WGS84).
+
+One row per school unit, closed (`UPPHORT`) units included, with their
+`nedlaggningsdatum`. v2 writes a closed unit's SWEREF 99 coordinates with
+a decimal comma (`708435,088`) and an open unit's without decimals; both
+parse here. v2 carries no municipality name, only `kommunkod`."""
 from __future__ import annotations
 
 import json
@@ -11,78 +17,102 @@ import pandas as pd
 from shapely.geometry import Point
 
 from src.regions.sweden.sources.schools.fetch import raw_detail_dir
-from src.regions.sweden.sources.schools.shared import GRUNDSKOLA_GRADE_FIELDS, schools_paths
+from src.regions.sweden.sources.schools.shared import GRUNDSKOLA_GRADES, schools_paths
+
+
+GRADE_COLUMNS = [f"ak{grade}" for grade in GRUNDSKOLA_GRADES]
+COORD_COLUMNS = ["sweref_e", "sweref_n", "wgs84_lat", "wgs84_lng"]
 
 
 def load_all_details(root: Path | None = None) -> list[dict]:
     records = []
     for path in sorted(raw_detail_dir(root).glob("*.json")):
         payload = json.loads(path.read_text(encoding="utf-8"))
-        info = payload.get("SkolenhetInfo")
-        if info:
-            records.append(info)
+        if payload.get("data"):
+            records.append(payload)
     return records
 
 
-def extract_grundskola_grades(skolformer: list[dict]) -> dict[str, object]:
-    for entry in skolformer or []:
-        if entry.get("type") == "Grundskola" or entry.get("SkolformKod") == "11":
-            return {field.lower(): entry.get(field) for field in GRUNDSKOLA_GRADE_FIELDS}
-    return {field.lower(): None for field in GRUNDSKOLA_GRADE_FIELDS}
+def extract_grundskola_grades(school_type_properties: dict | None) -> dict[str, object]:
+    """`ak1`..`ak9` booleans from `schoolTypeProperties.gr.grades`; all
+    `None` for a unit without grundskola."""
+    grundskola = (school_type_properties or {}).get("gr")
+    if grundskola is None:
+        return {column: None for column in GRADE_COLUMNS}
+    grades = set(grundskola.get("grades") or [])
+    return {f"ak{grade}": grade in grades for grade in GRUNDSKOLA_GRADES}
 
 
-def flatten_skolenhet(info: dict) -> dict:
-    besoksadress = info.get("Besoksadress") or {}
-    geodata = besoksadress.get("GeoData") or {}
-    kommun = info.get("Kommun") or {}
-    huvudman = info.get("Huvudman") or {}
-    skolformer = info.get("Skolformer") or []
+def _visiting_address(addresses: list[dict]) -> dict:
+    for address in addresses or []:
+        if address.get("type") == "BESOKSADRESS":
+            return address
+    return {}
+
+
+def _organizer(payload: dict) -> dict:
+    included = payload.get("included")
+    if isinstance(included, list):
+        included = next((item for item in included if item.get("type") == "organizer"), None)
+    return included if isinstance(included, dict) and included.get("type") == "organizer" else {}
+
+
+def flatten_skolenhet(payload: dict) -> dict:
+    data = payload.get("data") or {}
+    info = data.get("attributes") or {}
+    besoksadress = _visiting_address(info.get("addresses"))
+    geodata = besoksadress.get("geoCoordinates") or {}
+    organizer = _organizer(payload)
+    organizer_info = organizer.get("attributes") or {}
+    meta = payload.get("meta") or {}
 
     row = {
-        "skolenhetskod": info.get("Skolenhetskod"),
-        "namn": info.get("Namn"),
-        "status": info.get("Status"),
-        "startdatum": info.get("Startdatum"),
-        "skolenhet_valid_from": info.get("Skolenhet_ValidFrom"),
-        "resursskola": info.get("Resursskola"),
-        "adress": besoksadress.get("Adress"),
-        "postnr": besoksadress.get("Postnr"),
-        "ort": besoksadress.get("Ort"),
-        "sweref_e": geodata.get("Koordinat_SweRef_E"),
-        "sweref_n": geodata.get("Koordinat_SweRef_N"),
-        "wgs84_lat": geodata.get("Koordinat_WGS84_Lat"),
-        "wgs84_lng": geodata.get("Koordinat_WGS84_Lng"),
-        "kommunkod": kommun.get("Kommunkod"),
-        "kommun_namn": kommun.get("Namn"),
-        "huvudman_orgnr": huvudman.get("PeOrgNr"),
-        "huvudman_namn": huvudman.get("Namn"),
-        "huvudman_typ": huvudman.get("Typ"),
-        "skolformer_typer": ",".join(sorted({entry.get("type") for entry in skolformer if entry.get("type")})),
+        "skolenhetskod": data.get("schoolUnitCode"),
+        "namn": info.get("displayName"),
+        "status": info.get("status"),
+        "skolenhetstyp": info.get("schoolUnitType"),
+        "startdatum": info.get("startdate"),
+        "nedlaggningsdatum": info.get("endDate"),
+        "senast_andrad": meta.get("modified"),
+        "resursskola": info.get("specialSupportSchool"),
+        "adress": besoksadress.get("streetAddress"),
+        "postnr": besoksadress.get("postalCode"),
+        "ort": besoksadress.get("locality"),
+        "sweref_e": geodata.get("coordinateSweRefE"),
+        "sweref_n": geodata.get("coordinateSweRefN"),
+        "wgs84_lat": geodata.get("latitude"),
+        "wgs84_lng": geodata.get("longitude"),
+        "kommunkod": info.get("municipalityCode"),
+        "huvudman_orgnr": organizer.get("organizationNumber"),
+        "huvudman_namn": organizer_info.get("displayName"),
+        "huvudman_typ": organizer_info.get("organizerType"),
+        "skolformer_typer": ",".join(sorted(set(info.get("schoolTypes") or []))),
     }
-    row.update(extract_grundskola_grades(skolformer))
+    row.update(extract_grundskola_grades(info.get("schoolTypeProperties")))
     return row
+
+
+def _to_number(values: pd.Series) -> pd.Series:
+    return pd.to_numeric(values.astype("string").str.replace(",", ".", regex=False), errors="coerce")
 
 
 def parse_point(row: pd.Series) -> Point | None:
     lat, lng = row.get("wgs84_lat"), row.get("wgs84_lng")
     if pd.isna(lat) or pd.isna(lng):
         return None
-    try:
-        return Point(float(lng), float(lat))
-    except (TypeError, ValueError):
-        return None
+    return Point(float(lng), float(lat))
 
 
 def preprocess_schools(details: list[dict]) -> gpd.GeoDataFrame:
-    rows = [flatten_skolenhet(info) for info in details]
+    rows = [flatten_skolenhet(payload) for payload in details]
     schools_df = pd.DataFrame.from_records(rows)
 
-    for numeric_column in ["sweref_e", "sweref_n", "wgs84_lat", "wgs84_lng"]:
-        if numeric_column in schools_df.columns:
-            schools_df[numeric_column] = pd.to_numeric(schools_df[numeric_column], errors="coerce")
-    for grade_field in [field.lower() for field in GRUNDSKOLA_GRADE_FIELDS]:
-        if grade_field in schools_df.columns:
-            schools_df[grade_field] = schools_df[grade_field].astype("boolean")
+    for column in COORD_COLUMNS:
+        if column in schools_df.columns:
+            schools_df[column] = _to_number(schools_df[column])
+    for column in GRADE_COLUMNS:
+        if column in schools_df.columns:
+            schools_df[column] = schools_df[column].astype("boolean")
 
     schools_gdf = gpd.GeoDataFrame(
         schools_df,

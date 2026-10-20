@@ -13,13 +13,15 @@ from src.regions.sweden.sources.schools import fetch as schools_fetch
 
 
 LIST_PAYLOAD = {
-    "Uttagsdatum": "2026-09-15T00:00:01+02:00",
-    "Skolenheter": [
-        {"Skolenhetskod": "1", "Status": "Aktiv"},
-        {"Skolenhetskod": "2", "Status": "Vilande"},
-        {"Skolenhetskod": "3", "Status": "Aktiv"},
-        {"Skolenhetskod": None, "Status": "Aktiv"},
-    ],
+    "data": {
+        "attributes": [
+            {"schoolUnitCode": "1", "name": "A", "status": "AKTIV"},
+            {"schoolUnitCode": "2", "name": "B", "status": "UPPHORT"},
+            {"schoolUnitCode": "3", "name": "C", "status": "AKTIV"},
+            {"schoolUnitCode": None, "name": "D", "status": "AKTIV"},
+        ]
+    },
+    "meta": {"extractDate": "2026-10-20T00:02:06+02:00"},
 }
 
 
@@ -38,7 +40,7 @@ def test_extract_skolenhet_codes_drops_missing_codes():
 
 
 def test_extract_skolenhet_codes_filters_by_status():
-    codes = schools_fetch.extract_skolenhet_codes(LIST_PAYLOAD, status="Aktiv")
+    codes = schools_fetch.extract_skolenhet_codes(LIST_PAYLOAD, status="AKTIV")
     assert codes == ["1", "3"]
 
 
@@ -47,10 +49,10 @@ def test_fetch_details_skips_codes_already_on_disk(monkeypatch):
 
     def fake_detail(code):
         calls.append(code)
-        return {"SkolenhetInfo": {"Skolenhetskod": code}}
+        return {"data": {"schoolUnitCode": code}}
 
     monkeypatch.setattr(schools_fetch, "fetch_skolenhet_detail", fake_detail)
-    schools_fetch.save_raw_detail("1", {"SkolenhetInfo": {"Skolenhetskod": "1"}})
+    schools_fetch.save_raw_detail("1", {"data": {"schoolUnitCode": "1"}})
 
     result = schools_fetch.fetch_details(["1", "2"])
 
@@ -63,13 +65,13 @@ def test_fetch_details_force_refetches_everything(monkeypatch):
     monkeypatch.setattr(
         schools_fetch,
         "fetch_skolenhet_detail",
-        lambda code: calls.append(code) or {"SkolenhetInfo": {"Skolenhetskod": code}},
+        lambda code: calls.append(code) or {"data": {"schoolUnitCode": code}},
     )
-    schools_fetch.save_raw_detail("1", {"SkolenhetInfo": {"Skolenhetskod": "1"}})
+    schools_fetch.save_raw_detail("1", {"data": {"schoolUnitCode": "1"}})
 
     result = schools_fetch.fetch_details(["1", "2"], force=True)
 
-    assert calls == ["1", "2"]
+    assert sorted(calls) == ["1", "2"]
     assert result["fetched"] == ["1", "2"]
     assert result["skipped"] == []
 
@@ -78,7 +80,7 @@ def test_fetch_details_records_failures_without_raising(monkeypatch):
     def flaky_detail(code):
         if code == "2":
             raise RuntimeError("HTTP 404: not found")
-        return {"SkolenhetInfo": {"Skolenhetskod": code}}
+        return {"data": {"schoolUnitCode": code}}
 
     monkeypatch.setattr(schools_fetch, "fetch_skolenhet_detail", flaky_detail)
 
@@ -86,7 +88,7 @@ def test_fetch_details_records_failures_without_raising(monkeypatch):
 
     assert result["fetched"] == ["1"]
     assert result["failed"] == ["2"]
-    assert schools_fetch.load_raw_detail("1") == {"SkolenhetInfo": {"Skolenhetskod": "1"}}
+    assert schools_fetch.load_raw_detail("1") == {"data": {"schoolUnitCode": "1"}}
 
 
 def test_fetch_skolenhetsregistret_orchestrates_list_then_details(monkeypatch):
@@ -94,10 +96,10 @@ def test_fetch_skolenhetsregistret_orchestrates_list_then_details(monkeypatch):
     monkeypatch.setattr(
         schools_fetch,
         "fetch_skolenhet_detail",
-        lambda code: {"SkolenhetInfo": {"Skolenhetskod": code}},
+        lambda code: {"data": {"schoolUnitCode": code}},
     )
 
-    result = schools_fetch.fetch_skolenhetsregistret(status="Aktiv")
+    result = schools_fetch.fetch_skolenhetsregistret(status="AKTIV")
 
     assert result["total_in_register"] == 4
     assert result["requested_details"] == 2
@@ -111,10 +113,10 @@ def test_fetch_skolenhetsregistret_respects_limit(monkeypatch):
     monkeypatch.setattr(
         schools_fetch,
         "fetch_skolenhet_detail",
-        lambda code: fetched_codes.append(code) or {"SkolenhetInfo": {"Skolenhetskod": code}},
+        lambda code: fetched_codes.append(code) or {"data": {"schoolUnitCode": code}},
     )
 
     result = schools_fetch.fetch_skolenhetsregistret(limit=2)
 
     assert result["requested_details"] == 2
-    assert fetched_codes == ["1", "2"]
+    assert sorted(fetched_codes) == ["1", "2"]

@@ -165,7 +165,7 @@ def _register_schools(domains: argparse._SubParsersAction) -> None:
         help="Fetch the school-unit list, then per-school detail records (geocoded)",
     )
     sc_fetch.add_argument("--limit", type=int, help="Fetch detail for at most this many schools (smoke test)")
-    sc_fetch.add_argument("--status", choices=["Aktiv", "Vilande", "Planerad"], help="Only fetch this Status")
+    sc_fetch.add_argument("--status", choices=["AKTIV", "VILANDE", "UPPHORT", "PLANERAD"], help="Only fetch this status")
     sc_fetch.add_argument("--force", action="store_true", help="Refetch detail records already on disk")
     sc_fetch.set_defaults(func=h.command_schools_fetch)
 
