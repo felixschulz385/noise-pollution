@@ -551,6 +551,23 @@ algorithm 5.
   `proposed_protected` is `True` for a school in the protected area of one:
   43 placed schools, 38 of them never treated by a built wall (2026-09-29
   run). A candidate comparison group, sited like the treated schools.
+- `protected_lateral_m` (rollup, since 2026-09-30; carried by the panel):
+  for a `protected` school, the distance from its road of the wall that
+  dates its treatment. That is the earliest-built protecting wall, the
+  nearest among equals. `protected_gcid` / `protected_road_id` instead
+  name the *nearest* protecting wall (differs for 2 of 27 schools with
+  several). Used to split treatment by distance, see
+  [`../within_barrier_design.md`](../within_barrier_design.md).
+- `protected_project_type` (rollup, since 2026-09-30; carried by the
+  panel): the `project_type` of that same wall. `I` is a federal Type I
+  project (new road, added lanes, new ramps); `S` a state project, `O` /
+  `C` other (see [`../README.md`](../README.md), cleaning rule 6). The
+  pair table carries every wall's `project_type`. Of the 128 protected
+  schools: 89 `I`, 29 `S`, 10 `O`.
+- `proposed_lateral_m` (rollup, since 2026-09-30; carried by the panel):
+  for a `proposed_protected` school, the distance from its road of the
+  nearest proposed wall protecting it. 43 schools, median 361m; of the 38
+  never treated, 16 are within 300m.
 - `REMOVED` / `PLANNED` never reach here (dropped in
   `noise_barriers preprocess`).
 

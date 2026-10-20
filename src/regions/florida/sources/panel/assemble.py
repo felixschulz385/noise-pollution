@@ -543,7 +543,7 @@ def build_event_study_panel(
     )
     static_cols = cross_section[STATIC_SCHOOL_COLUMNS + ["geometry"]].rename(columns=STATIC_SCHOOL_RENAMES)
     panel = panel.merge(static_cols, on="msid", how="left", validate="m:1")
-    rollup_columns = TREATMENT_COLUMNS + [c for c in ("protected_road_id", "proposed_protected") if c in rollup.columns]
+    rollup_columns = TREATMENT_COLUMNS + [c for c in ("protected_road_id", "protected_lateral_m", "protected_project_type", "proposed_protected", "proposed_lateral_m") if c in rollup.columns]
     panel = panel.merge(rollup[rollup_columns], on="msid", how="left", validate="m:1")
     panel = attach_traffic(panel, school_aadt_panel, max_traffic_year_gap)
     if school_nearby_aadt is not None:

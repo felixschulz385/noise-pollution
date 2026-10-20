@@ -64,8 +64,8 @@ writes, into `processed/`:
   per wall segment (`gcid` is 1:1 with rows), columns:
   `gcid, category, type, flag, is_programmed, built_year, fdot_distr,
   fed_route, fed_county, bloc_side, bloc_bnd, bloc_onrte, fed_nac, fed_anr,
-  ben_rcptrs, tot_rcptrs, fed_materl, fhwa_sub_notes, height_m, length_m,
-  seg_len_m, geometry`. `bloc_side`/`bloc_bnd`/`bloc_onrte` (compass side,
+  ben_rcptrs, tot_rcptrs, fed_materl, fhwa_sub_notes, fed_ptype,
+  project_type, fed_mdate, fm_id, height_m, length_m, seg_len_m, geometry`. `bloc_side`/`bloc_bnd`/`bloc_onrte` (compass side,
   traffic-direction orientation, mount type — found 2026-09-11 while
   investigating `road_network`'s side-of-road question, see
   [`schools/README.md`](schools/README.md)) are the wall's own side-of-road
@@ -99,6 +99,24 @@ Cleaning rules (crystallized from `src/experiments/florida/barriers.ipynb`):
    snapshot time. These rows are kept (flagged), not dropped.
 5. **Units:** `height_m`, `length_m` converted from feet; `seg_len_m` is the
    geometry-true length (`SHAPE_Length`, already metres).
+6. **The project that built the wall** (since 2026-09-30). `fm_id` is FDOT's
+   Financial Management project number (97% of built walls), `fed_mdate`
+   the mandate (federal or state regulation), `fed_ptype` the raw project
+   type. `project_type` is its first code, per the layer's metadata:
+   - `I`: federal Type I. A new road, added through or auxiliary lanes, new
+     or relocated ramps, or a substantial realignment.
+   - `S`: a state highway project that isn't Type I, II or III.
+   - `C`: a county project. `O` is not defined in the metadata.
+
+   A trailing `T` (e.g. `S, T`) is dropped. Built walls in `jul26`: 780
+   `I`, 291 `S`, 171 `O`, 3 `C`. No wall is Type II (a retrofit on an
+   unchanged road), so every FDOT wall came with a highway project.
+   Linking `fm_id` to the Work Program's work mix works only for recent
+   walls: `road_projects` holds fiscal years 2023–2030, which match 0% of
+   walls built before 2005 and 49% of those built 2020–24. 300 built walls
+   match, on 49 projects (built 2005–2026, median 2020). 252 of them sit on
+   added-lanes, interchange or new-road projects, 43 on one item whose work
+   mix is "roundabout", and 5 on other work.
 
 The school ↔ barrier ↔ street-network merge that turns this into per-school
 barrier treatment timing lives in the `schools` source, not here.
@@ -245,6 +263,13 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
   `ever_treated` schools (2026-09-24): 513 (`_point`) → 303
   (`_same_route`) → 228 (`_same_side`) → 116 (`_protected`), each tier a
   strict refinement of the last. Before 2026-09-24: 513 → 293 → 221.
+- **Treatment distance** (since 2026-09-30): `protected_lateral_m`, the
+  distance from its road of the wall that dates a protected school's
+  treatment (116 panel schools: 57 within 300m, 59 beyond). See
+  [`within_barrier_design.md`](within_barrier_design.md).
+  `protected_project_type` is that wall's `project_type` (`I` / `S` / `O`
+  / `C`). `proposed_lateral_m` is the same distance for the nearest
+  proposed wall protecting a `proposed_protected` school.
 - **Traffic (Cluster C) is joined in**: `traffic_roadway_id`,
   `traffic_release_year`, `traffic_aadt`, `traffic_match_dist_m`, via
   `attach_traffic` — a `pd.merge_asof(direction="nearest",

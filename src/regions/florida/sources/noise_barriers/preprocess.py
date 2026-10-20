@@ -25,6 +25,14 @@ notebook ``src/experiments/florida/barriers.ipynb`` this crystallizes):
   distance / buffer / network work needs no reprojection.
 * **Schema drift between releases is tolerated** — only columns present in the
   given release are carried through.
+* **The project that built the wall.** ``fm_id`` is FDOT's Financial
+  Management project number, ``fed_mdate`` the mandate, ``fed_ptype`` the raw
+  project type and ``project_type`` its first code: ``I`` a federal Type I
+  project (new road, added through or auxiliary lanes, new ramps, major
+  realignment), ``S`` a state highway project that isn't Type I/II/III, ``C``
+  a county one, ``O`` undefined in the layer's metadata. A trailing ``T``
+  (e.g. ``S, T``) is dropped from ``project_type``. No wall is Type II
+  (retrofit on an unchanged road).
 """
 from __future__ import annotations
 
@@ -61,6 +69,9 @@ OTHER_WALL_TYPES = ("PRIVATE WALL", "PERIMETER WALL")
 PROPOSED_BARRIER_TYPES = ("RECOMMENDED BARRIERS",)
 KEEP_TYPES = (*FDOT_BARRIER_TYPES, *OTHER_WALL_TYPES, *PROPOSED_BARRIER_TYPES)
 
+# FED_PTYPE's first code, kept as `project_type` (see the module docstring).
+PROJECT_TYPES = ("I", "II", "III", "S", "C", "O")
+
 # FLAG value marking a programmed / under-construction wall at snapshot time.
 PROGRAMMED_FLAG = "FNV"
 
@@ -81,6 +92,9 @@ COLUMN_RENAMES = {
     "TOT_RCPTRS": "tot_rcptrs",
     "FED_MATERL": "fed_materl",
     "FHWA_SUB_NOTES": "fhwa_sub_notes",
+    "FED_PTYPE": "fed_ptype",
+    "FED_MDATE": "fed_mdate",
+    "FM_ID": "fm_id",
 }
 
 # Final column order (each kept only if present).
@@ -103,6 +117,10 @@ OUTPUT_COLUMNS = [
     "tot_rcptrs",
     "fed_materl",
     "fhwa_sub_notes",
+    "fed_ptype",
+    "project_type",
+    "fed_mdate",
+    "fm_id",
     "height_m",
     "length_m",
     "seg_len_m",
@@ -212,6 +230,9 @@ def preprocess_barriers(gdf: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
         year = pd.to_numeric(walls["FED_YRCON"], errors="coerce")
         year = year.where(year.between(BUILT_YEAR_MIN, BUILT_YEAR_MAX))
         out["built_year"] = pd.array(year.round().to_numpy(), dtype="Int64")
+    if "FED_PTYPE" in walls.columns:
+        code = walls["FED_PTYPE"].astype("string").str.split(",").str[0].str.strip()
+        out["project_type"] = code.where(code.isin(PROJECT_TYPES)).to_numpy()
     if "FED_HEIGHT" in walls.columns:
         out["height_m"] = (pd.to_numeric(walls["FED_HEIGHT"], errors="coerce") * FT_TO_M).round(2).to_numpy()
     if "FED_LENGTH" in walls.columns:

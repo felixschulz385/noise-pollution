@@ -161,6 +161,45 @@ def test_add_road_treatment_definitions_tiers_diverge():
     assert not rollup["protected_unknown"].any()
 
 
+def test_protected_lateral_m_comes_from_the_wall_that_dates_the_treatment():
+    # Two parallel roads 400m apart, the school between them, 150m from r1
+    # and 250m from r2. The wall facing it on r1 is nearer but built later
+    # (2012) than the one on r2 (2005), which dates the treatment.
+    schools = _schools([("between", "N1", 500, 150)])
+    barriers = _barriers([
+        ("near_late", "fdot_barrier", 2012, 450, 550, 5),
+        ("far_early", "fdot_barrier", 2005, 450, 550, 395),
+    ])
+    road_network = _road_network([("r1", 0, 2000, 0), ("r2", 0, 2000, 400)])
+    refs = build_barrier_references(barriers, road_network, budget_m=200.0)
+
+    pair, rollup = match_barriers_point(schools, barriers, max_dist=1500)
+    pair = match_barriers_road(pair, schools, barriers, refs)
+    row = add_road_treatment_definitions(pair, rollup).set_index("msid").loc["between"]
+
+    assert row["first_treat_year_protected"] == 2005
+    assert row["protected_lateral_m"] == pytest.approx(250.0)
+    assert row["protected_gcid"] == "near_late"
+    assert pd.isna(row["protected_project_type"])  # the synthetic walls carry no project type
+
+
+def test_protected_project_type_comes_from_the_wall_that_dates_the_treatment():
+    schools = _schools([("between", "N1", 500, 150)])
+    barriers = _barriers([
+        ("near_late", "fdot_barrier", 2012, 450, 550, 5),
+        ("far_early", "fdot_barrier", 2005, 450, 550, 395),
+    ])
+    barriers["project_type"] = ["S", "I"]
+    road_network = _road_network([("r1", 0, 2000, 0), ("r2", 0, 2000, 400)])
+    refs = build_barrier_references(barriers, road_network, budget_m=200.0)
+
+    pair, rollup = match_barriers_point(schools, barriers, max_dist=1500)
+    pair = match_barriers_road(pair, schools, barriers, refs)
+    row = add_road_treatment_definitions(pair, rollup).set_index("msid").loc["between"]
+
+    assert row["protected_project_type"] == "I"
+
+
 def test_match_barriers_road_covers_other_wall_category_too():
     schools = _schools([("s", "N1", 500, 30)])
     barriers = _barriers([("priv", "other_wall", None, 495, 505, 5)])
@@ -184,6 +223,8 @@ def test_proposed_wall_flags_its_protected_schools_but_never_treats_them():
     rollup = add_road_treatment_definitions(pair, rollup).set_index("msid")
 
     assert rollup.loc[["behind", "across"], "proposed_protected"].tolist() == [True, False]
+    assert rollup.loc["behind", "proposed_lateral_m"] == pytest.approx(30.0)
+    assert pd.isna(rollup.loc["across", "proposed_lateral_m"])
     for name in ("point", "same_route", "same_side", "protected"):
         assert not rollup[f"ever_treated_{name}"].any()
     assert (rollup["nearest_fdot_dist_m"] == float("inf")).all()

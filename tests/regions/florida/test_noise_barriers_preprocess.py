@@ -154,3 +154,26 @@ def test_tolerates_missing_bloc_columns():
     assert "bloc_side" not in out.columns
     assert "bloc_bnd" not in out.columns
     assert "bloc_onrte" not in out.columns
+
+
+def test_project_type_is_the_first_code_of_fed_ptype():
+    gdf = _raw([
+        _row("a", "CONSTRUCTED BARRIERS", LineString([(0, 0), (10, 0)]), FED_PTYPE="I", FM_ID="257139-1",
+             FED_MDATE="Federal Regulation"),
+        _row("b", "CONSTRUCTED BARRIERS", LineString([(0, 1), (10, 1)]), FED_PTYPE="S, T"),
+        _row("c", "CONSTRUCTED BARRIERS", LineString([(0, 2), (10, 2)]), FED_PTYPE=" "),
+    ])
+    out = preprocess_barriers(gdf).set_index("gcid")
+    assert out.loc["a", "project_type"] == "I"
+    assert out.loc["b", "project_type"] == "S"
+    assert out.loc["b", "fed_ptype"] == "S, T"
+    assert pd.isna(out.loc["c", "project_type"])
+    assert out.loc["a", "fm_id"] == "257139-1"
+    assert out.loc["a", "fed_mdate"] == "Federal Regulation"
+
+
+def test_tolerates_missing_project_columns():
+    gdf = _raw([_row("a", "CONSTRUCTED BARRIERS", LineString([(0, 0), (10, 0)]))])
+    out = preprocess_barriers(gdf)
+    assert "project_type" not in out.columns
+    assert "fm_id" not in out.columns

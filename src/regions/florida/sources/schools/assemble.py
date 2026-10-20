@@ -105,6 +105,11 @@ def match_barriers_point(
         "dist_m": dist[school_i, wall_i].round(1),
         "built_year": barriers["built_year"].to_numpy()[wall_i],
     })
+    # The wall's project type (`noise_barriers preprocess`): I = federal Type I
+    # (new road, added lanes, new ramps), S = state project, ...
+    pair["project_type"] = (
+        barriers["project_type"].to_numpy()[wall_i] if "project_type" in barriers.columns else pd.NA
+    )
     pair["treat_year"] = np.where(pair["category"].eq("fdot_barrier"), pair["built_year"], np.nan)
     pair["timing_unknown"] = pair["category"].eq("fdot_barrier") & pair["built_year"].isna()
     for radius in buffers:
@@ -163,10 +168,27 @@ def add_road_treatment_definitions(pair: pd.DataFrame, rollup: pd.DataFrame) -> 
     )
     out["protected_gcid"] = out["msid"].map(protecting["gcid"])
     out["protected_road_id"] = out["msid"].map(protecting["road_id"])
+    # The distance from its road of the wall that dates the school's
+    # treatment: the earliest-built protecting wall (the nearest among
+    # equals, or the nearest when none is dated). The analysis splits
+    # treated schools on it (`docs/data/florida/within_barrier_design.md`).
+    treating = (
+        fdot[fdot["protected"].fillna(False).astype(bool)]
+        .sort_values(["treat_year", "lateral_m"], na_position="last")
+        .drop_duplicates("msid")
+        .set_index("msid")
+    )
+    out["protected_lateral_m"] = out["msid"].map(treating["lateral_m"])
+    # ... and the project that built that wall (Type I: new road or added
+    # lanes by definition), to tell wall-with-widening treatments apart.
+    out["protected_project_type"] = out["msid"].map(treating["project_type"])
     # Schools a proposed (recommended, never built) wall would have
     # protected: sited like the treated schools, so a comparison group.
+    # `proposed_lateral_m` is the nearest such wall's distance from its road,
+    # so the comparison can be split by distance like `protected_lateral_m`.
     proposed = pair[pair["category"].eq("proposed_barrier") & pair["protected"].fillna(False).astype(bool)]
     out["proposed_protected"] = out["msid"].isin(set(proposed["msid"]))
+    out["proposed_lateral_m"] = out["msid"].map(proposed.groupby("msid")["lateral_m"].min())
     return out
 
 
