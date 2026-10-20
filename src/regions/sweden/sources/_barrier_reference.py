@@ -54,12 +54,9 @@ M. `manual` / `manual_both_sides` -- a reviewer aligned the barrier with the
    with longer records that carry the wall's geometry.
 6. `unknown` -- none of the above. Never counted as the protected side.
 
-Rail also records `outer_track_sign`: where parallel tracks run on one side
-only, the side away from them (the wall of an outer track stands outside),
-and `outer_track_spacing_m`, that track's distance from the barrier's
-midpoint (the audit report splits agreement by it).
-Not a side method yet: it agrees 22/26 with OSM walls where no twin record
-lies on the other track; the audit validates it (2026-09-24).
+Tracks on one side only (an outer track) do NOT give the side: the
+`outer_track` rule, the side away from the other tracks, was tested in the
+audit and dropped on 2026-10-20 (`barrier_matching.md` §7.6).
 
 Side is always a sign against ONE reference line per barrier -- its
 through-line (`src/core/barrier_geometry/linear_ref.through_line`), which follows the barrier's own
@@ -340,23 +337,19 @@ def build_barrier_references(
         corridors[br] = corridor_lines(row, anchor, geoms, lengths, endpoints, covered[br], budget_m=budget_m)
 
         # Road: the nearest parallel road. Rail: the nearest parallel track on
-        # each side -- one side only makes this an outer track.
+        # each side.
         has_recorded = recorded[br] >= TRACK_OFFSET_MIN_M
         if kind == "road":
             nearest = parallel_neighbor(anchor, own_line, own_rows, geoms, network_sindex, endpoints)
             neighbours = [] if nearest is None else [nearest]
         else:
             neighbours = list(parallel_neighbors_by_side(anchor, own_line, own_rows, geoms, network_sindex, endpoints).values())
-        neighbour_signs, neighbour_lines, neighbour_dists = [], [], []
+        neighbour_signs, neighbour_lines = [], []
         for neighbour in neighbours:
             near = geoms[neighbour].interpolate(geoms[neighbour].project(anchor))
             neighbour_signs.append(float(signed_side(line, [near])[0][0]))
-            neighbour_dists.append(anchor.distance(near))
             neighbour_lines.append(through_line(neighbour, near, geoms, endpoints, budget_m=budget_m)[0])
         neighbour_sign = neighbour_signs[0] if neighbour_signs else None
-        outer = kind == "rail" and len(neighbour_signs) == 1
-        outer_track_sign = -neighbour_signs[0] if outer else np.nan
-        outer_track_spacing_m = neighbour_dists[0] if outer else np.nan
 
         osm = None
         if osm_walls is not None:
@@ -387,8 +380,6 @@ def build_barrier_references(
             "side_method": method,
             "barrier_sign": sign,
             "osm_id": osm_id,
-            "outer_track_sign": outer_track_sign,
-            "outer_track_spacing_m": outer_track_spacing_m,
             "span_start_m": span_start,
             "span_end_m": span_end,
         }

@@ -694,7 +694,7 @@ is protected on both sides like `both_sides`
 (`protection.BOTH_SIDES_METHODS`). Where the second wall is not a
 Trafikverket barrier (e.g. municipal), it still counts as protection.
 
-**4. Outer tracks: recorded, not yet a method.** If Trafikverket registers
+**4. Outer tracks: recorded, not yet a method** (dropped 2026-10-20, see the end of this section). If Trafikverket registers
 each rail wall on the track it stands beside, an outer track's wall stands
 outside, away from the other tracks, like `parallel_road`. §7.3 rejected
 this at 70% agreement, but that test took only the nearest parallel track,
@@ -860,6 +860,15 @@ on another track within 25 m, not co-located; similar length: ≥ 0.8):
 - **These counts differ from the ad-hoc ones above** (59 in band, 45 twins,
   14 co-located, 5 similar length). One reason: twins now exclude co-located
   records. Another: two stubs were dropped.
+
+**Decision (2026-10-20): the `outer_track` rule is dropped.** With batch A
+and `national_1`–`_3` answered, targets in the 3.8–10 m band agreed 99%,
+but 3 co-located targets were answered Both sides, so the rule's verdict was
+"do not adopt". By then the rail targets it was meant for had a manual side
+of their own, and the rule would only have decided barriers nobody had
+looked at. An outer track without a recorded distance therefore stays
+`unknown`. The references no longer carry `outer_track_sign` /
+`outer_track_spacing_m`, and the audit report no longer scores the rule.
 
 **Audit app 0.2.0** (see [`barrier_audit/README.md`](barrier_audit/README.md)):
 Both sides is its own answer (key B), not an Unsure reason. Other barrier

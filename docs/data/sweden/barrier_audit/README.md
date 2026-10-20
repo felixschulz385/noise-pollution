@@ -10,8 +10,11 @@ built in; `national_4` and `_5` to do.**
   side, 149 both sides), 106 not visible. Agreement of the automatic
   methods with the manual side: `osm_offset` 97% (n=164), `parallel_road`
   95% (757), `track_offset` 96% (512); answers under 10 s agree as often
-  as slower ones. `outer_track`: 99% in band, verdict still "do not
-  adopt" (3 co-located targets answered Both sides).
+  as slower ones.
+- **`outer_track` dropped** (2026-10-20): 99% agreement in band, but 3
+  co-located targets were answered Both sides, and the targets now have
+  manual sides. See [`../barrier_matching.md`](../barrier_matching.md)
+  §7.6.
 - **Recheck of co-located walls** (Felix, `serve --tasks`): on the 19
   road tasks the automatic `both_sides` covers, the reviewer had lined up
   one wall in 14; Felix saw both walls in 8 of them, the reviewer's wall
@@ -431,30 +434,11 @@ conformal, so screen-up is `n`.
   - for double-coded tasks: share of identical categories, Cohen's κ on
     the category, and the median |Δ `lateral_m`|
   - practice results per reviewer
-  - `outer_track`: for rail barriers on an outer track (`outer_track_sign`
-    in the key), how often the manual side is the one away from the other
-    tracks, for targets and validation separately. This decides whether
-    `outer_track` becomes a side method
-    ([`../barrier_matching.md`](../barrier_matching.md) §7.6). Since
-    2026-09-25, each group is also split:
-    - by the other track's spacing (`<3.8`, `3.8-10`, `>10` m; from the
-      references' `outer_track_spacing_m`)
-    - by neighbours: `co_located` (another record on the same track,
-      within 1 m, overlapping ≥ half the shorter), else `twin` (a record
-      alongside on another track, the exporter's 25 m test), else
-      `single`
-    - by whether a distance from the track is recorded
-
-    Each split gives records and walls (`n_walls_sided`). `decision_rule`
-    applies the adoption rule to the targets (spacing 3.8–10 m: agreement
-    ≥ 90%, Wilson lower bound ≥ 80%, no co-located target answered Both
-    sides) and gives a `verdict`: `adopt`; `do not adopt` (agreement
-    under 90%, or Both sides on a co-located target); `too few answers`
-    (agreement high enough, but the lower bound still under 80%); or `no
-    answers yet`. The pilot's 8/8 is `too few answers`. It also counts co-located targets of similar length (the
-    shorter ≥ 0.8 of the longer; §7.6 gave no threshold).
-
-  To be written up in `barrier_matching.md` once batch A is in.
+  - (until 2026-10-20: `outer_track`, the agreement of rail outer tracks
+    with the side away from the other tracks, split by spacing,
+    neighbours and recorded distance, with an adoption `verdict`. The
+    rule was dropped, and the report no longer scores it:
+    [`../barrier_matching.md`](../barrier_matching.md) §7.6.)
 - **Later, not in v1.** The manual offset line gives the wall's real
   position, so `protection_zones` could be drawn from it instead of from
   the centreline.

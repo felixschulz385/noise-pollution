@@ -45,10 +45,7 @@ them", leave them empty.
 **Report:** answers whose barrier is no longer in the barrier layer
 (`stale`), the `not_visible` and `conflict` barriers, validation accuracy
 per automatic method (manual vs automatic sign against the saved
-through-line, with a Wilson 95% interval), the same for rail's candidate
-`outer_track_sign` -- split by track spacing, twin / co-located records
-and recorded distance, with the adoption rule of `barrier_matching.md`
-§7.6 applied (`outer_track_report`) --, double-coding agreement
+through-line, with a Wilson 95% interval), double-coding agreement
 (Cohen's kappa on the category, median |difference| in `lateral_m`), and
 practice results per reviewer.
 """
@@ -85,21 +82,6 @@ DECISIONS = {
     "left": "side", "right": "side", "both_sides": "both_sides", "centre": "centre", "not_visible": "not_visible",
     "changes_side": "changes_side",  # the wall switches sides along a chain task: back to one task per record
 }
-# The outer-track adoption rule (barrier_matching.md §7.6): targets whose
-# other track is 3.8-10 m away agree >= 90%, Wilson lower bound >= 80%, and
-# no co-located target was answered Both sides.
-OUTER_TRACK_BAND_M = (3.8, 10.0)
-OUTER_TRACK_MIN_SHARE = 0.9
-OUTER_TRACK_MIN_WILSON = 0.8
-# Another rail record on the same track: within 1 m, overlapping >= half the
-# shorter one; "similar length" when the shorter is >= 0.8 of the longer.
-CO_LOCATED_M = 1.0
-CO_LOCATED_MIN_SHARE = 0.5
-SIMILAR_LENGTH_RATIO = 0.8
-# A record alongside on another track (the export's `has_twin` test).
-TWIN_BUFFER_M = 25.0
-TWIN_MIN_SHARE = 0.5
-TRACK_OFFSET_MIN_M = 1.0
 
 ANSWER_COLUMNS = [
     "batch", "reviewer", "task_id", "status", "reason", "note", "lateral_m", "lateral_other_m", "along_residual_m",
@@ -334,144 +316,6 @@ def validation_report(answers: pd.DataFrame, sides: pd.DataFrame) -> dict:
     return report
 
 
-def rail_neighbour_classes(root: Path | None = None) -> pd.DataFrame:
-    """Per rail barrier (KEY_COLUMNS): `neighbours` -- `co_located` (another
-    record on the same track, `CO_LOCATED_M`), else `twin` (a record
-    alongside on another track, `TWIN_BUFFER_M`), else `single` --,
-    `similar_length` (a co-located record of similar length: the rail
-    analogue of road's `both_sides`), `recorded_distance` (a recorded
-    distance from the track >= 1 m) and `outer_track_spacing_m` (from the
-    saved references; NaN if they predate it). Stubs (`is_stub`) are never
-    anyone's neighbour."""
-    from src.regions.sweden.sources._barrier_reference import is_stub
-
-    barriers = load_noise_barriers("rail", root).reset_index(drop=True)
-    lines = barriers.to_crs(METRIC_CRS).geometry.to_numpy()
-    lengths = np.array([g.length for g in lines])
-    stub = is_stub(barriers.to_crs(METRIC_CRS))
-    sindex = gpd.GeoSeries(lines).sindex
-    neighbours, similar = [], []
-    for i, line in enumerate(lines):
-        co_located = twin = similar_length = False
-        if not stub[i]:
-            near, wide = line.buffer(CO_LOCATED_M), line.buffer(TWIN_BUFFER_M)
-            for j in sindex.query(wide, predicate="intersects"):
-                if j == i or stub[j]:
-                    continue
-                shorter = min(lengths[i], lengths[j])
-                if lines[j].intersection(near).length >= CO_LOCATED_MIN_SHARE * shorter:
-                    co_located = True
-                    similar_length |= shorter >= SIMILAR_LENGTH_RATIO * max(lengths[i], lengths[j])
-                elif lines[j].intersection(wide).length >= TWIN_MIN_SHARE * shorter:
-                    twin = True
-        neighbours.append("co_located" if co_located else "twin" if twin else "single")
-        similar.append(similar_length)
-    recorded = barriers.get("distance_from_track_center_m", pd.Series(np.nan, index=barriers.index)).to_numpy(dtype=float)
-    frame = barriers[KEY_COLUMNS].assign(
-        neighbours=neighbours, similar_length=similar, recorded_distance=recorded >= TRACK_OFFSET_MIN_M
-    )
-    path = references_path("rail", root)
-    spacing = np.full(len(frame), np.nan)
-    if path.exists():
-        import pyarrow.parquet as pq
-
-        if "outer_track_spacing_m" in pq.read_schema(path).names:
-            refs = pd.read_parquet(path, columns=["barrier_row", "outer_track_spacing_m"]).set_index("barrier_row").sort_index()
-            if len(refs) == len(frame):
-                spacing = refs["outer_track_spacing_m"].to_numpy(dtype=float)
-    frame["outer_track_spacing_m"] = spacing
-    return frame
-
-
-def spacing_band(spacing_m: pd.Series) -> pd.Series:
-    low, high = OUTER_TRACK_BAND_M
-    band = np.select(
-        [spacing_m.isna(), spacing_m < low, spacing_m <= high],
-        ["unknown", f"<{low:g}", f"{low:g}-{high:g}"],
-        default=f">{high:g}",
-    )
-    return pd.Series(band, index=spacing_m.index)
-
-
-def _agreement(group: pd.DataFrame) -> dict:
-    sided = group[(group["decision"] == "side") & group["manual_sign"].notna()]
-    agree = int((sided["manual_sign"] == sided["outer_track_sign"]).sum())
-    return {
-        "n_barriers": len(group),
-        "decisions": {k: int(v) for k, v in group["decision"].value_counts().items()},
-        "n_sided": len(sided),
-        # Records of one wall answered in one task aren't independent.
-        "n_walls_sided": int(sided["task_id"].nunique()),
-        "agree": agree,
-        "share_agree": round(agree / len(sided), 3) if len(sided) else None,
-        "wilson_95": wilson(agree, len(sided)),
-    }
-
-
-def outer_track_report(answers: pd.DataFrame, sides: pd.DataFrame, classes: pd.DataFrame | None = None) -> dict:
-    """Rail barriers on an outer track (`outer_track_sign` +-1 in the key):
-    how they were decided, and how often a manual side is the one away from
-    the other tracks -- overall, per group, and per group split by spacing
-    band, neighbours and recorded distance (`classes`, from
-    `rail_neighbour_classes`). `decision_rule` applies §7.6's adoption rule
-    to the targets. Validation barriers are `track_offset` ones, outer by
-    construction: not evidence for the rule."""
-    if "outer_track_sign" not in answers.columns:
-        return {"n_barriers": 0}
-    work = answers[(answers["group"] != "practice") & (answers["kind"] == "rail") & answers["outer_track_sign"].isin([1.0, -1.0])]
-    work = work[["kind", *KEY_COLUMNS, "group", "outer_track_sign", "task_id"]].drop_duplicates(["kind", *KEY_COLUMNS])
-    work = work.merge(sides, on=["kind", *KEY_COLUMNS])
-    if classes is not None:
-        work = work.merge(classes, on=KEY_COLUMNS, how="left")
-    for column, default in (("neighbours", "unknown"), ("similar_length", False), ("recorded_distance", False)):
-        if column not in work.columns:
-            work[column] = default
-    work["neighbours"] = work["neighbours"].fillna("unknown")
-    work["spacing_band"] = spacing_band(work["outer_track_spacing_m"] if "outer_track_spacing_m" in work.columns else pd.Series(np.nan, index=work.index))
-    work["recorded"] = np.where(work["recorded_distance"].fillna(False).astype(bool), "recorded", "not_recorded")
-
-    report = {"all": _agreement(work)}
-    for group_name, group in work.groupby("group"):
-        report[group_name] = {
-            **_agreement(group),
-            "by_spacing": {k: _agreement(g) for k, g in group.groupby("spacing_band")},
-            "by_neighbours": {k: _agreement(g) for k, g in group.groupby("neighbours")},
-            "by_recorded_distance": {k: _agreement(g) for k, g in group.groupby("recorded")},
-        }
-
-    targets = work[work["group"] == "target"]
-    low, high = OUTER_TRACK_BAND_M
-    in_band = _agreement(targets[targets["spacing_band"] == f"{low:g}-{high:g}"])
-    co_located = targets[targets["neighbours"] == "co_located"]
-    both = int((co_located["decision"] == "both_sides").sum())
-    lower = in_band["wilson_95"][0] if in_band["wilson_95"] else None
-    # "too few answers": agreement is high enough but its interval still too
-    # wide; "do not adopt": agreement too low, or walls on both sides of a
-    # co-located target.
-    if not in_band["n_sided"]:
-        verdict = "no answers yet"
-    elif in_band["share_agree"] < OUTER_TRACK_MIN_SHARE or both > 0:
-        verdict = "do not adopt"
-    elif lower < OUTER_TRACK_MIN_WILSON:
-        verdict = "too few answers"
-    else:
-        verdict = "adopt"
-    report["decision_rule"] = {
-        "targets_in_band": in_band,
-        "co_located_targets": len(co_located),
-        "co_located_targets_similar_length": int(co_located["similar_length"].fillna(False).astype(bool).sum()),
-        "co_located_targets_both_sides": both,
-        "criteria": {
-            "spacing_band_m": list(OUTER_TRACK_BAND_M),
-            "min_share_agree": OUTER_TRACK_MIN_SHARE,
-            "min_wilson_lower": OUTER_TRACK_MIN_WILSON,
-            "max_co_located_both_sides": 0,
-        },
-        "verdict": verdict,
-    }
-    return report
-
-
 def double_coding_report(answers: pd.DataFrame) -> dict:
     """Agreement between reviewers on the double-coding tasks both answered
     (not on rechecks, which were chosen because an answer looked wrong)."""
@@ -534,9 +378,6 @@ def run_barrier_audit_preprocess(root: Path | None = None) -> dict:
     sides.to_parquet(manual_sides_path(root), index=False)
     answers.drop(columns=[c for c in ("geometry",) if c in answers]).to_parquet(processed / "audit_answers.parquet", index=False)
 
-    outer = (answers["kind"] == "rail") & answers.get("outer_track_sign", pd.Series(np.nan, index=answers.index)).isin([1.0, -1.0])
-    outer_track_classes = rail_neighbour_classes(root) if outer.any() else None
-
     listing = ["kind", *KEY_COLUMNS, "reviewers", "categories", "notes"]
     report = {
         "n_answers": len(answers),
@@ -550,14 +391,13 @@ def run_barrier_audit_preprocess(root: Path | None = None) -> dict:
         "n_adjudicated": int(sides["adjudicated"].sum()) if "adjudicated" in sides else 0,
         "changes_side": sides.loc[sides["decision"] == "changes_side", listing].to_dict("records"),
         "validation": validation_report(answers, sides),
-        "outer_track": outer_track_report(answers, sides, outer_track_classes),
         "double_coding": double_coding_report(answers),
         "practice": practice_report(answers),
     }
     (processed / "audit_report.json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     return {
         "saved": str(manual_sides_path(root)),
-        **{k: report[k] for k in ("n_answers", "reviewers", "n_barriers", "decisions", "used_by_build", "validation", "outer_track", "double_coding", "practice")},
+        **{k: report[k] for k in ("n_answers", "reviewers", "n_barriers", "decisions", "used_by_build", "validation", "double_coding", "practice")},
         "n_stale": len(report["stale"]),
         "n_not_visible": len(report["not_visible"]),
         "n_conflict": len(report["conflict"]),

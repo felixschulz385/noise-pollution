@@ -291,10 +291,8 @@ def _pairs(kind: str, panel: set[str], root: Path | None) -> pd.DataFrame:
 
 def _references(kind: str, barriers: gpd.GeoDataFrame, root: Path | None) -> pd.DataFrame:
     path = references_path(kind, root)
-    columns = ["barrier_row", *KEY_COLUMNS, "side_method", "barrier_sign", "osm_id", "outer_track_sign"]
+    columns = ["barrier_row", *KEY_COLUMNS, "side_method", "barrier_sign", "osm_id"]
     refs = pd.read_parquet(path, columns=[c for c in columns if c in pq.read_schema(path).names])
-    if "outer_track_sign" not in refs.columns:  # references built before 2026-09-24
-        refs["outer_track_sign"] = np.nan
     refs = refs.set_index("barrier_row").sort_index()
     current = barriers[KEY_COLUMNS].reset_index(drop=True)
     if len(refs) != len(current) or not refs[KEY_COLUMNS].reset_index(drop=True).equals(current):
@@ -936,7 +934,6 @@ def build_tasks(
                     "side_method": ref["side_method"],
                     "barrier_sign": float(ref["barrier_sign"]),
                     "osm_id": ref["osm_id"],
-                    "outer_track_sign": float(ref.get("outer_track_sign", np.nan)),
                     "skolenhetskod": r.skolenhetskod if isinstance(r.skolenhetskod, str) else None,
                     "n_records": len(unit),
                     "strand": int(r.strand),
