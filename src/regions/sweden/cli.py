@@ -295,6 +295,10 @@ def _register_barrier_protection(domains: argparse._SubParsersAction) -> None:
     bp_build.add_argument("--kind", choices=["road", "rail"], action="append", help="Default: both")
     bp_build.add_argument("--budget-m", type=float, default=800.0)
     bp_build.add_argument("--buffer-m", type=float, default=600.0)
+    bp_build.add_argument(
+        "--control-max-lateral-m", type=float, default=1500.0,
+        help="Outer edge (metres from the road) of the control band beyond the protected area (default: 1500).",
+    )
     bp_build.set_defaults(func=h.command_barrier_protection_build)
 
 

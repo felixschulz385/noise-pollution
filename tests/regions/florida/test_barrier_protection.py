@@ -93,6 +93,16 @@ def test_a_long_rci_row_is_trimmed_around_the_wall():
     assert out["same_route"].tolist() == [True, False]
 
 
+def test_noise_reduction_comes_from_fed_anr_with_zero_as_missing():
+    walls = _walls([
+        ("a", LineString([(1000, 30), (1300, 30)]), "NORTH"),
+        ("b", LineString([(1500, 30), (1800, 30)]), "NORTH"),
+    ]).assign(fed_anr=[7.4, 0.0])
+    refs = ref.build_barrier_references(walls, _east_west_road())
+    assert refs.table.loc[0, "noise_reduction_db"] == pytest.approx(7.4)
+    assert np.isnan(refs.table.loc[1, "noise_reduction_db"])
+
+
 def test_zones_match_the_point_test():
     walls = _walls([("w", LineString([(1000, 30), (1300, 30)]), "NORTH")])
     refs = ref.build_barrier_references(walls, _east_west_road())
@@ -123,5 +133,9 @@ def test_build_saves_references_that_load_back_and_refuses_a_stale_file(tmp_path
     )
     zones = bps.load_protection_zones()
     assert zones[["gcid", "zone_status", "built_year"]].iloc[0].tolist() == ["w", "protected", 2010]
+    band = bps.load_control_band_zones()
+    assert band[["gcid", "zone_status", "built_year"]].iloc[0].tolist() == ["w", "control_band", 2010]
+    assert band.geometry.iloc[0].intersection(zones.geometry.iloc[0]).area < 1.0
+    assert "noise_reduction_db" in zones.columns and "noise_reduction_db" in band.columns
     with pytest.raises(ValueError, match="barrier-protection build"):
         bps.load_barrier_references(barriers_gdf=walls.assign(gcid=["other"]))

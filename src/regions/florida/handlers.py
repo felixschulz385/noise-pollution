@@ -285,7 +285,9 @@ def command_schools_preprocess(args: argparse.Namespace) -> int:
 def command_barrier_protection_build(args: argparse.Namespace) -> int:
     from src.regions.florida.sources.barrier_protection.build import run_barrier_protection_build
 
-    result = run_barrier_protection_build(budget_m=args.budget_m, buffer_m=args.buffer_m)
+    result = run_barrier_protection_build(
+        budget_m=args.budget_m, buffer_m=args.buffer_m, control_max_lateral_m=args.control_max_lateral_m
+    )
     print_json({"domain": "barrier_protection", "stage": "build", **result})
     return 0
 

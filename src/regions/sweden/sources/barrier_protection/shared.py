@@ -42,6 +42,10 @@ def zones_path(root: Path | None = None) -> Path:
     return barrier_protection_paths(root)["processed"] / "protection_zones.parquet"
 
 
+def control_band_zones_path(root: Path | None = None) -> Path:
+    return barrier_protection_paths(root)["processed"] / "control_band_zones.parquet"
+
+
 def references_frame(refs: BarrierReferences, barriers_gdf: gpd.GeoDataFrame, crs) -> gpd.GeoDataFrame:
     """`refs` as one GeoDataFrame row per barrier: its key columns, the
     reference table, the through-line (`geometry`) and the corridor lines
@@ -91,6 +95,20 @@ def load_protection_zones(root: Path | None = None, kind: str | None = None) -> 
     `side_method`, `zone_status` ("protected" / "side_unknown") and
     `built_year`. Spatially join any unit (address, area, grid cell) to it."""
     path = zones_path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing -- run `sweden data barrier-protection build` first.")
+    zones = gpd.read_parquet(path)
+    return zones if kind is None else zones[zones["kind"] == kind].reset_index(drop=True)
+
+
+def load_control_band_zones(root: Path | None = None, kind: str | None = None) -> gpd.GeoDataFrame:
+    """The national control-band layer: per barrier, the area on its side
+    and beside its stretch, beyond the protected area's reach (600m) up to
+    the band's (1500m by default; `core.barrier_geometry.protection.
+    control_band_zones`). Same columns as `load_protection_zones`, with
+    `zone_status` "control_band" / "side_unknown". It never overlaps its own
+    barrier's protected area but can overlap another barrier's."""
+    path = control_band_zones_path(root)
     if not path.exists():
         raise FileNotFoundError(f"{path} missing -- run `sweden data barrier-protection build` first.")
     zones = gpd.read_parquet(path)

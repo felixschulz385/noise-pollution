@@ -91,6 +91,66 @@ carries it. `florida/analysis.ipynb` §8 uses it as a restricted control
 group. The pre-change outputs are in
 `data/florida/_backup_pre_proposed_2026-09-29/`.
 
+**2026-09-30: control band and noise reduction.** Two additions to the
+shared model, prompted by Moretti & Wheeler (2025, NBER w34298). They use
+the same FDOT inventory, compare homes 0-500m behind a wall with homes
+500-1500m behind the same wall, and scale effects by each wall's decibel
+reduction.
+
+- **Control band** (`core/barrier_geometry/protection.py`):
+  - **The rule:** the protected area's rule one ring further out. A point
+    is in the band when it is on the wall's side, its nearest point on the
+    road is beside the stretch (±50m), and it lies more than 600m but at
+    most 1500m (`CONTROL_MAX_LATERAL_M`) from the road.
+  - **Point test:** `classify_points(..., control_max_lateral_m=1500)`
+    adds `control_band` and `control_band_unknown`, and fills `lateral_m` /
+    `along_offset_m` for every point within 1500m of the line. Without the
+    argument the output is unchanged.
+  - **Polygons:** `control_band_zones` draws the band. The build saves it
+    as `control_band_zones.parquet`; `shared.load_control_band_zones`
+    loads it. Columns are those of `protection_zones.parquet`, with
+    `zone_status` `control_band` / `side_unknown`.
+  - **Overlap:** a wall's band never overlaps its own protected area, but
+    can overlap another wall's. 2.2% of the built walls' band area lies in
+    some built wall's protected area; drop those points from a control
+    group.
+  - **Looser than the protected test:** "beside the stretch" is measured
+    against the reference line alone, which is trimmed to `LINE_TRIM_M`
+    (1500m) past the wall. Another road a band point is nearer to doesn't
+    count.
+- **Noise reduction:** `noise_reduction_db` in the references table and
+  both zone layers is `FED_ANR` ("Average Noise Reduction", FGDL metadata).
+  0 counts as missing. Coverage:
+  - built walls: 1,244 of 1,245 (median 7.0; 11 below 5 dB)
+  - proposed walls: 547 of 548 (median 7.5)
+  - private walls: 4 of 18
+
+  503 built walls carry exactly 7.0 dB, likely a default rather than a
+  wall-specific estimate. Treat the variable as coarse.
+
+**Run of 2026-09-30:**
+
+| | result |
+|---|---|
+| build time | 152s |
+| references, protected zones | every existing column identical to the 2026-09-29 build; `noise_reduction_db` added |
+| control-band zones | 1,805 (771.9 km² band, 1.9 km² side unknown) |
+| walls without a band | 6, all inside tight bends: no point beside their stretch lies beyond 600m (the point test agrees) |
+
+No consumer reads the band yet. `schools assemble` still calls
+`classify_points` without it, so schools and panel outputs don't change.
+How the analysis will use the band, the distances and the dB column is
+planned in [`within_barrier_design.md`](within_barrier_design.md).
+
+The rule, the band, real cases from both regions and the zone-vs-point
+check are explained with figures in
+[`shared_methodology.ipynb`](../../../src/experiments/shared_methodology.ipynb)
+§2. The same day the zone code gained a Voronoi check. GEOS returns wrong,
+overlapping cells for long runs of exactly collinear samples, as on a
+straight synthetic segment. When a cell misses its own sample, the samples
+are nudged by up to 1mm and the cells recomputed. No real reference line in
+either region triggers it, so the saved zones are unaffected.
+
 ## Summary
 
 - **Florida's data is better suited than Sweden's.** Trafikverket draws

@@ -155,6 +155,42 @@ records"). Changed rows, previous value in brackets:
 Panel schools: rail `same_side` 67 (64), rail side-unknown 206 (208);
 `protected` unchanged (road 37, rail 25).
 
+## Control band (2026-09-30)
+
+The build also saves **`control_band_zones.parquet`** (loader:
+`shared.load_control_band_zones(kind=...)`). It holds one polygon per
+barrier: the protected area's rule one ring further out. That is on the
+barrier's side, with its nearest road point beside the stretch ±50m, and
+600-1500m from the road (`CONTROL_MAX_LATERAL_M`, `--control-max-lateral-m`).
+- **Purpose:** the comparison area of a within-barrier design, as in
+  Moretti & Wheeler (2025), who compare homes 0-500m and 500-1500m behind
+  the same wall.
+- **Columns:** those of `protection_zones.parquet`, with `zone_status`
+  `control_band` / `side_unknown`.
+- **Point test:** `classify_points(..., control_max_lateral_m=1500)` adds
+  `control_band` / `control_band_unknown`. Without the argument, its
+  output is unchanged.
+- **Explained with figures:**
+  [`shared_methodology.ipynb`](../../../src/experiments/shared_methodology.ipynb) §2.
+
+| | road | rail |
+|---|---|---|
+| band zones | 2,089 | 1,814 |
+| band area (dissolved) | 265.6 km² | 90.5 km² |
+| side-unknown band area | 210.6 km² | 341.1 km² |
+| band area inside a protected zone of the same kind | 0.4% | 0.0% |
+| barriers without a band | 83 | 15 |
+
+- **Barriers without a band** sit where nothing beside their stretch lies
+  beyond 600m: inside tight bends, or at a line end.
+- **Existing outputs unchanged:** the references and `protection_zones.parquet`
+  are identical to the 2026-09-25 build, column by column.
+- **Registers:** Sweden's have no noise-reduction field (Florida:
+  `noise_reduction_db`), so the references gain no column.
+- **Voronoi fallback:** the zone code checks its Voronoi cells and nudges
+  the samples by up to 1mm when GEOS returns wrong cells. That happens for
+  long runs of exactly collinear samples; no real line triggers it.
+
 ## Why a separate stage
 
 Before 2026-09-24, `schools`, `panel recover-vanished-schools` and `grid`

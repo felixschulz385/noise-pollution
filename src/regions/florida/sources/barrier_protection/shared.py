@@ -21,7 +21,7 @@ from src.regions.florida.sources._layout import METRIC_CRS, domain_dirs
 
 TABLE_COLUMNS = [
     "gcid", "primary_row", "roadway_id", "reference_parallel", "side_method", "barrier_sign", "side_check",
-    "offset_m", "span_start_m", "span_end_m",
+    "offset_m", "span_start_m", "span_end_m", "noise_reduction_db",
 ]
 
 
@@ -35,6 +35,10 @@ def references_path(root: Path | None = None) -> Path:
 
 def zones_path(root: Path | None = None) -> Path:
     return barrier_protection_paths(root)["processed"] / "protection_zones.parquet"
+
+
+def control_band_zones_path(root: Path | None = None) -> Path:
+    return barrier_protection_paths(root)["processed"] / "control_band_zones.parquet"
 
 
 def references_frame(refs: BarrierReferences) -> gpd.GeoDataFrame:
@@ -75,8 +79,22 @@ def load_protection_zones(root: Path | None = None) -> gpd.GeoDataFrame:
     `gcid`, `category`, `side_method`, `zone_status` ("protected" /
     "side_unknown"), `built_year` and `is_programmed`. Spatially join any
     unit to it; `other_wall` rows are private/perimeter walls, a shielding
-    covariate, never treatment."""
+    covariate, never treatment. `noise_reduction_db` is the wall's
+    engineered noise reduction (`reference.py`)."""
     path = zones_path(root)
+    if not path.exists():
+        raise FileNotFoundError(f"{path} missing -- run `florida data barrier-protection build` first.")
+    return gpd.read_parquet(path)
+
+
+def load_control_band_zones(root: Path | None = None) -> gpd.GeoDataFrame:
+    """The statewide control-band layer: per wall, the area on its side and
+    beside its stretch, beyond the protected area's reach (600m) up to the
+    band's (1500m by default; `core.barrier_geometry.protection.
+    control_band_zones`). Same columns as `load_protection_zones`, with
+    `zone_status` "control_band" / "side_unknown". It never overlaps its own
+    wall's protected area but can overlap another wall's."""
+    path = control_band_zones_path(root)
     if not path.exists():
         raise FileNotFoundError(f"{path} missing -- run `florida data barrier-protection build` first.")
     return gpd.read_parquet(path)

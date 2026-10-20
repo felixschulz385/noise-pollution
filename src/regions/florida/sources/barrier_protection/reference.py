@@ -33,6 +33,12 @@ through-line adds whole rows, so each reference line is trimmed to
 `LINE_TRIM_M` beyond the wall's ends -- far beyond anything the protected
 area (600m reach, 50m margin) depends on, and it keeps the zone drawing's
 5m densification small.
+
+**Noise reduction.** `noise_reduction_db` is the wall's `FED_ANR` ("Average
+Noise Reduction", FHWA inventory), NaN where it is 0 or missing (0 marks
+missing: 14 of the 18 private walls). 503 of the 1,245 built walls
+(2026-09-30) carry exactly 7.0 dB, likely a default rather than a
+wall-specific estimate.
 """
 from __future__ import annotations
 
@@ -50,6 +56,7 @@ from src.core.barrier_geometry.linear_ref import (
     signed_side,
 )
 from src.core.barrier_geometry.protection import (
+    NOISE_REDUCTION_COLUMN,
     BarrierReferences,
     barrier_span,
     corridor_lines,
@@ -116,9 +123,9 @@ def build_barrier_references(
 ) -> BarrierReferences:
     """References for every wall in `barriers_gdf` (row position = key),
     against the arterial subset of `road_network_gdf`. The table adds
-    `gcid`, `roadway_id`, `reference_parallel`, `side_check` and
-    `offset_m` (the wall midpoint's distance from its reference line) to
-    the shared columns."""
+    `gcid`, `roadway_id`, `reference_parallel`, `side_check`, `offset_m`
+    (the wall midpoint's distance from its reference line) and
+    `noise_reduction_db` to the shared columns."""
     roads_m = arterial_subset(road_network_gdf).to_crs(METRIC_CRS).reset_index(drop=True)
     roads_m["geometry"] = shapely.force_2d(roads_m.geometry.values)
     geoms = roads_m.geometry.to_numpy()
@@ -128,6 +135,8 @@ def build_barrier_references(
     walls_m = barriers_gdf.to_crs(METRIC_CRS).reset_index(drop=True)
     walls = shapely.force_2d(walls_m.geometry.values)
     labels = walls_m["bloc_side"].to_numpy() if "bloc_side" in walls_m.columns else np.full(len(walls_m), None)
+    anr = pd.to_numeric(walls_m["fed_anr"], errors="coerce") if "fed_anr" in walls_m.columns else pd.Series(np.nan, index=walls_m.index)
+    noise_reduction = anr.where(anr > 0).to_numpy(dtype=float)
 
     records, corridors, lines = [], {}, {}
     for br, wall in enumerate(walls):
@@ -169,6 +178,7 @@ def build_barrier_references(
                 "offset_m": float(offset[0]),
                 "span_start_m": start,
                 "span_end_m": end,
+                NOISE_REDUCTION_COLUMN: noise_reduction[br],
             }
         )
     return BarrierReferences(

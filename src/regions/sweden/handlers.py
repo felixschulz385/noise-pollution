@@ -500,7 +500,9 @@ def command_barrier_protection_build(args: argparse.Namespace) -> int:
     from src.regions.sweden.sources.noise_barriers.shared import BARRIER_KINDS
 
     kinds = tuple(args.kind) if args.kind else BARRIER_KINDS
-    result = run_barrier_protection_build(kinds=kinds, budget_m=args.budget_m, buffer_m=args.buffer_m)
+    result = run_barrier_protection_build(
+        kinds=kinds, budget_m=args.budget_m, buffer_m=args.buffer_m, control_max_lateral_m=args.control_max_lateral_m
+    )
     print_json({"domain": "barrier_protection", "stage": "build", **result})
     return 0
 
