@@ -448,6 +448,23 @@ def test_import_checks_ids_and_refuses_an_older_copy(tmp_path):
         imp.run_barrier_audit_import(bad, root=root)
 
 
+# -- serve -------------------------------------------------------------------------
+
+def test_serve_writes_only_the_chosen_tasks_in_batch_order(tmp_path):
+    from src.regions.sweden.sources.barrier_audit import serve
+
+    root = _repo_root(tmp_path)
+    tasks = [{"task_id": t} for t in ("a", "b", "c", "d")]
+    sh.tasks_path("pilot", root).write_text(json.dumps({"batch": "pilot", "reviewer": "assistant", "n_tasks": 4, "tasks": tasks}))
+
+    folder, n = serve.prepare_serve_root("pilot", "felix", task_ids=["d", "b"], root=root)
+    document = json.loads((folder / "tasks.json").read_text())
+    assert n == 2 and [t["task_id"] for t in document["tasks"]] == ["b", "d"]
+    assert (document["reviewer"], document["n_tasks"]) == ("felix", 2)
+    with pytest.raises(ValueError, match="not in batch"):
+        serve.prepare_serve_root("pilot", "felix", task_ids=["zzz"], root=root)
+
+
 # -- one answer per reviewer and barrier, outer-track report -------------------------
 
 def _answers_for(rows):

@@ -322,6 +322,7 @@ $P device-check                                 # phase 0 zip
 $P export --batch protected                     # tasks + key + zip; --reviewer, --seed, --n-targets, ... override
 $P serve --batch pilot                          # the app from the repo, as reviewer "felix"; answers -> raw/<batch>/
 $P serve --batch protected --double-coded       # only the batch's 15% double-coding tasks
+$P serve --batch national_1 --tasks id1,id2      # only these tasks (a recheck)
 $P import path/to/answers_assistant.jsonl       # checked against the key, copied to raw/<batch>/
 $P preprocess                                   # -> processed/manual_sides.parquet + audit_report.json
 ```

@@ -432,8 +432,14 @@ def command_barrier_audit_export(args: argparse.Namespace) -> int:
 def command_barrier_audit_serve(args: argparse.Namespace) -> int:
     from src.regions.sweden.sources.barrier_audit.serve import run_barrier_audit_serve
 
+    task_ids = [t.strip() for t in args.tasks.split(",") if t.strip()] if args.tasks else None
     return run_barrier_audit_serve(
-        args.batch, reviewer=args.reviewer, double_coded=args.double_coded, port=args.port, open_browser=not args.no_browser
+        args.batch,
+        reviewer=args.reviewer,
+        double_coded=args.double_coded,
+        task_ids=task_ids,
+        port=args.port,
+        open_browser=not args.no_browser,
     )
 
 

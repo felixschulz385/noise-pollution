@@ -326,6 +326,7 @@ def _register_barrier_audit(domains: argparse._SubParsersAction) -> None:
     ba_serve.add_argument("--batch", required=True)
     ba_serve.add_argument("--reviewer", default="felix")
     ba_serve.add_argument("--double-coded", action="store_true", help="Only the batch's double-coding tasks")
+    ba_serve.add_argument("--tasks", help="Only these task ids, comma-separated (e.g. to recheck answers)")
     ba_serve.add_argument("--port", type=int, default=8765)
     ba_serve.add_argument("--no-browser", action="store_true")
     ba_serve.set_defaults(func=h.command_barrier_audit_serve)
