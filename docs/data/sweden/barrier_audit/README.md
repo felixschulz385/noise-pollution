@@ -6,15 +6,16 @@ built in; `national_4` and `_5` to do.**
   `protected`, `national_1`, `_2` and `_3` (1,394 tasks), imported
   2026-10-20. All panel-school targets (priority tier 1) were in these.
   `national_5` has one stray answer, not imported yet.
-- **Result:** 2,827 barriers answered, 2,617 used by the build (2,468 one
-  side, 149 both sides), 106 not visible. Agreement of the automatic
-  methods with the manual side: `osm_offset` 97% (n=164), `parallel_road`
-  95% (757), `track_offset` 96% (512); answers under 10 s agree as often
-  as slower ones.
-- **Not visible** (106 barriers: road 41, rail 65) is its own status:
+- **Result** (after the double coding): 2,827 barriers answered, 2,616
+  used by the build (2,468 one side, 148 both sides), 108 not visible, no
+  conflicts, 103 decided by Felix's answer. Agreement of the automatic
+  methods with the manual side: `osm_offset` 98% (n=165), `parallel_road`
+  95% (755), `track_offset` 95.5% (512); answers under 10 s agree as
+  often as slower ones.
+- **Not visible** (108 barriers: road 44, rail 64) is its own status:
   `audit_decision = "not_visible"` in the barrier references. The side
-  stays the automatic one: road 21 `parallel_road`, 18 `unknown`, 2
-  `osm_offset`; rail 53 `unknown`, 10 `track_offset`, 1 `osm_offset`, 1
+  stays the automatic one: road 23 `parallel_road`, 18 `unknown`, 3
+  `osm_offset`; rail 52 `unknown`, 10 `track_offset`, 1 `osm_offset`, 1
   `bis_sibling`. The status is recorded, not used yet.
 - **`outer_track` dropped** (2026-10-20): 99% agreement in band, but 3
   co-located targets were answered Both sides, and the targets now have
@@ -26,8 +27,29 @@ built in; `national_4` and `_5` to do.**
   each time one of the two. On 67 more co-located tasks (mostly rail)
   Felix agreed in 59. His recheck answers now decide
   ([below](#pipeline-integration)).
-- **Still to do:** the blind double coding (2 tasks so far, so no κ yet),
-  next; then `national_4` and `_5`.
+- **Blind double coding: done** (Felix, 2026-10-20, `serve
+  --double-coded`). All 88 double-coding tasks (`protected` 28,
+  `national_1`–`_3` 20 each), about 6% of the answered tasks rather than
+  the planned 15%. Two in `national_3` (`0ad2367b`, `142acdb8`) Felix had
+  first seen as rechecks, so they are not blind and are left out
+  (`preprocess.NOT_BLIND`): 86 pairs.
+  - same answer 72 of 86 (83.7%), Cohen's κ 0.68 (bootstrap 95%
+    0.53–0.82)
+  - **where both placed a wall: same side 71 of 73** (Wilson 95%
+    0.91–0.99), median |Δ `lateral_m`| 0.76 m
+  - the 14 disagreements: 7 whether a wall is visible, 5 one wall vs both
+    sides, 2 opposite sides (`national_1` `aefc767a` road, `d2b85ad5`
+    rail)
+  - by kind: road 40 of 48 identical, rail 32 of 38
+
+  The side is reliable; κ mostly reflects whether a wall is there and how
+  many. Felix's answer now decides these disagreements as well
+  ([below](#pipeline-integration)). The rebuild changed 11 road and 8 rail
+  references. In the panel, `protected` counts are unchanged (road 48, rail 71)
+  and one rail school with unknown timing swapped for another. `same_side`:
+  road 148 → 147, rail 165 → 167. Grid: road treated 19,196 → 19,148,
+  rail 15,338 → 15,341.
+- **Still to do:** `national_4` and `_5`.
 - **`national_4` and `_5` don't hold up the grid** (counted on the
   2026-10-20 grid). All their barriers are undated, and a cell an undated
   barrier protects has unknown timing, so they can't add a dated treated
@@ -417,12 +439,16 @@ conformal, so screen-up is `n`.
 - `occluded` and `other` abstain. The remaining answers decide if they
   all agree. Otherwise the barrier is a `conflict`, which is reported and
   not used.
-- **A recheck by Felix wins** (`preprocess.ADJUDICATOR`, since
-  2026-10-20). Outside the double-coding sample, Felix's non-abstaining
-  answer decides alone, and `adjudicated` is set on the row. These are
-  tasks he re-served with `serve --tasks` because the reviewer's answer
-  looked wrong. On double-coding tasks, disagreement stays a `conflict`,
-  and only those tasks enter the double-coding report.
+- **Felix's answer wins** (`preprocess.ADJUDICATOR`, since
+  2026-10-20). Where his non-abstaining answer disagrees with the
+  reviewer's, his decides alone, and `adjudicated` is set on the row. This
+  covers his rechecks (tasks re-served with `serve --tasks` because the
+  reviewer's answer looked wrong) and, since the blind double coding the
+  same day, the double-coding tasks too. Agreement is measured on the raw
+  answers of the double-coding tasks only (not rechecks, not
+  `NOT_BLIND`), so the build no longer has to drop a disagreement as a
+  `conflict` to keep the measure honest. Conflicts remain possible
+  between two reviewers who are not Felix.
 
 **In `build_barrier_references`,** manual answers come first, ahead of
 `both_sides`. How each answer is used:
@@ -883,8 +909,11 @@ double-coding. Practice: 4 tasks in `national_1` only.
 1. **`not_visible`:** its own status (`audit_decision` in the references),
    still never demotes a barrier. This updates decision 2 below.
 2. **`outer_track`:** dropped, not a side method.
-3. **Next:** the blind double coding, then `national_4` and `_5`. The grid
-   doesn't wait for them (see the status above).
+3. **Next:** `national_4` and `_5`. The grid doesn't wait for them (see
+   the status above). The blind double coding is done (κ 0.68; the same
+   side 71 of 73 times).
+5. **Double-coding disagreements:** Felix's answer decides, as on his
+   rechecks (decided after the double coding, the same day).
 4. **Construction years:** a separate source is being looked for. OSM walls
    outside Trafikverket's registers are ignored for now
    ([`../barrier_protection/README.md`](../barrier_protection/README.md),

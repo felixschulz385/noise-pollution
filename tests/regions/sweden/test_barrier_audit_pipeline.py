@@ -380,7 +380,8 @@ def test_preprocess_decides_each_barrier_and_reports(tmp_path, monkeypatch):
         ("t_occl", "unsure", 0.0, "occluded"),
         ("t_stale", "both_sides", 0.0, None),
     ])
-    _write_answers(root, "pilot", "felix", [("t_side", "aligned", 5.0, None), ("t_conf", "aligned", -6.0, None)])
+    # A second reviewer who is not the adjudicator, so t_conf stays a conflict.
+    _write_answers(root, "pilot", "second", [("t_side", "aligned", 5.0, None), ("t_conf", "aligned", -6.0, None)])
 
     result = pp.run_barrier_audit_preprocess(root)
     sides = gpd.read_parquet(sh.manual_sides_path(root)).set_index("element_id")
@@ -490,12 +491,12 @@ def test_a_reviewers_later_answer_to_the_same_barrier_replaces_their_earlier_one
     sides = pp.manual_sides(answers, lines)
     assert sides.loc[0, ["decision", "n_answers", "n_superseded", "categories"]].tolist() == ["side", 1, 1, "left"]
     assert sides.loc[0, "lateral_m"] == pytest.approx(13.1)
-    # Different reviewers on a double-coding task still disagree.
+    # Different reviewers, neither of them the adjudicator, still disagree.
     answers, lines = _answers_for([
-        ("t_later", "felix", "2026-09-25T13:15:30Z", "aligned", 13.1, None),
+        ("t_later", "second", "2026-09-25T13:15:30Z", "aligned", 13.1, None),
         ("t_early", "assistant", "2026-09-24T15:18:02Z", "unsure", -13.3, "not_visible"),
     ])
-    assert pp.manual_sides(answers.assign(double_code=True), lines).loc[0, "decision"] == "conflict"
+    assert pp.manual_sides(answers, lines).loc[0, "decision"] == "conflict"
 
 
 def test_a_recheck_by_the_adjudicator_decides_alone():
@@ -509,6 +510,9 @@ def test_a_recheck_by_the_adjudicator_decides_alone():
     sides = pp.manual_sides(answers, lines)
     assert sides.loc[0, ["decision", "adjudicated", "categories"]].tolist() == ["both_sides", True, "right,both_sides"]
     assert (sides.loc[0, "lateral_m"], sides.loc[0, "lateral_other_m"]) == pytest.approx((12.2, -7.0))
+    # The same on a double-coding task (its agreement is measured on the raw answers).
+    sides = pp.manual_sides(answers.assign(double_code=True), lines)
+    assert sides.loc[0, ["decision", "adjudicated"]].tolist() == ["both_sides", True]
     # Opposite sides: Felix's offset alone, not the mean of both.
     answers.loc[1, ["status", "lateral_m"]] = ["aligned", 9.9]
     answers["category"] = pp.categorize(answers)
@@ -521,6 +525,17 @@ def test_a_recheck_by_the_adjudicator_decides_alone():
     sides = pp.manual_sides(answers, lines)
     assert sides.loc[0, ["decision", "adjudicated"]].tolist() == ["side", False]
     assert sides.loc[0, "lateral_m"] == pytest.approx(-6.8)
+
+
+def test_double_coding_report_counts_only_blind_double_coding_tasks(monkeypatch):
+    monkeypatch.setattr(pp, "NOT_BLIND", {("b", "t_seen")})
+    rows = []
+    for task, double, felix in (("t_dc", True, "left"), ("t_seen", True, "right"), ("t_recheck", False, "right")):
+        for reviewer, category in (("assistant", "left"), ("felix", felix)):
+            rows.append({"batch": "b", "task_id": task, "group": "target", "double_code": double,
+                         "reviewer": reviewer, "category": category, "lateral_m": 5.0 if category == "left" else -5.0})
+    report = pp.double_coding_report(pd.DataFrame(rows))
+    assert report["n_tasks"] == 1 and report["share_same_category"] == 1.0
 
 
 # -- co-located walls and the national batches -------------------------------

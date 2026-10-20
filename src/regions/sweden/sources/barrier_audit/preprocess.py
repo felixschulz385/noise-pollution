@@ -16,13 +16,15 @@ later look replaces an earlier one, as a re-answer within a task does
 (2026-09-25: the pilot drew one earth berm twice, "no wall visible" before
 the type badge existed, then aligned once the app said to look for a
 bank). `occluded` and `other` abstain. If the remaining answers all share
-one category it decides. **A recheck by `ADJUDICATOR` wins** (2026-10-20):
-where Felix answered a barrier outside the double-coding sample (a task
-served with `serve --tasks` because the reviewer's answer looked wrong),
-his non-abstaining answer decides alone. In the first recheck he saw a wall
-on each side in 8 of 19 co-located road tasks where the reviewer had placed
+one category it decides. **An answer by `ADJUDICATOR` wins** (2026-10-20):
+where Felix's non-abstaining answer disagrees with the reviewer's, his
+decides alone (`adjudicated`). That covers his rechecks (tasks served with
+`serve --tasks` because the reviewer's answer looked wrong) and, since the
+blind double coding the same day, the double-coding tasks: their agreement
+is measured on the raw answers (`double_coding_report`), so the build need
+not lose the barrier as a conflict. In the first recheck he saw a wall on
+each side in 8 of 19 co-located road tasks where the reviewer had placed
 one of them, so a conflict would have thrown away the better answer.
-Double-coding tasks keep the agreement rule: they measure agreement.
 
 | category | decision | used by `build_barrier_references` |
 |---|---|---|
@@ -74,8 +76,12 @@ from src.regions.sweden.sources.barrier_protection.shared import references_path
 from src.regions.sweden.sources.noise_barriers.shared import load_noise_barriers
 
 ABSTAIN = ("occluded", "other")
-# Whose recheck answer (outside the double-coding sample) decides alone.
+# Whose answer decides alone where reviewers disagree (rechecks and double coding).
 ADJUDICATOR = "felix"
+# (batch, task_id) of double-coding tasks Felix first saw as rechecks, chosen
+# because the reviewer's answer looked wrong: not blind, so left out of the
+# agreement report (2026-10-20).
+NOT_BLIND = {("national_3", "0ad2367b"), ("national_3", "142acdb8")}
 # Aids beyond the aerial photo a reviewer used on a barrier (app 0.3.0+).
 AID_COLUMNS = ("with_streetview", "with_satellite", "with_infrared")
 DECISIONS = {
@@ -188,12 +194,8 @@ def manual_sides(answers: pd.DataFrame, lines: gpd.GeoSeries) -> gpd.GeoDataFram
             answered = answered.sort_values("answered_at", kind="stable")
         group = answered.drop_duplicates("reviewer", keep="last")
         decision, category = decide(group["category"].tolist())
-        recheck = group[
-            (group["reviewer"] == ADJUDICATOR)
-            & ~group["category"].isin(ABSTAIN)
-            & ~group.get("double_code", pd.Series(False, index=group.index)).fillna(False).astype(bool)
-        ]
-        # Only where the reviewers disagree: an agreeing recheck changes nothing.
+        recheck = group[(group["reviewer"] == ADJUDICATOR) & ~group["category"].isin(ABSTAIN)]
+        # Only where the reviewers disagree: an agreeing answer changes nothing.
         adjudicated = decision == "conflict" and len(recheck) > 0
         if adjudicated:
             decision, category = decide(recheck["category"].tolist())
@@ -318,11 +320,13 @@ def validation_report(answers: pd.DataFrame, sides: pd.DataFrame) -> dict:
 
 def double_coding_report(answers: pd.DataFrame) -> dict:
     """Agreement between reviewers on the double-coding tasks both answered
-    (not on rechecks, which were chosen because an answer looked wrong)."""
+    (not on rechecks, which were chosen because an answer looked wrong,
+    nor on the `NOT_BLIND` tasks)."""
     # One row per reviewer and task: a chain task has a key row per record.
     work = answers[answers["group"] != "practice"].drop_duplicates(["batch", "reviewer", "task_id"])
     if "double_code" in work.columns:
         work = work[work["double_code"].fillna(False).astype(bool)]
+    work = work[[(b, t) not in NOT_BLIND for b, t in zip(work["batch"], work["task_id"])]]
     pairs = work.merge(work, on=["batch", "task_id"], suffixes=("_a", "_b"))
     pairs = pairs[pairs["reviewer_a"] < pairs["reviewer_b"]]
     if pairs.empty:
