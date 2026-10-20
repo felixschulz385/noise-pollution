@@ -490,12 +490,37 @@ def test_a_reviewers_later_answer_to_the_same_barrier_replaces_their_earlier_one
     sides = pp.manual_sides(answers, lines)
     assert sides.loc[0, ["decision", "n_answers", "n_superseded", "categories"]].tolist() == ["side", 1, 1, "left"]
     assert sides.loc[0, "lateral_m"] == pytest.approx(13.1)
-    # Different reviewers still disagree.
+    # Different reviewers on a double-coding task still disagree.
     answers, lines = _answers_for([
         ("t_later", "felix", "2026-09-25T13:15:30Z", "aligned", 13.1, None),
         ("t_early", "assistant", "2026-09-24T15:18:02Z", "unsure", -13.3, "not_visible"),
     ])
-    assert pp.manual_sides(answers, lines).loc[0, "decision"] == "conflict"
+    assert pp.manual_sides(answers.assign(double_code=True), lines).loc[0, "decision"] == "conflict"
+
+
+def test_a_recheck_by_the_adjudicator_decides_alone():
+    # The reviewer lined up one wall; Felix's recheck placed one on each side.
+    answers, lines = _answers_for([
+        ("t1", "assistant", "2026-10-13T10:00:00Z", "aligned", -6.8, None),
+        ("t1", "felix", "2026-10-20T14:00:00Z", "both_sides", 12.2, None),
+    ])
+    answers["lateral_other_m"] = [np.nan, -7.0]
+    answers["double_code"] = False
+    sides = pp.manual_sides(answers, lines)
+    assert sides.loc[0, ["decision", "adjudicated", "categories"]].tolist() == ["both_sides", True, "right,both_sides"]
+    assert (sides.loc[0, "lateral_m"], sides.loc[0, "lateral_other_m"]) == pytest.approx((12.2, -7.0))
+    # Opposite sides: Felix's offset alone, not the mean of both.
+    answers.loc[1, ["status", "lateral_m"]] = ["aligned", 9.9]
+    answers["category"] = pp.categorize(answers)
+    sides = pp.manual_sides(answers, lines)
+    assert sides.loc[0, ["decision", "adjudicated"]].tolist() == ["side", True]
+    assert sides.loc[0, "lateral_m"] == pytest.approx(9.9)
+    # An abstaining recheck leaves the reviewer's answer standing.
+    answers.loc[1, ["status", "reason"]] = ["unsure", "occluded"]
+    answers["category"] = pp.categorize(answers)
+    sides = pp.manual_sides(answers, lines)
+    assert sides.loc[0, ["decision", "adjudicated"]].tolist() == ["side", False]
+    assert sides.loc[0, "lateral_m"] == pytest.approx(-6.8)
 
 
 def test_rail_neighbour_classes(tmp_path, monkeypatch):

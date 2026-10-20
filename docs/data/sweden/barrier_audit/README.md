@@ -1,5 +1,26 @@
 # `barrier_audit`: manual side audit of noise barriers
 
+**Status (2026-10-20): `protected` and `national_1`–`_3` answered and
+built in; `national_4` and `_5` to do.**
+- **Answers** (reviewer `assistant`, 2026-09-30 to 10-18): every task of
+  `protected`, `national_1`, `_2` and `_3` (1,394 tasks), imported
+  2026-10-20. All panel-school targets (priority tier 1) were in these.
+  `national_5` has one stray answer, not imported yet.
+- **Result:** 2,827 barriers answered, 2,617 used by the build (2,468 one
+  side, 149 both sides), 106 not visible. Agreement of the automatic
+  methods with the manual side: `osm_offset` 97% (n=164), `parallel_road`
+  95% (757), `track_offset` 96% (512); answers under 10 s agree as often
+  as slower ones. `outer_track`: 99% in band, verdict still "do not
+  adopt" (3 co-located targets answered Both sides).
+- **Recheck of co-located walls** (Felix, `serve --tasks`): on the 19
+  road tasks the automatic `both_sides` covers, the reviewer had lined up
+  one wall in 14; Felix saw both walls in 8 of them, the reviewer's wall
+  each time one of the two. On 67 more co-located tasks (mostly rail)
+  Felix agreed in 59. His recheck answers now decide
+  ([below](#pipeline-integration)).
+- **Still to do:** `national_4` and `_5`, and the blind double coding
+  (2 tasks so far, so no κ yet).
+
 **Status (2026-09-29): phases 0-2 done; six zips ready, none sent.**
 - The device check passed on the reviewer's laptop; the pilot is complete
   (59 answers on 42 barriers, 34 records with a manual side in the build).
@@ -322,7 +343,7 @@ $P device-check                                 # phase 0 zip
 $P export --batch protected                     # tasks + key + zip; --reviewer, --seed, --n-targets, ... override
 $P serve --batch pilot                          # the app from the repo, as reviewer "felix"; answers -> raw/<batch>/
 $P serve --batch protected --double-coded       # only the batch's 15% double-coding tasks
-$P serve --batch national_1 --tasks id1,id2      # only these tasks (a recheck)
+$P serve --batch national_1 --tasks id1,id2      # only these tasks (a recheck; Felix's answer then wins)
 $P import path/to/answers_assistant.jsonl       # checked against the key, copied to raw/<batch>/
 $P preprocess                                   # -> processed/manual_sides.parquet + audit_report.json
 ```
@@ -379,6 +400,12 @@ conformal, so screen-up is `n`.
 - `occluded` and `other` abstain. The remaining answers decide if they
   all agree. Otherwise the barrier is a `conflict`, which is reported and
   not used.
+- **A recheck by Felix wins** (`preprocess.ADJUDICATOR`, since
+  2026-10-20). Outside the double-coding sample, Felix's non-abstaining
+  answer decides alone, and `adjudicated` is set on the row. These are
+  tasks he re-served with `serve --tasks` because the reviewer's answer
+  looked wrong. On double-coding tasks, disagreement stays a `conflict`,
+  and only those tasks enter the double-coding report.
 
 **In `build_barrier_references`,** manual answers come first, ahead of
 `both_sides`. How each answer is used:
