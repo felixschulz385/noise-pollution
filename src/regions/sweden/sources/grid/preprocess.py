@@ -11,7 +11,7 @@ barrier geometry (road + rail together) by `BUFFER_M`, take the union, and
 tile only that corridor. Confirmed live 2026-09-22 against the real
 barrier layers: the buffered union has 694 disjoint connected components
 (not one country-spanning blob -- barriers cluster near settlements), total
-area ~4,000 km^2 (~400k cells), largest single component ~185 km^2. Tiling
+area ~4,000 km^2 (~400k cells), largest single component ~55 km^2. Tiling
 is done **per component**, each within its own small bounding box, rather
 than one tile pass over the corridor's overall bounding box (~623km x
 1392km for road alone) -- the latter would require materializing tens of

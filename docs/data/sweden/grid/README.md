@@ -60,7 +60,7 @@ millions of candidate cells).
 
 **Real run**: the buffered union has **694 disjoint components** (barriers
 cluster near settlements, not one country-spanning blob), total corridor
-area ~4,000 km^2, largest single component ~185 km^2 -- confirmed cheap
+area ~4,000 km^2, largest single component ~55 km^2 -- confirmed cheap
 (summed per-component bbox tiling is ~1.6x the true corridor cell count).
 **400,369 cells**, `data/sweden/grid/processed/grid_cells.parquet`.
 
@@ -74,11 +74,13 @@ directly. The code doesn't carry the resolution (100m by default). Checked
 against SCB's open 2024 1km grid: all 115,062 `rutid_scb` codes equal their
 cell polygon's lower-left corner (to 5 mm), SCB's metadata says the same
 ("representerar rutans nedre vänstra hörn"), and 90% of our cells sit in a
-populated SCB 1km cell. **Not confirmed:** whether SCB floors an address
-into its cell or rounds to the nearest 100m -- the public Geografidatabasen
-documentation (2016, 2021-2023) doesn't say; the MONA variable
-documentation or SCB would. If it rounds, shift register coordinates by
-+50m before joining.
+populated SCB 1km cell. **Assumed: flooring** (2026-10-20). SCB confirmed
+that the coordinates of the 100 × 100 m cells refer to each cell's
+lower-left corner. That is all SCB said, so we assume an address is
+floored into the cell that contains it, whose lower-left corner is its
+code. Register coordinates therefore join on `cell_id` as they are, with
+no +50m shift. If it ever turns out that SCB rounds to the nearest 100m,
+shift register coordinates by +50m before joining.
 
 ## `assemble` -- real run 2026-09-23
 
@@ -190,7 +192,24 @@ A residence matching no cell is more than 1km from every barrier: a clean
 never-treated control for both kinds. Treatment years before the register
 data starts are left to the analysis.
 
-**Coverage, 2026-09-29 run** (400,369 cells):
+**Coverage, 2026-10-20 run** (after the manual audit through `national_3`
+and the blind double coding; 400,369 cells):
+
+| | road | rail |
+|---|---|---|
+| treated, exact year | 10,936 | 11,679 |
+| treated, timing unknown | 8,212 | 3,662 |
+| untreated, side unknown | 7,235 | 6,992 |
+| untreated, clean control | 373,986 | 378,036 |
+
+386,152 cells (96.4%) have their protection status decided for both kinds.
+The side-unknown cells left are almost all due to undated barriers in the
+audit's last batches (`national_4`/`_5`): road 7,077, rail 4,912. Treatment
+is judged at the cell centroid; for 13-18% of residences near a protection
+zone the cell's status differs from the residence's own, about equally in
+both directions (`src/experiments/sweden/grid.ipynb` §9).
+
+**Coverage, 2026-09-29 run** (before the audit; 400,369 cells):
 
 | | road | rail |
 |---|---|---|
