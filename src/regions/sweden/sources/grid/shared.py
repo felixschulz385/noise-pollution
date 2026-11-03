@@ -22,16 +22,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from src.core.barrier_geometry.protection import CONTROL_MAX_LATERAL_M, PROTECTED_SPAN_MARGIN_M
 from src.regions.sweden.sources._layout import domain_dirs
 from src.regions.sweden.sources._layout import METRIC_CRS  # noqa: F401  (re-exported for grid modules)
 RESOLUTION_M = 100
 # 100m increments out to 500m (mirrors Moretti & Wheeler's distance-bin
 # structure, Table 2/Figure 4), plus a single 500-1000m control band.
 BAND_RADII_M = (100, 200, 300, 400, 500, 1000)
-# The fishnet only needs to extend as far as the widest band -- a cell
-# further than this from every barrier can never be `ever_near_*` under any
-# configured band, so there's no reason to generate it.
-BUFFER_M = max(BAND_RADII_M)
+# The fishnet reaches as far as the protection rule's control band (since
+# 2026-10-22; it was the widest distance band, 1000m, before): a band point
+# lies up to 1500m from its barrier's road, beside the stretch +-50m, plus
+# the same 50m slack `side.CANDIDATE_RADIUS_M` gives barriers that sit a
+# little off their road. Cells past the widest distance band simply get
+# `ever_near_*m = False`.
+BUFFER_M = CONTROL_MAX_LATERAL_M + PROTECTED_SPAN_MARGIN_M + 50.0
 
 # Distance-decay index (`assemble.py::relative_loudness_reduction_pct`):
 # reproduces Moretti & Wheeler's Appendix Table A3 physics -- inverse-square-
@@ -49,6 +53,10 @@ BUFFER_M = max(BAND_RADII_M)
 ASSUMED_BARRIER_REDUCTION_DB = 7.0
 REFERENCE_DIST_M = 25.0
 REFERENCE_DB = 76.0
+
+# Where `grid export` writes the treatment CSV and its documentation: the
+# project's shared Dropbox, read by coauthors (override with --out-dir).
+SHARED_EXPORT_DIR = Path.home() / "Dropbox" / "Noise Pollution" / "data" / "grid"
 
 
 def grid_paths(root: Path | None = None) -> dict[str, Path]:

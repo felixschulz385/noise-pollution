@@ -101,3 +101,20 @@ def test_protection_by_an_unknown_side_barrier_is_flagged_not_counted():
     refs = build_barrier_references(barriers, network, kind="road", osm_walls=None)
     out = match_grid_protection(cells, barriers, refs).set_index("cell_id")
     assert not out.loc["beside_b0", "protected"] and out.loc["beside_b0", "protected_unknown"]
+
+
+def test_control_band_lies_behind_the_barrier_beyond_the_protected_area():
+    # b0 shields the south of road A (y=0). Road D is moved out of the way so
+    # only b0 matters.
+    network, barriers = _two_roads()
+    network = network.assign(geometry=[LineString([(0, 0), (2000, 0)]), LineString([(0, 5000), (2000, 5000)])])
+    barriers = barriers.iloc[[0]]
+    cells = _cells({"near": (450, -300), "band": (450, -1000), "past_band": (450, -1550), "wrong_side": (450, 1000)})
+    refs = build_barrier_references(barriers, network, kind="road", osm_walls=None)
+    out = match_grid_protection(cells, barriers, refs).set_index("cell_id")
+
+    assert out.loc["near", "protected"] and not out.loc["near", "control_band"]
+    assert out.loc["band", "control_band"] and not out.loc["band", "protected"]
+    assert out.loc["band", "control_year"] == 2010 and not out.loc["band", "control_undated"]
+    assert not out.loc["past_band", "control_band"] and not out.loc["wrong_side", "control_band"]
+    assert pd.isna(out.loc["near", "control_year"])

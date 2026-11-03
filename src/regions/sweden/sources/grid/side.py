@@ -13,8 +13,9 @@ build` saved (the same ones `schools/assemble.py` uses; see
 - **Against every barrier** (:func:`match_grid_protection`): a cell is
   `protected` if *any* barrier protects it. The nearest barrier isn't
   always the one beside the cell (e.g. a wall on a cross street can be
-  nearer), so every barrier within `CANDIDATE_RADIUS_M` is judged by
-  `classify_points`. This is exact; the national protection-zone layer
+  nearer), so every barrier within `CONTROL_CANDIDATE_RADIUS_M` is judged
+  by `classify_points`. The same pass gives the control band (600-1500m
+  behind a barrier). This is exact; the national protection-zone layer
   (`barrier_protection`) draws the same areas as polygons for other uses.
 """
 from __future__ import annotations
@@ -27,6 +28,7 @@ import pandas as pd
 
 from src.core.barrier_geometry.linear_ref import nearest_segment
 from src.core.barrier_geometry.protection import (
+    CONTROL_MAX_LATERAL_M,
     PROTECTED_MAX_LATERAL_M,
     PROTECTED_SPAN_MARGIN_M,
     BarrierReferences,
@@ -39,6 +41,8 @@ from src.regions.sweden.sources.barrier_protection.shared import load_barrier_re
 # barrier's stretch +-50m, so within ~602m of the barrier itself; the extra
 # covers barriers whose own geometry sits a little off the road.
 CANDIDATE_RADIUS_M = PROTECTED_MAX_LATERAL_M + PROTECTED_SPAN_MARGIN_M + 50.0
+# The same for the control band's outer edge.
+CONTROL_CANDIDATE_RADIUS_M = CONTROL_MAX_LATERAL_M + PROTECTED_SPAN_MARGIN_M + 50.0
 
 NEAREST_COLUMNS = ["same_route", "side_method", "same_side", "same_side_unknown", "lateral_m", "along_offset_m"]
 PROTECTION_COLUMNS = [
@@ -50,6 +54,10 @@ PROTECTION_COLUMNS = [
     "protected_lateral_m",
     "treat_year_protected",
     "protected_undated",
+    "control_band",
+    "control_band_unknown",
+    "control_year",
+    "control_undated",
 ]
 
 
@@ -79,12 +87,20 @@ def match_grid_protection(
     - `treat_year_protected` is the earliest `built_year` among all
       protecting barriers, and `protected_undated` is True when any of them
       has none. This mirrors the schools rollup's `first_treat_year` /
-      `timing_unknown`."""
+      `timing_unknown`.
+    - `control_band` if the cell is neither protected nor
+      `protected_unknown`, but lies in some barrier's control band: on its
+      side, beside its stretch, 600-1500m from its road.
+      `control_band_unknown` if it isn't `control_band` either, but would
+      be in the band of a barrier whose side is unknown.
+    - `control_year` is the earliest `built_year` among the barriers whose
+      band holds a `control_band` cell, and `control_undated` is True when
+      any of them has none."""
     cells_m = cells_gdf[["cell_id", "geometry"]].to_crs(METRIC_CRS).reset_index(drop=True)
     points = cells_m.geometry.to_numpy()
     barriers_m = barriers_gdf.to_crs(METRIC_CRS).reset_index(drop=True)
-    cell_idx, barrier_rows = barriers_m.sindex.query(points, predicate="dwithin", distance=CANDIDATE_RADIUS_M)
-    classified = classify_points(points[cell_idx], barrier_rows, refs)
+    cell_idx, barrier_rows = barriers_m.sindex.query(points, predicate="dwithin", distance=CONTROL_CANDIDATE_RADIUS_M)
+    classified = classify_points(points[cell_idx], barrier_rows, refs, control_max_lateral_m=CONTROL_MAX_LATERAL_M)
 
     built_year = pd.to_numeric(barriers_gdf["built_year"], errors="coerce").to_numpy(dtype=float, na_value=np.nan)
     pairs = pd.DataFrame(
@@ -93,6 +109,8 @@ def match_grid_protection(
             "barrier_row": barrier_rows,
             "protected": classified["protected"].to_numpy(),
             "protected_unknown": classified["protected_unknown"].to_numpy(),
+            "control_band": classified["control_band"].to_numpy(),
+            "control_band_unknown": classified["control_band_unknown"].to_numpy(),
             "side_method": classified["side_method"].to_numpy(),
             "lateral_m": classified["lateral_m"].to_numpy(),
             "built_year": built_year[barrier_rows],
@@ -113,6 +131,17 @@ def match_grid_protection(
     out["treat_year_protected"] = by_cell["built_year"].min().reindex(cells).astype("Int64").to_numpy()
     undated = protecting.loc[protecting["built_year"].isna(), "cell"].to_numpy()
     out["protected_undated"] = np.isin(cells, undated)
+
+    decided = out["protected"] | out["protected_unknown"]
+    band = pairs[pairs["control_band"]]
+    out["control_band"] = np.isin(cells, band["cell"].to_numpy()) & ~decided
+    out["control_band_unknown"] = (
+        np.isin(cells, pairs.loc[pairs["control_band_unknown"], "cell"].to_numpy()) & ~decided & ~out["control_band"]
+    )
+    out["control_year"] = (
+        band.groupby("cell")["built_year"].min().reindex(cells).astype("Int64").where(out["control_band"].to_numpy()).to_numpy()
+    )
+    out["control_undated"] = np.isin(cells, band.loc[band["built_year"].isna(), "cell"].to_numpy()) & out["control_band"]
     return out
 
 

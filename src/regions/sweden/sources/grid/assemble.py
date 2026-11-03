@@ -201,10 +201,18 @@ def add_side_treatment_definitions(rollup: pd.DataFrame, side: pd.DataFrame) -> 
       `first_treat_year_protected` is the earliest of their `built_year`s,
       and `timing_unknown_protected` means one of them is undated.
       `protected_unknown` marks cells a barrier with an unknown side would
-      protect."""
+      protect.
+    - **`control_band`** / `control_band_unknown` / `control_year` pass
+      through as `side.match_grid_protection` gives them, not gated on
+      `ever_treated` (a band cell can be over 1000m from every barrier);
+      `timing_unknown_control` is `control_band` with an undated band
+      barrier."""
     out = rollup.merge(side, on="cell_id", how="left")
     out["same_route"] = out["same_route"].fillna(False).astype(bool)
-    for flag in ("same_side", "same_side_unknown", "protected", "protected_unknown", "protected_undated"):
+    for flag in (
+        "same_side", "same_side_unknown", "protected", "protected_unknown", "protected_undated",
+        "control_band", "control_band_unknown", "control_undated",
+    ):
         out[flag] = out[flag].fillna(False).astype(bool)
     out["ever_treated_same_route"] = out["ever_treated"] & out["same_route"]
     out["ever_treated_same_side"] = out["ever_treated_same_route"] & out["same_side"]
@@ -213,7 +221,8 @@ def add_side_treatment_definitions(rollup: pd.DataFrame, side: pd.DataFrame) -> 
     out["ever_treated_protected"] = out["ever_treated"] & out["protected"]
     out["first_treat_year_protected"] = out["treat_year_protected"].where(out["ever_treated_protected"])
     out["timing_unknown_protected"] = out["ever_treated_protected"] & out["protected_undated"]
-    return out.drop(columns=["treat_year_protected", "protected_undated"])
+    out["timing_unknown_control"] = out["control_band"] & out["control_undated"]
+    return out.drop(columns=["treat_year_protected", "protected_undated", "control_undated"])
 
 
 def build_combined_rollup(cells_gdf: gpd.GeoDataFrame, rollups: dict[str, pd.DataFrame]) -> pd.DataFrame:
@@ -230,6 +239,7 @@ def build_combined_rollup(cells_gdf: gpd.GeoDataFrame, rollups: dict[str, pd.Dat
         for flag in (
             "ever_treated", "timing_unknown", "ever_treated_same_route", "ever_treated_same_side",
             "ever_treated_protected", "timing_unknown_protected", "same_side_unknown", "protected_unknown",
+            "control_band", "control_band_unknown", "timing_unknown_control",
         ):
             column = f"{kind}_{flag}"
             if column in combined.columns:
@@ -247,8 +257,14 @@ def build_protected_treatment(combined: pd.DataFrame, kinds: tuple[str, ...] = B
     - `{kind}_timing_unknown` -- treated, but a protecting barrier is undated.
     - `{kind}_side_unknown` -- untreated, but a barrier whose side isn't
       known would protect the cell: not a clean control.
+    - `{kind}_control_band` -- untreated, in a barrier's control band
+      (600-1500m behind it), the within-barrier comparison group.
+    - `{kind}_control_year` -- the earliest band barrier's `built_year`,
+      NA when one is undated.
+    - `{kind}_control_band_unknown` -- neither of the above, but in the
+      band of a barrier whose side isn't known.
 
-    A residence matching no cell is more than 1km from every barrier, a
+    A residence matching no cell is more than 1.6km from every barrier, a
     clean never-treated control for both kinds."""
     out = combined[["cell_id"]].copy()
     for kind in kinds:
@@ -260,6 +276,11 @@ def build_protected_treatment(combined: pd.DataFrame, kinds: tuple[str, ...] = B
         )
         out[f"{kind}_timing_unknown"] = timing_unknown
         out[f"{kind}_side_unknown"] = combined[f"{kind}_protected_unknown"].astype(bool) & ~treated
+        band = combined[f"{kind}_control_band"].astype(bool)
+        band_undated = combined[f"{kind}_timing_unknown_control"].astype(bool)
+        out[f"{kind}_control_band"] = band
+        out[f"{kind}_control_year"] = combined[f"{kind}_control_year"].where(band & ~band_undated).astype("Int16")
+        out[f"{kind}_control_band_unknown"] = combined[f"{kind}_control_band_unknown"].astype(bool)
     return out
 
 
@@ -333,6 +354,9 @@ def run_grid_assemble(
                 "n_treated_with_year": int(treatment[f"{kind}_treat_year"].notna().sum()),
                 "n_timing_unknown": int(treatment[f"{kind}_timing_unknown"].sum()),
                 "n_side_unknown": int(treatment[f"{kind}_side_unknown"].sum()),
+                "n_control_band": int(treatment[f"{kind}_control_band"].sum()),
+                "n_control_band_with_year": int(treatment[f"{kind}_control_year"].notna().sum()),
+                "n_control_band_unknown": int(treatment[f"{kind}_control_band_unknown"].sum()),
             }
             for kind in kinds
         },

@@ -8,6 +8,7 @@ import pytest
 from shapely.geometry import LineString, Point
 
 from src.regions.sweden.sources.grid import assemble as ga
+from src.regions.sweden.sources.grid import export as gx
 from src.regions.sweden.sources.barrier_protection import build as bpb
 from src.regions.sweden.sources.barrier_protection import shared as bps
 
@@ -126,10 +127,19 @@ def test_add_side_treatment_definitions_gates_on_ever_treated_and_same_route():
             "protected_unknown": [False, False, False],
             "treat_year_protected": pd.array([pd.NA, 2012, 2015], dtype="Int64"),
             "protected_undated": [False, False, False],
+            "control_band": [True, False, False],
+            "control_band_unknown": [False, False, False],
+            "control_year": pd.array([1998, pd.NA, pd.NA], dtype="Int64"),
+            "control_undated": [True, False, False],
         }
     )
 
     out = ga.add_side_treatment_definitions(rollup, side).set_index("cell_id")
+
+    # The control band passes through, its undated flag renamed.
+    assert bool(out.loc["treated_same_side", "control_band"]) is True
+    assert bool(out.loc["treated_same_side", "timing_unknown_control"]) is True
+    assert "control_undated" not in out.columns
 
     assert bool(out.loc["treated_same_side", "ever_treated_same_route"]) is True
     assert bool(out.loc["treated_same_side", "ever_treated_same_side"]) is True
@@ -240,7 +250,9 @@ def test_run_grid_assemble_end_to_end(isolated_paths):
     assert list(treatment.columns) == [
         "cell_id",
         "road_treated", "road_treat_year", "road_timing_unknown", "road_side_unknown",
+        "road_control_band", "road_control_year", "road_control_band_unknown",
         "rail_treated", "rail_treat_year", "rail_timing_unknown", "rail_side_unknown",
+        "rail_control_band", "rail_control_year", "rail_control_band_unknown",
     ]
     assert len(treatment) == 3
 
@@ -248,17 +260,84 @@ def test_run_grid_assemble_end_to_end(isolated_paths):
 def test_build_protected_treatment_keeps_only_exact_years_and_flags_unclear_controls():
     combined = pd.DataFrame(
         {
-            "cell_id": ["dated", "undated", "side_unknown", "clean"],
-            "road_ever_treated_protected": [True, True, False, False],
-            "road_timing_unknown_protected": [False, True, False, False],
-            "road_first_treat_year_protected": pd.array([2012, 2005, pd.NA, pd.NA], dtype="Int64"),
-            "road_protected_unknown": [False, False, True, False],
+            "cell_id": ["dated", "undated", "side_unknown", "clean", "band", "band_undated"],
+            "road_ever_treated_protected": [True, True, False, False, False, False],
+            "road_timing_unknown_protected": [False, True, False, False, False, False],
+            "road_first_treat_year_protected": pd.array([2012, 2005, pd.NA, pd.NA, pd.NA, pd.NA], dtype="Int64"),
+            "road_protected_unknown": [False, False, True, False, False, False],
+            "road_control_band": [False, False, False, False, True, True],
+            "road_timing_unknown_control": [False, False, False, False, False, True],
+            "road_control_year": pd.array([pd.NA, pd.NA, pd.NA, pd.NA, 2001, 1999], dtype="Int64"),
+            "road_control_band_unknown": [False, False, False, True, False, False],
         }
     )
     out = ga.build_protected_treatment(combined, ("road",)).set_index("cell_id")
 
-    assert out["road_treated"].tolist() == [True, True, False, False]
+    assert out["road_treated"].tolist() == [True, True, False, False, False, False]
     # A year that an undated protecting barrier might precede isn't exact.
-    assert out["road_treat_year"].tolist() == [2012, pd.NA, pd.NA, pd.NA]
-    assert out["road_timing_unknown"].tolist() == [False, True, False, False]
-    assert out["road_side_unknown"].tolist() == [False, False, True, False]
+    assert out["road_treat_year"].tolist() == [2012, pd.NA, pd.NA, pd.NA, pd.NA, pd.NA]
+    assert out["road_timing_unknown"].tolist() == [False, True, False, False, False, False]
+    assert out["road_side_unknown"].tolist() == [False, False, True, False, False, False]
+    assert out["road_control_band"].tolist() == [False, False, False, False, True, True]
+    # The same for the control year.
+    assert out["road_control_year"].tolist() == [pd.NA, pd.NA, pd.NA, pd.NA, 2001, pd.NA]
+    assert out["road_control_band_unknown"].tolist() == [False, False, False, True, False, False]
+
+
+def test_build_export_table_keeps_treated_or_undecided_cells_as_0_1():
+    treatment = pd.DataFrame(
+        {
+            "cell_id": ["3000006400200", "3000006400100", "3000006400300"],
+            "road_treated": [False, True, False],
+            "road_treat_year": pd.array([pd.NA, 2012, pd.NA], dtype="Int16"),
+            "road_timing_unknown": [False, False, False],
+            "road_side_unknown": [True, False, False],
+            "road_control_band": [False, False, False],
+            "road_control_year": pd.array([pd.NA, pd.NA, pd.NA], dtype="Int16"),
+            "road_control_band_unknown": [False, False, False],
+        }
+    )
+    treatment.loc[3] = ["3000006400400", False, pd.NA, False, False, True, 2001, False]
+    out = gx.build_export_table(treatment, ("road",))
+
+    # The plain control is dropped: a residence missing from the file is untreated, outside every band.
+    assert out["cell_id"].tolist() == ["3000006400100", "3000006400200", "3000006400400"]
+    assert out["sweref_e"].tolist() == [300000, 300000, 300000]
+    assert out["sweref_n"].tolist() == [6400100, 6400200, 6400400]
+    assert out["road_treated"].tolist() == [1, 0, 0]
+    assert out["road_side_unknown"].tolist() == [0, 1, 0]
+    assert out["road_control_band"].tolist() == [0, 0, 1]
+    assert out["road_treat_year"].tolist() == [2012, pd.NA, pd.NA]
+    assert out["road_control_year"].tolist() == [pd.NA, pd.NA, 2001]
+
+
+def test_build_export_table_refuses_a_non_scb_cell_id():
+    treatment = pd.DataFrame({"cell_id": ["SE100mN6400100E300000"], "road_treated": [True], "road_side_unknown": [False]})
+    with pytest.raises(ValueError, match="13-digit"):
+        gx.build_export_table(treatment, ("road",))
+
+
+def test_run_grid_export_writes_csv_and_doc(isolated_paths, tmp_path, monkeypatch):
+    cells = _cells_gdf().assign(cell_id=["0000006400000", "0003006400000", "0020006400000"])
+    cells.to_parquet(isolated_paths["processed"] / "grid_cells.parquet", index=False)
+    ga.run_grid_assemble()
+    monkeypatch.setattr(gx, "assembled_dir", lambda root=None: isolated_paths["assembled"])
+    barriers = {"road": _road_gdf(), "rail": _rail_gdf()}
+    monkeypatch.setattr(gx, "load_noise_barriers", lambda kind, root=None: barriers[kind])
+    out_dir = tmp_path / "shared"
+    out_dir.mkdir()
+
+    report = gx.run_grid_export(out_dir=out_dir)
+
+    csv = pd.read_csv(out_dir / gx.CSV_NAME, dtype={"cell_id": str})
+    assert report["n_grid_cells"] == 3
+    assert report["n_rows"] == len(csv)
+    assert csv["cell_id"].str.len().eq(13).all()
+    doc = (out_dir / gx.DOC_NAME).read_text()
+    assert f"**{len(csv):,} cells**" in doc
+    assert report["barriers"]["road"]["n_barriers"] == 1
+
+
+def test_run_grid_export_refuses_a_missing_out_dir(tmp_path):
+    with pytest.raises(FileNotFoundError, match="--out-dir"):
+        gx.run_grid_export(out_dir=tmp_path / "missing")

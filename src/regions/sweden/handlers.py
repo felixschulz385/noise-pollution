@@ -608,3 +608,14 @@ def command_grid_assemble(args: argparse.Namespace) -> int:
     result = run_grid_assemble(band_radii=band_radii)
     print_json({"domain": "grid", "stage": "assemble", **result})
     return 0
+
+
+def command_grid_export(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from src.regions.sweden.sources.grid.export import run_grid_export
+    from src.regions.sweden.sources.grid.shared import SHARED_EXPORT_DIR
+
+    result = run_grid_export(out_dir=Path(args.out_dir) if args.out_dir else SHARED_EXPORT_DIR)
+    print_json({"domain": "grid", "stage": "export", **result})
+    return 0

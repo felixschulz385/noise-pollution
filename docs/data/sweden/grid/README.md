@@ -74,13 +74,12 @@ directly. The code doesn't carry the resolution (100m by default). Checked
 against SCB's open 2024 1km grid: all 115,062 `rutid_scb` codes equal their
 cell polygon's lower-left corner (to 5 mm), SCB's metadata says the same
 ("representerar rutans nedre vänstra hörn"), and 90% of our cells sit in a
-populated SCB 1km cell. **Assumed: flooring** (2026-10-20). SCB confirmed
-that the coordinates of the 100 × 100 m cells refer to each cell's
-lower-left corner. That is all SCB said, so we assume an address is
-floored into the cell that contains it, whose lower-left corner is its
-code. Register coordinates therefore join on `cell_id` as they are, with
-no +50m shift. If it ever turns out that SCB rounds to the nearest 100m,
-shift register coordinates by +50m before joining.
+populated SCB 1km cell. **Flooring, confirmed** (assumed 2026-10-20,
+confirmed 2026-11-02). SCB confirmed that the coordinates of the
+100 × 100 m cells refer to each cell's lower-left corner, and the coauthor
+with server access confirmed that the register's `sweref_e`/`sweref_n` are
+integers ending in 00 that mark that corner. Register coordinates
+therefore join as they are, with no +50m shift.
 
 ## `assemble` -- real run 2026-09-23
 
@@ -187,10 +186,42 @@ then for `road_` and `rail_`:
   the file; the analysis decides what to do with them.
 - `side_unknown` -- untreated, but a barrier whose side isn't known would
   protect the cell: not a clean control.
+- `control_band` (since 2026-10-22) -- untreated, in some barrier's
+  control band: on its side, beside its stretch (±50m), 600-1500m from its
+  road (`barrier_protection/README.md` "Control band"; the within-barrier
+  comparison of Moretti & Wheeler). Also not `side_unknown`.
+- `control_year` (Int16) -- the earliest `built_year` among the barriers
+  whose band holds the cell; NA when one of them is undated.
+- `control_band_unknown` -- none of the above, but in the band of a
+  barrier whose side isn't known.
 
-A residence matching no cell is more than 1km from every barrier: a clean
-never-treated control for both kinds. Treatment years before the register
-data starts are left to the analysis.
+Per kind, treated / `side_unknown` / `control_band` /
+`control_band_unknown` are mutually exclusive. A residence matching no
+cell is more than 1.6km from every barrier: a clean never-treated control
+for both kinds. Treatment years before the register data starts are left
+to the analysis.
+
+**Control band and the 1.6km grid, 2026-10-22 run.** `side.py`
+judges every barrier within 1,600m of a cell (`CONTROL_CANDIDATE_RADIUS_M`)
+with `classify_points(..., control_max_lateral_m=1500)`, in the same pass
+as `protected`. To hold the whole band, the grid now reaches 1,600m from
+any barrier (`shared.BUFFER_M`, was 1,000m): **832,221 cells** (was
+400,369). On the 400,369 old cells, `treated`/`treat_year`/
+`timing_unknown`/`side_unknown` are identical to the 2026-10-20 run, and
+no new cell is treated or side-unknown. `ever_near_1000m` gains a few edge
+cells the old 1,000m buffer polygon cut off (rail 145,286 -> 145,451).
+`grid assemble` takes ~1m45s.
+
+| | road | rail |
+|---|---|---|
+| control band | 30,396 | 23,079 |
+| control band, exact year | 17,896 | 17,602 |
+| control band, side unknown | 11,285 | 10,649 |
+
+On the old 1km grid the band would have held only road 15,249 / rail
+11,768 cells, mostly 600-1,000m from the road. The cell counts elsewhere
+in this README, `preprocess.py`'s docstring and `grid.ipynb` are from the
+1km grid.
 
 **Coverage, 2026-10-20 run** (after the manual audit through `national_3`
 and the blind double coding; 400,369 cells):
@@ -208,6 +239,27 @@ audit's last batches (`national_4`/`_5`): road 7,077, rail 4,912. Treatment
 is judged at the cell centroid; for 13-18% of residences near a protection
 zone the cell's status differs from the residence's own, about equally in
 both directions (`src/experiments/sweden/grid.ipynb` §9).
+
+### `export` -- the shared copy (2026-10-22)
+
+```bash
+python -m src.cli sweden data grid export   # --out-dir; default ~/Dropbox/Noise Pollution/data/grid
+```
+
+REQUIRES `grid assemble` and `barrier-protection build`
+(`export.py::run_grid_export`). Writes `grid_treatment_protected.csv` and
+`grid_treatment_protected.md` to the project's shared Dropbox, for
+coauthors joining register residences. The CSV keeps only the cells
+treated, side-unknown, control-band or control-band-unknown for at least
+one kind (122,096 on 2026-10-22, with the control band; 48,233 in the
+first run that day, without it), with 0/1 flags and blank years, and
+the key both as `cell_id` and as the integer corner `sweref_e`/`sweref_n`
+(the register's variable names, since 2026-11-02); a
+residence not in it is untreated and outside every band for both kinds. The `.md` is rendered on every run, so its counts (rows, coverage,
+treatment years, barriers still undated or of unknown side) always match
+the CSV. The run replaces both files, so re-run it after every `grid
+assemble` that coauthors should see. The first export (2026-09-29, before
+the audit) was written by hand in the same format.
 
 **Coverage, 2026-09-29 run** (before the audit; 400,369 cells):
 

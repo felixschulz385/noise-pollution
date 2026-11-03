@@ -439,7 +439,10 @@ def _register_grid(domains: argparse._SubParsersAction) -> None:
         "preprocess",
         help="Build the 100m fishnet within the widest configured band of any road/rail barrier",
     )
-    g_pre.add_argument("--buffer-m", type=float, default=1000.0)
+    g_pre.add_argument(
+        "--buffer-m", type=float, default=1600.0,
+        help="Default: 1600, the full control band (1500m from the road, +-50m along, 50m slack)",
+    )
     g_pre.add_argument("--resolution-m", type=int, default=100)
     g_pre.set_defaults(func=h.command_grid_preprocess)
 
@@ -455,3 +458,11 @@ def _register_grid(domains: argparse._SubParsersAction) -> None:
         help="Distance band in metres (repeatable; default 100/200/300/400/500/1000)",
     )
     g_asm.set_defaults(func=h.command_grid_assemble)
+
+    g_exp = cmd.add_parser(
+        "export",
+        help="Write the protected-tier treatment CSV and its documentation to the shared Dropbox. "
+        "Requires grid assemble",
+    )
+    g_exp.add_argument("--out-dir", help="Default: ~/Dropbox/Noise Pollution/data/grid")
+    g_exp.set_defaults(func=h.command_grid_export)
