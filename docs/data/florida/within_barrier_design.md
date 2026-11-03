@@ -47,7 +47,7 @@ is not the nearest one. `schools assemble` writes it to the rollup (since
 
 ## The three steps, in order
 
-### 1. Distance split (implemented 2026-09-30, `analysis.ipynb` §12)
+### 1. Distance split (implemented 2026-09-30, `analysis.ipynb` §10)
 
 Split the treated schools at 300m from the road. Estimate each half against
 the same controls as §4-§6:
@@ -77,14 +77,14 @@ No pipeline change beyond `protected_lateral_m`.
   and 0-150m has only 5 schools with a pre-period.
 - About 30 schools carry it (31 near schools with a pre-period, on 19
   roads in 8 districts).
-- **Robustness (`analysis.ipynb` §13, run 2026-09-30): real but fragile.**
+- **Robustness (`analysis.ipynb` §11, run 2026-09-30): real but fragile.**
   - Cutoff: CS is negative from 200m to 400m (-0.21 to -0.13; p<0.05 at
     250-300m only). TWFE's near/far contrast holds only at 250-300m.
   - Permutation (999 random near/far splits of the treated schools): the
     near-far gap has p=0.049.
   - Leave one district or road out: the sign never changes, but 12 of 27
     drops take p above 0.05 (at most 0.139).
-  - Holm over §12's six splits: CS near 0.222, TWFE 150-300m 0.013.
+  - Holm over §10's six splits: CS near 0.222, TWFE 150-300m 0.013.
   - Intake: the near schools' enrollment falls by about 10% (p=0.029), and
     their free/reduced-lunch share rises 4.5 points (p=0.19).
   - Traffic: the busiest road within 500m of a near school is +7.5% after
@@ -94,7 +94,7 @@ No pipeline change beyond `protected_lateral_m`.
     road, which fits a lasting change near the road (traffic, right-of-way
     takings, families leaving) better than a construction disturbance.
     Part of it may be who attends.
-- **Wall or road works (`analysis.ipynb` §13 (g)-(i), run 2026-09-30).**
+- **Wall or road works (`analysis.ipynb` §11 (g)-(i), run 2026-09-30).**
   - The near schools' enrollment has no pre-trend and falls from the
     construction year on (`Post_avg` -0.127, p=0.001).
   - Their nearby traffic was already rising before the wall (`Pre_avg`
@@ -116,7 +116,28 @@ No pipeline change beyond `protected_lateral_m`.
   question: is there any wall effect at all, against schools behind the
   same wall but farther out?
 
-### 2. Within-wall stacked design (not started)
+### 2. Within-wall stacked design (cohort version done 2026-10-22, per-wall stack not started)
+
+**Done (`analysis.ipynb` §9, 2026-10-22).** Without a pipeline change: the
+notebook places every school in the protected areas and control bands of
+built and proposed walls (point in polygon on the `barrier_protection`
+layers; its near built schools equal the treated schools exactly). It
+stacks by construction year instead of by wall: each far school carries
+its band wall's year, and site cohort × year FE compare near and far
+schools behind walls built the same year (57 near / 100 far schools with a
+pre-period in 17 cohorts). A DDD adds schools near and far from proposed
+walls (26 / 43) with near × year FE, so the near/far gap's path behind
+never-built walls is netted out.
+- DD: -0.173 (SE 0.081); CS with far schools as controls -0.132 (p=0.067).
+  The DD's leads are positive and shrink toward t = −1 (`F8` +0.359,
+  joint p=0.044), and its lags are flat, so it is a pre-existing decline
+  of near schools, not a break at construction.
+- DDD: -0.018 (SE 0.080), leads jointly p=0.207. No wall effect; §10's
+  near-road drop is a decline near studied roads, wall or no wall.
+
+The per-wall stack below (wall × year FE, clustered by wall) is still
+open.
+
 
 The analogue of Moretti & Wheeler's Eq. 1:
 - **Units:** per wall, its protected schools are treated and its
@@ -147,5 +168,7 @@ Interact `post` with `noise_reduction_db − 7` among treated schools. 503 of
 1,245 built walls carry exactly 7.0 dB and the interquartile range is
 7-8 dB, so this is a robustness check, not a finding.
 
-**Not feasible:** a matched design on proposed walls (their DDD). Only 8
-proposed walls have schools on both sides of the 600m line.
+**Not feasible:** a matched design on proposed walls (a DDD wall by wall).
+Only 8 proposed walls have schools on both sides of the 600m line. The
+pooled DDD above (near × year FE from all proposed-wall schools) does not
+need that matching.
