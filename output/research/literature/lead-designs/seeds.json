@@ -1,0 +1,104 @@
+[
+ {
+  "label": "HHRS",
+  "openalex": [
+   "W3115759480",
+   "W4226092454",
+   "W4294944561"
+  ],
+  "doi": "",
+  "title": "A thousand cuts: cumulative lead exposure reduces academic achievement"
+ },
+ {
+  "label": "RRU2015",
+  "openalex": [
+   "W2125407004"
+  ],
+  "doi": "",
+  "title": "The long-term effects of early lead exposure: evidence from a case of environmental negligence"
+ },
+ {
+  "label": "PFR2020",
+  "openalex": [
+   "W2979471901"
+  ],
+  "doi": "",
+  "title": "The developmental consequences of superfund sites"
+ },
+ {
+  "label": "Reyes2007",
+  "openalex": [
+   "W2144701430",
+   "W2979044258"
+  ],
+  "doi": "",
+  "title": "Environmental policy as social policy? The impact of childhood lead exposure on crime"
+ },
+ {
+  "label": "HR2021",
+  "openalex": [
+   "W3186075198"
+  ],
+  "doi": "",
+  "title": "The effect of leaded gasoline on elderly mortality: evidence from regulatory exemptions"
+ },
+ {
+  "label": "Zahran2017",
+  "openalex": [
+   "W1760463050"
+  ],
+  "doi": "",
+  "title": "The effect of leaded aviation gasoline on blood lead in children"
+ },
+ {
+  "label": "ACSV2018",
+  "openalex": [
+   "W2517590774"
+  ],
+  "doi": "10.1257/app.20160404",
+  "title": "Do Low Levels of Blood Lead Reduce Children's Future Test Scores?"
+ },
+ {
+  "label": "Nilsson2009",
+  "openalex": [
+   "W279405972"
+  ],
+  "doi": "",
+  "title": "long-term effects of early childhood lead exposure phase-out of leaded gasoline"
+ },
+ {
+  "label": "BS2018",
+  "openalex": [
+   "W1651782559",
+   "W2997422728",
+   "W3121250358",
+   "W3125063116"
+  ],
+  "doi": "",
+  "title": "Life after lead: effects of early interventions for children exposed to lead"
+ },
+ {
+  "label": "GNR2020",
+  "openalex": [
+   "W3007243183"
+  ],
+  "doi": "10.1086/708725",
+  "title": "Understanding How Low Levels of Early Lead Exposure Affect Children’s Life Trajectories"
+ },
+ {
+  "label": "KMS2020",
+  "openalex": [
+   "W2938840871"
+  ],
+  "doi": "",
+  "title": "Superfund cleanups and children’s lead exposure"
+ },
+ {
+  "label": "GNR2017WP",
+  "openalex": [
+   "W2619995600"
+  ],
+  "doi": "",
+  "title": "Early lead exposure and outcomes in adulthood"
+ }
+]
