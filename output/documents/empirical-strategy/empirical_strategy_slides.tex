@@ -49,40 +49,42 @@
 % \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{The design in one picture}
+\begin{frame}{Design: two sides of a road, before and after the barrier}
 \footnotesize
 \begin{columns}[T]
 \begin{column}{0.5\textwidth}
 \centering
-\textbf{Where: one corridor per barrier}\\[0.6em]
+\textbf{One corridor per barrier}\\[0.6em]
+% Both sketches sit in boxes of the same height, centred, so they line up.
+\parbox[c][3.1cm][c]{\linewidth}{\centering
 \begin{tikzpicture}[font=\scriptsize]
   % outer band
-  \fill[mLightGreen!12] (0.8,2.45) rectangle (4.8,3.05);
-  \draw[dashed, black!45] (0.8,2.45) rectangle (4.8,3.05);
-  \node at (2.8,2.75) {600--1,500\,m behind: control 2};
-  \node[black!45] at (2.8,2.12) {$\vdots$};
+  \fill[mLightGreen!12] (0.8,1.38) rectangle (4.8,1.78);
+  \draw[dashed, black!45] (0.8,1.38) rectangle (4.8,1.78);
+  \node at (2.8,1.58) {600--1,500\,m behind: control 2};
   % protected zone
-  \fill[mLightGreen!40] (0.8,0.45) rectangle (4.8,1.75);
-  \node at (2.8,1.1) {\textbf{protected} ($P=1$)};
+  \fill[mLightGreen!40] (0.8,0.3) rectangle (4.8,1.18);
+  \node at (2.8,0.74) {\textbf{protected} ($P=1$)};
   % barrier
-  \draw[line width=2.5pt, mDarkTeal] (0.8,0.28) -- (4.8,0.28);
-  \draw[mDarkTeal] (4.85,0.32) -- (5.15,0.9);
-  \node[right, align=left, text=mDarkTeal] at (5.1,1.05) {barrier\\built $\tau_b$};
+  \draw[line width=2.5pt, mDarkTeal] (0.8,0.17) -- (4.8,0.17);
+  \draw[mDarkTeal] (4.85,0.2) -- (5.15,0.6);
+  \node[right, align=left, text=mDarkTeal] at (5.1,0.75) {barrier\\built $\tau_b$};
   % road
   \draw[thick, black!70] (0.4,0) -- (5.4,0);
-  \draw[thick, black!70] (0.4,-0.12) -- (5.4,-0.12);
-  \node[right, black!70] at (5.4,-0.06) {road / track};
+  \draw[thick, black!70] (0.4,-0.1) -- (5.4,-0.1);
+  \node[right, black!70] at (5.4,-0.05) {road / track};
   % opposite side
-  \fill[black!10] (0.8,-0.4) rectangle (4.8,-1.7);
-  \node[align=center] at (2.8,-1.05) {opposite side, same distance\\\textbf{main control}};
+  \fill[black!10] (0.8,-0.27) rectangle (4.8,-1.15);
+  \node[align=center] at (2.8,-0.71) {opposite side, same distance\\\textbf{main control}};
   % distance bands
-  \draw[<->, black!55] (0.6,0.45) -- (0.6,1.75) node[midway, left] {$r$};
-  \draw[<->, black!55] (0.6,-0.4) -- (0.6,-1.7) node[midway, left] {$r$};
-\end{tikzpicture}
+  \draw[<->, black!55] (0.6,0.3) -- (0.6,1.18) node[midway, left] {$r$};
+  \draw[<->, black!55] (0.6,-0.27) -- (0.6,-1.15) node[midway, left] {$r$};
+\end{tikzpicture}}
 \end{column}
 \begin{column}{0.48\textwidth}
 \centering
-\textbf{When: birth cohorts around $\tau_b$}\\[0.6em]
+\textbf{Birth cohorts around $\tau_b$}\\[0.6em]
+\parbox[c][3.1cm][c]{\linewidth}{\centering
 \begin{tikzpicture}[x=0.118cm, y=0.48cm, font=\scriptsize]
   \draw[->, black!70] (-22,0) -- (20,0) node[right] {year};
   \draw[dashed, mDarkTeal] (0,-0.2) -- (0,4.6);
@@ -105,27 +107,34 @@
   \node[right] at (19.5,3) {dose 6};
   \node[right] at (19.5,2) {dose 13};
   \node[right] at (19.5,1) {16 + utero};
-\end{tikzpicture}\\[0.3em]
-\muted{Bar: birth to test ($\bullet$, age 16). Brown: years lived with the barrier.}
+\end{tikzpicture}}\\[0.3em]
+\muted{Bars run from birth to the test at 16 ($\bullet$); brown marks years with the barrier.}
 \end{column}
 \end{columns}
 
-\bigskip
+\medskip
 \small
-\textbf{Design:} difference-in-differences across birth cohorts \emph{within} each barrier. Children from protected cells against children from the opposite side of the same road, cohorts tested before against cohorts tested after. The mother's cell in $\rho_b$, before the project, decides $P$.
+\textbf{Difference-in-differences within each barrier}
+\begin{itemize}\setlength{\itemsep}{1pt}
+  \item Protected side vs.\ opposite side of the same road (about 40\% of barriers built by 2007 are walled on both sides)
+  \item Cohorts tested before vs.\ after the barrier was built
+  \item Exposure from the mother's address in $\rho_b$, before the road project
+\end{itemize}
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{The prediction: zero, ramp, plateau}
+\begin{frame}{What we expect to see: zero, ramp, plateau}
 \footnotesize
 \begin{columns}[T]
 \begin{column}{0.58\textwidth}
 \centering
 \textbf{If home noise harms scores cumulatively}\\[0.5em]
-\begin{tikzpicture}[x=0.22cm, y=1.55cm, font=\scriptsize]
+\begin{tikzpicture}[x=0.21cm, y=1.4cm, font=\scriptsize]
   \fill[black!6] (-8,-0.15) rectangle (0,1.6);
   \draw[->] (-8.5,0) -- (25,0) node[above left] {$e = t^* - \tau_b$};
   \draw[->] (-8,-0.15) -- (-8,1.7) node[above] {$\beta_e$};
+  \node[below] at (8,-0.42) {years lived with the barrier before the test (at most 16)};
+  \node[rotate=90, above, align=center] at (-8,0.8) {effect of protection\\on score percentile};
   \draw[very thick, red!70!black] (-8,0) -- (0,0) -- (16,1.05) -- (17,1.3) -- (23.5,1.3);
   \draw[dashed, black!45] (0,-0.15) -- (0,1.6);
   \draw[dashed, black!45] (16,-0.15) -- (16,1.6);
@@ -139,35 +148,39 @@
 \end{column}
 \begin{column}{0.4\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}
-  \item $e<0$: no exposure, $\beta_e = 0$
-  \item Each later cohort adds one year, at a younger age: the step $\beta_e - \beta_{e-1}$ is the effect of exposure at age $A-e$
-  \item $\beta_{A+1} - \beta_A$: exposure in utero
-  \item Cohorts born after the barrier have the same dose: flat
+  \item Tested before the barrier ($e<0$): $\beta_e = 0$
+  \item Each later cohort gets one more year, at a younger age, so the step $\beta_e - \beta_{e-1}$ is the effect of one year at age $A-e$
+  \item The step at $A+1$ is exposure in utero
+  \item Born after the barrier: same dose, so flat in the short run
+  \item Later, adaptation, traffic growth or a wall on the other side may bend it: window capped at $L$ years, slope tested
 \end{itemize}
 \end{column}
 \end{columns}
 
-\medskip
-\textbf{Other stories draw other pictures}\\[0.3em]
+\smallskip
+\textbf{Other explanations predict other shapes}\\[0.2em]
 \begin{tabular}{@{}ccc@{}}
-\begin{tikzpicture}[x=0.11cm, y=0.55cm]
-  \draw[->, black!60] (-8,0) -- (24,0); \draw[dashed, black!40] (0,-0.1) -- (0,1.2);
+\begin{tikzpicture}[x=0.11cm, y=0.55cm, font=\tiny]
+  \draw[->, black!60] (-8,0) -- (24,0) node[right] {$e$}; \draw[dashed, black!40] (0,-0.1) -- (0,1.2);
+  \node[left] at (-8,0.6) {$\beta_e$};
   \draw[thick, red!70!black] (-8,-0.5) -- (0,0) -- (16,1) -- (23,1);
 \end{tikzpicture}
 &
-\begin{tikzpicture}[x=0.11cm, y=0.55cm]
-  \draw[->, black!60] (-8,0) -- (24,0); \draw[dashed, black!40] (0,-0.1) -- (0,1.2);
+\begin{tikzpicture}[x=0.11cm, y=0.55cm, font=\tiny]
+  \draw[->, black!60] (-8,0) -- (24,0) node[right] {$e$}; \draw[dashed, black!40] (0,-0.1) -- (0,1.2);
+  \node[left] at (-8,0.6) {$\beta_e$};
   \draw[thick, red!70!black] (-8,0) -- (0,0) -- (0,0.8) -- (23,0.8);
 \end{tikzpicture}
 &
-\begin{tikzpicture}[x=0.11cm, y=0.55cm]
-  \draw[->, black!60] (-8,0) -- (24,0); \draw[dashed, black!40] (0,-0.1) -- (0,1.2);
+\begin{tikzpicture}[x=0.11cm, y=0.55cm, font=\tiny]
+  \draw[->, black!60] (-8,0) -- (24,0) node[right] {$e$}; \draw[dashed, black!40] (0,-0.1) -- (0,1.2);
+  \node[left] at (-8,0.6) {$\beta_e$};
   \draw[thick, red!70!black] (-8,0) -- (0,0) -- (23,1.2);
 \end{tikzpicture}
 \\[-0.2em]
-\scriptsize\textbf{Pre-trend:} &
-\scriptsize\textbf{Step, no ramp:} &
-\scriptsize\textbf{No plateau:} \\[-0.3em]
+\scriptsize\textbf{Pre-trend} &
+\scriptsize\textbf{Step, no ramp} &
+\scriptsize\textbf{No plateau} \\[-0.3em]
 \scriptsize sorting, anticipation &
 \scriptsize noise around the test &
 \scriptsize trends set off by the road project
@@ -175,21 +188,27 @@
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{Who counts as exposed: the cell before the project}
+\begin{frame}{Exposure is assigned before the road project}
 \small
-\textbf{Threat:} families move in, move out or stay \emph{because of} the barrier, and road projects are announced years ahead. Assigning by current address would build sorting into the ramp.
-
-\medskip
-\textbf{Assignment}
-\begin{itemize}
-  \item \textbf{Reference cell:} the mother's 100\,m cell on 31 December of $\rho_b$, before the project could affect where families live
-  \item $\rho_b$ = year before the project was announced; with no project dates yet, $\rho_b = \tau_b - 3$ (robustness: $\tau_b - 1$, $\tau_b - 5$; later dates should give smaller estimates if anticipation matters)
-  \item Through the mother, children born after $\tau_b$ get a cell by the same rule as their older siblings
-  \item Children are followed after moves: an \textbf{intention-to-treat} effect. Moving becomes a mechanism, not a threat
+\textbf{The problem}
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Families may move in, move out or stay \emph{because of} the barrier
+  \item Projects are announced years ahead, so current address would mix sorting into the ramp
 \end{itemize}
 
-\medskip
-\textbf{Not:} stayers only \parencite[as][]{lindgrenSoundEnvironmentHealth2021}, which selects on a response to treatment; or dwellings \parencite[as][]{morettiTrafficNoiseExternality2025}, which mixes the effect with who moves in and out.
+\smallskip
+\textbf{Our rule}
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Reference cell: the mother's 100\,m cell on 31 December of $\rho_b$
+  \item $\rho_b$ is the year before the project was announced; until we have project dates, $\tau_b - 3$
+  \item Robustness: $\tau_b - 1$ and $\tau_b - 5$, compared per year lived (2SLS), which dilution does not move
+  \item Anticipation: moves out of and into the reference cell between $\rho_b$ and $\tau_b$, by side
+  \item Children born after $\tau_b$ get a cell through their mother, like their older siblings
+  \item We follow children after they move (intention to treat)
+\end{itemize}
+
+\smallskip
+\textbf{Unlike earlier work}, we keep movers and follow people, not dwellings: who stays \parencite{lindgrenSoundEnvironmentHealth2021} and who lives in a dwelling \parencite{morettiTrafficNoiseExternality2025} both respond to the barrier.
 \end{frame}
 
 % ---------------------------------------------------------------------------
@@ -202,46 +221,52 @@ S_i = \sum_{e \neq -1} \beta_e\, \mathbf{1}\{e_i = e\}\, P_i + \gamma_{b,P_i,r(i
 \vspace{-1.2em}
 \begin{columns}[T]
 \begin{column}{0.49\textwidth}
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item $S_i$: grade-9 merit value as a percentile within the test year (grading changed over time)
-  \item $\gamma_{b,P,r}$: each side \texttimes{} distance band, per barrier
-  \item $\eta_{b,e}$: barrier \texttimes{} test year. Absorbs traffic, local shocks and the road project as far as it is the same at all distances. Robustness: $\eta_{b,r,e}$, same distance band only
-  \item $X_{f(i)}$: parental education, income, immigrant background at $\rho_b$
-  \item No school FE (school chosen after $\tau_b$); robustness: \emph{assigned} school \texttimes{} test year
-  \item Event time and dose from the \emph{intended} test year $t^* = a_i + 16$, so repeating a grade does not change them
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item $S_i$: grade-9 merit value, percentile within the test year (grading rules changed)
+  \item Event time and dose use the \emph{intended} test year $t^* = a_i + 16$; children who repeat or start late are scored when they take the test. Second outcome: grade 9 on time
+  \item $\gamma_{b,P,r}$: barrier \texttimes{} side \texttimes{} distance band $r$ (0--100, 100--250, 250--600\,m, fixed in advance)
+  \item $\eta_{b,e}$: barrier \texttimes{} test year, shared by both sides; absorbs traffic, local shocks and project effects common to all distances. Robustness: $\eta_{b,r,e}$
+  \item $X_{f(i)}$: parental education, income and immigrant background at $\rho_b$
+  \item No school FE, since the grade-9 school is chosen after $\tau_b$. Robustness: \emph{assigned} school \texttimes{} test year
 \end{itemize}
 \end{column}
 \begin{column}{0.49\textwidth}
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item Each barrier is compared only with its own cells; cells protected by another barrier are dropped \parencite{cengizEffectMinimumWages2019}
-  \item Weighted by protected children, event study on barriers with a full window (built by about 2007) \parencite{wingStackedDifferenceinDifferences2024}
-  \item Clustered by connected corridors; wild cluster bootstrap and randomisation inference
-  \item \textbf{Headline:} effect per year of assigned dose, once pre-trends are flat and the ramp is roughly linear
-  \item Cross-checks: \textcite{callawayDifferenceinDifferencesMultipleTime2021}, \textcite{sunEstimatingDynamicTreatment2021}, \textcite{borusyakRevisitingEventStudyDesigns2024}
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Each stack uses only its own barrier's cells; comparison cells that another barrier protects within the window are dropped \parencite{cengizEffectMinimumWages2019}
+  \item Weighted by protected children \parencite{wingStackedDifferenceinDifferences2024}
+  \item Event study: barriers built by 2007 (full window)
+  \item Clustered by connected corridors; wild cluster bootstrap, randomisation inference
+  \item Main estimate: effect per year of assigned dose, if pre-trends are flat and the ramp is roughly linear
+  \item Other estimators: \textcite{callawayDifferenceinDifferencesMultipleTime2021}, \textcite{sunEstimatingDynamicTreatment2021}, \textcite{borusyakRevisitingEventStudyDesigns2024}
 \end{itemize}
 \end{column}
 \end{columns}
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{Is it the noise?}
+\begin{frame}{Separating noise from the road project}
 \small
-Road barriers come with a road project and lower near-road air pollution \parencite{baldaufImpactsNoiseBarriers2008,greenhillNoisePollutionInfant2026}. Three tests separate noise from the bundle:
+Barriers come with a road project and may lower air pollution \parencite{baldaufImpactsNoiseBarriers2008,greenhillNoisePollutionInfant2026}.
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Construction and traffic changes hit both sides, so the opposite side nets them out
+  \item Air pollution partly passes over a wall, so the gap between the sides is smaller than for noise
+  \item What remains are the side-specific parts of the project and of air pollution
+\end{itemize}
 
 \renewcommand{\arraystretch}{1.1}
 \footnotesize
-\begin{tabular}{@{}L{0.29\textwidth}L{0.3\textwidth}L{0.35\textwidth}@{}}
+\begin{tabular}{@{}L{0.27\textwidth}L{0.12\textwidth}L{0.25\textwidth}L{0.26\textwidth}@{}}
 \toprule
-\textbf{Test} & \textbf{If it is noise} & \textbf{If it is the project or air pollution} \\
+\textbf{Test} & \textbf{Rules out} & \textbf{If it is noise} & \textbf{If it is not} \\
 \midrule
-\textbf{Rail against road} & Similar ramps: rail traffic is mostly electric, so a rail barrier changes little but noise & Ramp for road barriers only \\
-\textbf{Threshold}, fixed in advance: $L^0$ above WHO guideline (53\,dB road, 54\,dB rail) & Ramp above the threshold, none below & Ramp below the threshold too, among cells as close to the road (same project) but quiet to begin with \\
-\textbf{Intensity}: predicted dB the barrier removes at each cell & Larger ramp where the barrier removes more dB & Same ramp whatever the dB cut \\
+\textbf{Rail vs.\ road} & Air pollution & Similar ramps (trains are mostly electric) & Ramp for road barriers only \\
+\textbf{Threshold}, fixed in advance: $L^0$ above WHO guideline (53\,dB road, 54\,dB rail) & Project & Ramp above, none below & Ramp also below, in quiet cells as close to the road \\
+\textbf{Intensity}: predicted dB removed at each cell & Project & Larger ramp where more dB are removed & Same ramp whatever the dB cut \\
 \bottomrule
 \end{tabular}
 
 \smallskip
-\muted{Threshold and intensity compare cells at the same distance from the road: the project's effects also fade with distance.}
+\muted{Same distance holds the project fixed. Air pollution moves with distance and traffic like noise; only rail vs.\ road tests it.}
 \end{frame}
 
 % ===========================================================================
@@ -293,11 +318,24 @@ Sides feed different schools; grading by school & Assigned school \texttimes{} y
 % ---------------------------------------------------------------------------
 \begin{frame}[label=bk-distance]{Backup: distance profile and comparison groups}
 \footnotesize
-\begin{itemize}
-  \item \textbf{Comparison groups:} (1) opposite side, same distance (main); (2) 600--1,500\,m behind the barrier; (3) not-yet-treated corridors (robustness). Not never-treated places alone: places eligible but never shielded may have low priority for reasons that also shape their trends
-  \item \textbf{Caveat for (1):} the unshielded side may lack a barrier because it has few dwellings or got insulation, which we check
-  \item \textbf{Distance profile:} the effect in 50\,m bins of distance from the barrier up to 1,500\,m, each against the opposite side at the same distance. Shows how far the protection reaches, and whether the 600--1,500\,m band is unaffected; if not, the band moves out
-  \item \textbf{Balance:} for cohorts tested before the barrier, scores should vary with distance in the same way on both sides \parencite{berkhoutLeadExposureCognitive2025}
+\textbf{Three comparison groups}
+\begin{enumerate}\setlength{\itemsep}{1pt}
+  \item Opposite side, same distance (main)
+  \item 600--1,500\,m behind the barrier
+  \item Not-yet-treated corridors (robustness)
+\end{enumerate}
+\begin{itemize}\setlength{\itemsep}{1pt}
+  \item We do not rely on never-treated places alone: places that qualified but were never shielded may have low priority for reasons that also shape their trends
+  \item The opposite side may have no barrier because it has few dwellings or was insulated; we check this
+  \item Barriers built by 2007: the opposite side is more than half protected for 37\% of road and 42\% of rail barriers, nearly always by the same project (within 2 years); barriers with a usable opposite side hold about 60\% of protected cells
+\end{itemize}
+
+\medskip
+\textbf{Distance profile}
+\begin{itemize}\setlength{\itemsep}{1pt}
+  \item Effect in 50\,m bins up to 1,500\,m from the barrier, each against the opposite side at the same distance
+  \item Shows how far protection reaches and whether the 600--1,500\,m band is unaffected; if it is not, the band moves out
+  \item Balance: before the barrier, scores should vary with distance in the same way on both sides \parencite{berkhoutLeadExposureCognitive2025}
 \end{itemize}
 \backtooverview
 \end{frame}
@@ -309,9 +347,9 @@ Sides feed different schools; grading by school & Assigned school \texttimes{} y
 M_{ft} = \sum_{k \neq -1} \mu_k\, \mathbf{1}\{t - \tau_b = k\}\, P_f + \gamma_{b,P_f,r(f)} + \eta_{b,t} + X_f'\phi + u_{ft}
 \]
 \begin{itemize}
-  \item \textbf{Mobility as mechanism:} hazard of leaving the reference cell. Moves between $\rho_b$ and $\tau_b$ indicate anticipation
-  \item \textbf{Per year lived:} 2SLS with years actually lived behind a barrier, instrumented by the assigned dose: an average causal response among compliers \parencite{angristTwoStageLeastSquares1995}
-  \item A \emph{LATE} if the barrier does not change moving or schools, else a \emph{rescaled ITT}; bounds that allow a direct effect of assignment \parencite{conleyPlausiblyExogenous2012}
+  \item Mobility: hazard of leaving the reference cell. Moves between $\rho_b$ and $\tau_b$ would show anticipation
+  \item Per year lived: 2SLS on years actually lived behind a barrier, instrumented with the assigned dose. This is an average causal response among compliers \parencite{angristTwoStageLeastSquares1995}
+  \item It is a \emph{LATE} if the barrier does not change moving or schools, otherwise a \emph{rescaled ITT}. Bounds allow a direct effect of assignment \parencite{conleyPlausiblyExogenous2012}
   \item Compliers described by household characteristics at $\rho_b$ \parencite{abadieSemiparametricInstrumentalVariable2003}
 \end{itemize}
 \backtooverview
@@ -325,10 +363,10 @@ S_i = \beta\, D_i P_i + \beta^{\text{utero}}\, \mathbf{1}\{e_i > A\}\, P_i + \be
 \]
 \[ D_i = \min\{\max(0,\, e_i),\, A\} \]
 \begin{itemize}
-  \item $\beta$: effect per year of assigned dose; $\beta^{\text{utero}}$: added effect of exposure in pregnancy; $\beta^{\text{pre}}$: pre-trend test
-  \item Age profile: slope allowed to differ by the age of the added year, kinks at 3, 7 and 13
-  \item Not a regression on $D_i$ alone: cohorts tested before would pool with comparison cells and the placebo would be lost; a continuous dose with staggered timing needs stronger parallel trends \parencite{callawayDifferenceinDifferencesContinuousTreatment2024}
-  \item Duration against intensity: years of exposure holding dB-years $D_i \Delta L$ fixed \parencite{hollingsworthThousandCutsCumulative2025}; permutation of $\Delta L$ within corridors
+  \item $\beta$ is the effect per year of assigned dose, $\beta^{\text{utero}}$ the added effect of exposure in pregnancy, $\beta^{\text{pre}}$ a pre-trend test
+  \item Age profile: the slope may differ by the age of the added year, with kinks at 3, 7 and 13
+  \item Why not regress on $D_i$ alone? Cohorts tested before would pool with comparison cells, and we would lose the placebo. A continuous dose with staggered timing also needs stronger parallel trends \parencite{callawayDifferenceinDifferencesContinuousTreatment2024}
+  \item Duration vs.\ intensity: years of exposure, holding dB-years $D_i \Delta L$ fixed \parencite{hollingsworthThousandCutsCumulative2025}; $\Delta L$ permuted within corridors
 \end{itemize}
 \backtooverview
 \end{frame}
@@ -340,8 +378,8 @@ S_i = \beta\, D_i P_i + \beta^{\text{utero}}\, \mathbf{1}\{e_i > A\}\, P_i + \be
 \begin{column}{0.49\textwidth}
 \textbf{Other estimands}
 \begin{itemize}\setlength{\itemsep}{1pt}
-  \item \textbf{Siblings:} household fixed effects with birth order \texttimes{} sex fixed effects \parencite{blackMoreMerrierEffect2005}; selected toward large families that stay, so robustness only
-  \item \textbf{Residents at the test:} the dwelling-based estimand; its gap to the ITT measures sorting; compositional-change test \parencite{santannaDifferenceinDifferencesCompositionalChanges2025}
+  \item Siblings: household FE with birth order \texttimes{} sex FE \parencite{blackMoreMerrierEffect2005}. The sample leans toward large families that stay, so robustness only
+  \item Residents at the test: the dwelling-based estimand. Its gap to the ITT measures sorting; test for compositional change \parencite{santannaDifferenceinDifferencesCompositionalChanges2025}
 \end{itemize}
 \textbf{Heterogeneity, fixed in advance}
 \begin{itemize}\setlength{\itemsep}{1pt}
@@ -382,7 +420,7 @@ S_i = \beta\, D_i P_i + \beta^{\text{utero}}\, \mathbf{1}\{e_i > A\}\, P_i + \be
 
 \medskip
 \small
-\textbf{What we add:} a cohort exposure design for noise and school achievement, with assignment before the barrier and a within-corridor comparison that nets out the road project.
+We add a cohort design for noise and school achievement: exposure assigned before the barrier, compared within each corridor.
 \backtooverview
 \end{frame}
 
