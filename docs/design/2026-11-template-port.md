@@ -26,7 +26,8 @@ at commit `ee56108` (`.copier-answers.yml`; `copier update` pulls later changes)
   run. The Florida within-barrier plan moved to the florida-schools line's notes.
 - **Repository.** The template's hooks (notebook outputs, restricted data, docs check), CI (docs,
   ruff, pytest), `.gitignore`, `pyproject.toml` (console script, ruff) and `environment.yml`
-  (env `noise_pollution`). Ruff runs with the template's rule set; adopting it found one real bug,
+  (env `noise_pollution`), locked in `conda-lock.yml` for osx-64 (the Intel Mac it runs on) and
+  linux-64 (CI) instead of the template's osx-arm64. Ruff runs with the template's rule set; adopting it found one real bug,
   a missing `Path` import in Sweden's `noise_barriers/fetch.py`.
 - **Tests** keep mirroring the package; test files whose basenames collided between the two
   regions carry the region (`test_sweden_panel_assemble.py`), so pytest collects them without
@@ -56,7 +57,6 @@ Open delta, in rough order:
 4. A `DataSource` base class with `STEPS`/`REQUIRES`, a per-region registry, `data summary` /
    `data verify`, and argparse defaults moved into the `regions` blocks of the unified config.
 5. The grid export's per-machine path (`~/Dropbox/…` in `grid/shared.py`) into the local config.
-6. `conda-lock.yml` for linux-64 and osx-arm64.
 
 ## Reasoning
 

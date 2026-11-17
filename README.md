@@ -21,7 +21,7 @@ Generated from each line's charter in [`docs/lines/`](docs/lines/):
 ## Quick start
 
 ```bash
-conda env create -f environment.yml                # environment noise_pollution
+conda-lock install -n noise_pollution conda-lock.yml   # or: conda env create -f environment.yml
 conda activate noise_pollution && pip install -e .
 ./.githooks/install.sh                             # notebooks, restricted data, docs
 python scripts/docs.py check                       # documentation conventions

@@ -37,7 +37,8 @@ index`; edit a charter, not this table. Each line's next step is in its charter.
 
 ## Environment
 
-- **Python:** the `noise_pollution` conda environment from `environment.yml` (no lock file yet),
+- **Python:** the `noise_pollution` conda environment, installed from `conda-lock.yml`
+  (osx-64 and linux-64; `environment.yml` is the input, regenerate the lock when it changes),
   then `pip install -e .`. Notebooks also run without the install: they put `src/` on
   `sys.path`.
 - **Data root** is `data/` in the repository (`data_root` in

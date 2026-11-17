@@ -28,6 +28,14 @@ def isolated_paths(tmp_path, monkeypatch):
         "assembled_school_neighbourhood_path",
         lambda root=None: paths["assembled"] / "school_neighbourhood.parquet",
     )
+    # no lineage links: the test schools are not in any real crosswalk, and the test must not
+    # read data/ (absent in CI)
+    monkeypatch.setattr(
+        pa,
+        "load_lineage_crosswalk",
+        lambda root=None: pd.DataFrame({"old_code": pd.Series(dtype=str), "new_code": pd.Series(dtype=str),
+                                        "name_sim": pd.Series(dtype=float)}),
+    )
     return paths
 
 
