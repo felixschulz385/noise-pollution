@@ -1,12 +1,19 @@
+---
+type: source
+state: current
+updated: 2026-10-20
+summary: "Florida schools: MSID/NCES spine, school-year covariates and the school-barrier matching tiers"
+---
+
 # Florida — `schools` source (design & findings)
 
 Status (2026-09-11): **`fetch`, `preprocess` (stages 1a+1b) and `assemble`
 (stage 2) all implemented and passing** against the real fetched data (95 tests
-green in the `311` conda env). `python -m src.cli florida data schools
+green in the `311` conda env). `noise_pollution florida data schools
 preprocess` writes `school_cross_section.parquet` / `school_year_panel.parquet`;
 `... schools assemble` writes `schools_treatment.parquet` +
 `schools_treatment_rollup.parquet` (REQUIRES `noise-barriers preprocess`).
-`src/experiments/florida/schools.ipynb` now **imports**
+`notebooks/florida-schools/06_schools.ipynb` now **imports**
 `schools/{preprocess,assemble}.py` (the way `assessments.ipynb` imports its
 parser) and is investigation-only — the pipeline logic lives in the module,
 with unit tests in `tests/regions/florida/test_schools_{preprocess,assemble}.py`.
@@ -66,7 +73,7 @@ layer).
 | CRDC 2021 raw-pull duplicates | `crdc_2021.parquet` had **50,592 fully-duplicate rows** (63% of the file — every `disability ∈ {1,2}` row doubled, `disability == 99` clean; likely an overlapping page from `_get_all_pages` on that year's unusually large pull), which silently **doubled `pct_swd` for spring year 2022** (median 0.14 → 0.29, 3.6% of rows > 1). `_load_year_parquets` now drops exact-duplicate rows for every CCD/CRDC/EDFacts source — harmless everywhere else, since no other file has any. |
 | Coordinate disagreement | When MSID and EDGE lat/lon are both present, **EDGE wins** (address-geocoded); keep `geom_disagree_m` and flag > 250 m for QA. Coordinate ladder: EDGE → MSID → (geocode, later) → none. |
 | Geocoding the ~240 unplaced active schools | **Deferred** — `preprocess` leaves a `geocode_pending` flag and a placeholder; `PHYSICAL_ADDRESS` geocoding (Census batch → Nominatim) is a follow-up. |
-| MSID code tables | **Resolved** — the FLDOE *MSID Application Guidelines* PDF (`0101172-msid.pdf`, at the repo root) Appendix A (record layout, per-item domain values) + Appendix B (113 grade codes) are transcribed into **`src/regions/florida/sources/schools/msid_codes.py`**: `ACTIVITY_CODE`, `SCHOOL_TYPE`, `CHARTER_STATUS`, `FUNC_SETTING`, `SERV_TYPE` (note **`B` = Alternative Education**, not "basic"), `MAGNET_STATUS`, `TITLE_I_STATUS`, `ACC_TYPE`, `REGION_CODE`, and `GRADE_CODE_COMBINATION` + `grade_code_span()` / `grade_code_serves_tested()`. |
+| MSID code tables | **Resolved** — the FLDOE *MSID Application Guidelines* PDF (`0101172-msid.pdf`, at the repo root) Appendix A (record layout, per-item domain values) + Appendix B (113 grade codes) are transcribed into **`src/noise_pollution/regions/florida/sources/schools/msid_codes.py`**: `ACTIVITY_CODE`, `SCHOOL_TYPE`, `CHARTER_STATUS`, `FUNC_SETTING`, `SERV_TYPE` (note **`B` = Alternative Education**, not "basic"), `MAGNET_STATUS`, `TITLE_I_STATUS`, `ACC_TYPE`, `REGION_CODE`, and `GRADE_CODE_COMBINATION` + `grade_code_span()` / `grade_code_serves_tested()`. |
 | Grade span | From MSID `GRADE_CODE` via Appendix B (`grade_code_span`) — resolves for ~85% of rows (the rest are codes `00` / `99` = unassigned, mostly closed/future). `ccd/directory.lowest/highest_grade_offered` is the fallback. `serves_tested_grades` = the code's explicit grade set intersects 3–10. |
 | Flags | `is_regular` = `serv_type == 'k12_general'` only; `is_alternative` = `'alternative_education'`; `is_charter` = `charter_kind != 'not_charter'`; `is_magnet` = magnet school-wide/program; `is_virtual` = `func_setting == 'virtual'`. Raw codes carried alongside. Flags are advisory — the analysis layer picks the estimation sample. |
 | `ncessch` collision dedup (36 cases) | For the `msid → ncessch` map keep the row; for the reverse `ncessch → msid` used in the CCD join, **prefer `ACTIVITY_CODE == 'A'`, then the latest `DATE_OPENED`**. Carry `ncessch_shared` when >1 `msid` maps to the same id. |
@@ -177,7 +184,7 @@ for "Carolyn Beatrice Parker Elementary". ~9.4% of rows carry the `0` sentinel
 3. No NCES linkage — row kept in the spine, `ncessch = NA`, excluded from any
    NCES-covariate join downstream.
 
-**Verification — `src/experiments/florida/schools.ipynb` (step 3).** The
+**Verification — `notebooks/florida-schools/06_schools.ipynb` (step 3).** The
 non-Urban sections (spine, crosswalk, coordinates, flags, operation panel,
 point-only barrier matching) run against the fetched data; stage-1b covariates
 are a guarded cell that runs when CCD data lands. Preliminary numbers from the
@@ -273,8 +280,8 @@ everyone.
 
 ## `fetch` — implemented (step 2)
 
-`python -m src.cli florida data schools fetch` — module at
-`src/regions/florida/sources/schools/{shared,fetch}.py`, handler
+`noise_pollution florida data schools fetch` — module at
+`src/noise_pollution/regions/florida/sources/schools/{shared,fetch}.py`, handler
 `command_schools_fetch`. Hand-wired (no `DataSource` base yet — deferred; this
 would be the first source to need it).
 
@@ -424,7 +431,7 @@ per `msid`: `ever_near_wall_{500,1000}m`, `first_treat_year`, `n_walls_500m`,
 
 ## `preprocess` / `assemble` — implemented (steps 3–4)
 
-`src/regions/florida/sources/schools/preprocess.py` (stages 1a+1b) and
+`src/noise_pollution/regions/florida/sources/schools/preprocess.py` (stages 1a+1b) and
 `assemble.py` (stage 2) implement everything below. One deviation from the
 original design: the `ncessch → msid` dedup map is computed for diagnostics
 (`ncessch_shared` on the cross-section) but not applied to the covariate join —
@@ -520,7 +527,7 @@ algorithm 5.
 
 > **⚠️ The geometric sign is pairwise-only, never a compass direction.**
 > Confirmed empirically once `road_network` was fetched (see
-> `src/experiments/florida/schools.ipynb` §7.2 and
+> `notebooks/florida-schools/06_schools.ipynb` §7.2 and
 > [`road_network/README.md`](../road_network/README.md)'s matching warning):
 > `rciroads`' digitizing direction (which end of a `ROADWAY` is milepost 0)
 > is arbitrary per roadway, so a geometrically-derived `wall_side` splits
@@ -557,7 +564,7 @@ algorithm 5.
   nearest among equals. `protected_gcid` / `protected_road_id` instead
   name the *nearest* protecting wall (differs for 2 of 27 schools with
   several). Used to split treatment by distance, see
-  [`../within_barrier_design.md`](../within_barrier_design.md).
+  [`../within_barrier_design.md`](../../../lines/florida-schools/notes/within_barrier_design.md).
 - `protected_project_type` (rollup, since 2026-09-30; carried by the
   panel): the `project_type` of that same wall. `I` is a federal Type I
   project (new road, added lanes, new ramps); `S` a state project, `O` /
@@ -602,7 +609,7 @@ geospatial stage 2.
 - CCD `%FRL` reporting is distorted by CEP after ~2015 — carry the raw count
   (`frpl_n`) + a `frpl_cep_flag`, reconcile in 1b.
 - The **fetch half** of the CCD/CRDC/EDFacts pull is a national dataset and may
-  later move to a shared `src/core` sources area (as flagged in covariates.md for
+  later move to a shared `src/noise_pollution/core` sources area (as flagged in covariates.md for
   `staff` / `air_quality` / `neighbourhood` too). Merging now does not block that
   — the fetch functions can be lifted to `core` and called from here when the
   per-region source registry lands.
@@ -631,7 +638,7 @@ healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`
 - NCESSCH stability across years → static vs per-year crosswalk (only matters if
   multi-year EDGE is added).
 - ~~`noise_barriers` raw roadbed/side/`RID` field for algorithm 5~~ **found**
-  (2026-09-11, `src/experiments/florida/schools.ipynb` §7.7): the raw GDB
+  (2026-09-11, `notebooks/florida-schools/06_schools.ipynb` §7.7): the raw GDB
   *does* carry one — `BLOC_SIDE` (compass `EAST`/`WEST`/`NORTH`/`SOUTH`,
   populated for 100% of present walls), plus `BLOC_BND` (orientation to
   traffic direction) and `BLOC_ONRTE` (mount type: shoulder/ground/median/
@@ -696,7 +703,7 @@ healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`
 `master_file` had `fetch` only (`preprocess` was always "TBD in notebook"), so
 folding it in is low-cost:
 
-1. Move `src/regions/florida/sources/master_file/{fetch,shared}.py` logic into
+1. Move `src/noise_pollution/regions/florida/sources/master_file/{fetch,shared}.py` logic into
    `schools/` as the `msid` subsource; delete the `master_file` package.
 2. Remove the `florida data master-file` CLI subtree; add `florida data schools`.
 3. Repoint: `assessments`' prerequisite `master_file` → `schools`; update

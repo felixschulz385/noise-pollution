@@ -5,7 +5,7 @@ needed."""
 import pandas as pd
 import pytest
 
-from src.regions.florida.sources.staff.assemble import (
+from noise_pollution.regions.florida.sources.staff.assemble import (
     build_district_leaid_crosswalk,
     build_district_staff_panel,
     build_school_staff_panel,

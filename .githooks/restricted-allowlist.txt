@@ -1,0 +1,4 @@
+# Files check-restricted.py lets through. One fnmatch pattern per line ('*' matches across
+# '/'). An entry asserts the file holds only aggregate results, never restricted records.
+# Keep it short and specific, e.g.:
+#   output/tables/*.csv

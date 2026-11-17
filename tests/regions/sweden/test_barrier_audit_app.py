@@ -20,8 +20,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from src.regions.sweden.sources.barrier_audit.package import build_device_check_zip
-from src.regions.sweden.sources.barrier_audit.shared import APP_DIR
+from noise_pollution.regions.sweden.sources.barrier_audit.package import build_device_check_zip
+from noise_pollution.regions.sweden.sources.barrier_audit.shared import APP_DIR
 
 
 @pytest.fixture
@@ -264,7 +264,7 @@ def test_device_check_zip_layout(tmp_path):
 
 
 def test_batch_zip_carries_the_tasks_but_not_the_key(tmp_path, monkeypatch):
-    from src.regions.sweden.sources.barrier_audit import package
+    from noise_pollution.regions.sweden.sources.barrier_audit import package
 
     monkeypatch.setattr(package, "tasks_path", lambda batch, root=None: tmp_path / f"{batch}_tasks.json")
     monkeypatch.setattr(package, "barrier_audit_paths", lambda root=None: {"packages": tmp_path / "packages"})
@@ -289,7 +289,7 @@ def test_browser_offset_maths_matches_shapely_and_signed_side():
     d > 0, and decompose inverts centerAt."""
     from shapely.geometry import LineString, Point
 
-    from src.core.barrier_geometry.linear_ref import signed_side
+    from noise_pollution.core.barrier_geometry.linear_ref import signed_side
 
     theta = np.linspace(0, np.pi / 3, 25)
     arc = np.c_[300 * np.sin(theta), 300 * (1 - np.cos(theta))]  # curving left
@@ -341,7 +341,7 @@ def test_streetview_looks_along_the_barrier_from_its_nearest_point(coords):
     from pyproj import Geod, Transformer
     from shapely.geometry import LineString, Point
 
-    from src.regions.sweden.sources.barrier_audit.export import task_geometry
+    from noise_pollution.regions.sweden.sources.barrier_audit.export import task_geometry
 
     x0, y0 = 674_000.0, 6_580_000.0  # Stockholm
     line = LineString([(x0 + x, y0 + y) for x, y in coords])
@@ -387,7 +387,7 @@ def test_whole_wall_zoom_fits_the_line_on_the_rotated_map(d, along):
     on one axis."""
     from shapely.geometry import LineString
 
-    from src.regions.sweden.sources.barrier_audit.export import task_geometry
+    from noise_pollution.regions.sweden.sources.barrier_audit.export import task_geometry
 
     x0, y0 = 674_000.0, 6_580_000.0
     line = LineString([(x0 + x, y0 + y) for x, y in [(0, 0), (300, 20), (600, 150), (700, 400)]])

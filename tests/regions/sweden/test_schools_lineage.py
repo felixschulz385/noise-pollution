@@ -1,13 +1,13 @@
 """Pure-function tests for the schools `build-lineage` stage -- no network,
 no geopandas (works off `schools.csv`-shaped plain-pandas data). See
-`src/regions/sweden/sources/schools/lineage.py`'s module docstring and
-`src/experiments/sweden/schools.ipynb` §8-9 for the heuristic this
+`src/noise_pollution/regions/sweden/sources/schools/lineage.py`'s module docstring and
+`notebooks/sweden-schools/13_schools.ipynb` §8-9 for the heuristic this
 crosswalk implements and why each guard (mutual-best, no ties,
 `name_sim >= 0.8`, no bare-digit twins) exists."""
 import pandas as pd
 import pytest
 
-from src.regions.sweden.sources.schools import lineage
+from noise_pollution.regions.sweden.sources.schools import lineage
 
 
 def _school(code, namn, status, huvudman="1", e=100.0, n=200.0):

@@ -1,7 +1,7 @@
 """`find_repo_root` must not require `data/` to exist -- it's gitignored and
 legitimately absent on a fresh checkout (e.g. CI), and `region_dirs` relies on
 `find_repo_root` succeeding so it can create `data/` in the first place."""
-from src.core.pipeline.layout import find_repo_root
+from noise_pollution.core.pipeline.layout import find_repo_root
 
 
 def test_find_repo_root_does_not_require_data_dir(tmp_path):

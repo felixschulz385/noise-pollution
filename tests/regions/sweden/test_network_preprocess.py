@@ -1,11 +1,13 @@
 """Tests for the rail network's `preprocess_network_tracks` (the candidate
 network for `schools`' algorithms 4/5) -- no network, synthetic data."""
 import geopandas as gpd
-import pandas as pd
 import pytest
 from shapely.geometry import LineString
 
-from src.regions.sweden.sources.network.preprocess import parse_km, preprocess_network_tracks
+from noise_pollution.regions.sweden.sources.network.preprocess import (
+    parse_km,
+    preprocess_network_tracks,
+)
 
 
 @pytest.mark.parametrize(

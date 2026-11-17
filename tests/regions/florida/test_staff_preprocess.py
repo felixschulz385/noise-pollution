@@ -7,7 +7,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from src.regions.florida.sources.staff.preprocess import (
+from noise_pollution.regions.florida.sources.staff.preprocess import (
     preprocess_district_finance,
     preprocess_out_of_field,
     preprocess_teacher_salary,

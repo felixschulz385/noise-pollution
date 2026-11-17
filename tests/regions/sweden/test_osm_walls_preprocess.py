@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from src.regions.sweden.sources.osm_walls import preprocess as op
+from noise_pollution.regions.sweden.sources.osm_walls import preprocess as op
 
 
 def _payload(ways):

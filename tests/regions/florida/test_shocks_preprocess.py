@@ -5,8 +5,11 @@ needed."""
 import pandas as pd
 import pytest
 
-from src.regions.florida.sources.shocks.preprocess import OUTPUT_COLUMNS, preprocess_shocks
-from src.regions.florida.sources.shocks.shared import normalize_county_name
+from noise_pollution.regions.florida.sources.shocks.preprocess import (
+    OUTPUT_COLUMNS,
+    preprocess_shocks,
+)
+from noise_pollution.regions.florida.sources.shocks.shared import normalize_county_name
 
 
 def _row(designated_area, declaration_date, incident_type="Hurricane", declaration_type="DR", **overrides):

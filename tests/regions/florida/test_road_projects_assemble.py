@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 from shapely.geometry import LineString, Point
 
-from src.regions.florida.sources.road_projects.assemble import (
+from noise_pollution.regions.florida.sources.road_projects.assemble import (
     build_summary,
     match_school_projects,
     match_schools_to_roadway,

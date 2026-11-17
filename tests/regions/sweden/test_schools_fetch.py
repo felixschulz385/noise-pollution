@@ -9,8 +9,7 @@ rather than faking a whole repo skeleton under `tmp_path`.
 """
 import pytest
 
-from src.regions.sweden.sources.schools import fetch as schools_fetch
-
+from noise_pollution.regions.sweden.sources.schools import fetch as schools_fetch
 
 LIST_PAYLOAD = {
     "data": {

@@ -13,13 +13,13 @@ import pytest
 from pyproj import Geod, Transformer
 from shapely.geometry import LineString, Point
 
-from src.core.barrier_geometry import protection as pr
-from src.regions.sweden.sources import _barrier_reference as br
-from src.regions.sweden.sources.barrier_audit import export as ex
-from src.regions.sweden.sources.barrier_audit import import_answers as imp
-from src.regions.sweden.sources.barrier_audit import preprocess as pp
-from src.regions.sweden.sources.barrier_audit import shared as sh
-from src.regions.sweden.sources.barrier_protection.shared import references_path
+from noise_pollution.core.barrier_geometry import protection as pr
+from noise_pollution.regions.sweden.sources import _barrier_reference as br
+from noise_pollution.regions.sweden.sources.barrier_audit import export as ex
+from noise_pollution.regions.sweden.sources.barrier_audit import import_answers as imp
+from noise_pollution.regions.sweden.sources.barrier_audit import preprocess as pp
+from noise_pollution.regions.sweden.sources.barrier_audit import shared as sh
+from noise_pollution.regions.sweden.sources.barrier_protection.shared import references_path
 
 CRS = "EPSG:3006"
 X0, Y0 = 674_000.0, 6_580_000.0  # Stockholm
@@ -452,7 +452,7 @@ def test_import_checks_ids_and_refuses_an_older_copy(tmp_path):
 # -- serve -------------------------------------------------------------------------
 
 def test_serve_writes_only_the_chosen_tasks_in_batch_order(tmp_path):
-    from src.regions.sweden.sources.barrier_audit import serve
+    from noise_pollution.regions.sweden.sources.barrier_audit import serve
 
     root = _repo_root(tmp_path)
     tasks = [{"task_id": t} for t in ("a", "b", "c", "d")]

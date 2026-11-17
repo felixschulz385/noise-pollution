@@ -1,0 +1,13 @@
+# The unified configuration (template rule: docs/pipeline/configuration.md). Per-machine values
+# (data_root) go in noise_pollution.local.yaml next to this file (git-ignored, read on top).
+#
+# data_root: relative to the repository root. Pipeline data lands under
+# <data_root>/<region>/<source>/{raw,processed,assembled}/ (src/noise_pollution/core/pipeline/layout.py).
+data_root: data
+
+# One block per region. The region pipelines still take their settings from argparse defaults
+# in src/noise_pollution/regions/<region>/cli.py; moving them here (and reading them through
+# --config) is an open step, see docs/design/2026-11-template-port.md.
+regions:
+  sweden: {}
+  florida: {}

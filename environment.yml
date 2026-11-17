@@ -1,32 +1,29 @@
-# Conda environment for the noise-pollution project.
-#
-# Provenance:
-#   - Hand-assembled on 2026-09-09 from the third-party imports found in src/
-#     (macOS / darwin, project developed against Python 3.12). It is NOT a
-#     `conda list --explicit` dump of any specific machine.
-#   - Verified to run the pytest suite under tests/ (see .github/workflows/tests.yml).
-#   - NOT a byte-exact record of any HPC/production environment. Before trusting
-#     it for a cluster run, reconcile it against that environment's own
-#     `conda list --explicit` output.
-#
-# environment.yml is the single dependency source of truth. Add packages here,
-# not to pyproject.toml or a requirements.txt.
-
-name: noise-pollution
+# The dependency input: edit this file, then regenerate the lock in the same commit:
+#   conda-lock lock -f environment.yml -p linux-64 -p osx-arm64
+# CI and new machines install from conda-lock.yml (docs/repository/environment.md in the
+# template). Assembled from the third-party imports in src/; the analysis notebooks also need
+# Stata (csdid, drdid, reghdfe) through its own pystata, which conda does not provide.
+name: noise_pollution
 channels:
   - conda-forge
 dependencies:
-  - python>=3.11
+  - python=3.11
+  - pip
+  - pytest
+  - ruff
+  - conda-lock
+  - ipykernel
+  - nbconvert
+  - numpy
   - pandas
+  - pyyaml
   - geopandas
   - shapely
   - pyogrio
+  - pyarrow          # parquet throughout
   - matplotlib
-  - contextily       # web-tile basemaps for the exploratory notebooks
-  - pyarrow          # timetable preprocess writes .parquet
-  - xlrd>=2.0.1      # read the legacy .xls FLDOE assessment workbooks
-  - lxml             # pd.read_html parser for "Excel HTML" .xls exports (2004-05 science reports)
-  - pytest
-  - pip
+  - contextily       # web-tile basemaps in the data notebooks
+  - xlrd>=2.0.1      # the legacy .xls FLDOE assessment workbooks
+  - lxml             # pd.read_html for "Excel HTML" .xls exports (2004-05 science reports)
   - pip:
       - -e .

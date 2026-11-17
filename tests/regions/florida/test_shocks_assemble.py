@@ -2,9 +2,11 @@
 `build_county_year_panel` (statewide expansion + county-year rollup),
 exercised on synthetic tables -- no local data needed."""
 import pandas as pd
-import pytest
 
-from src.regions.florida.sources.shocks.assemble import build_county_year_panel, real_county_names
+from noise_pollution.regions.florida.sources.shocks.assemble import (
+    build_county_year_panel,
+    real_county_names,
+)
 
 
 def _cross_section(rows):

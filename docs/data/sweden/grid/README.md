@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-11-03
+summary: "Sweden grid: 100 m cells near barriers with protected-tier treatment, the control band and the export for the register merge"
+---
+
 # `grid`
 
 A second output spec for the barrier-construction event study: instead of
@@ -44,7 +51,7 @@ construction, they just don't carry any of SCB's real attributes today.
 ## `preprocess` -- real run 2026-09-22
 
 ```bash
-python -m src.cli sweden data grid preprocess   # --buffer-m 1000 --resolution-m 100
+noise_pollution sweden data grid preprocess   # --buffer-m 1000 --resolution-m 100
 ```
 
 REQUIRES `noise_barriers preprocess`. A nationwide 100m tiling of Sweden
@@ -84,7 +91,7 @@ therefore join as they are, with no +50m shift.
 ## `assemble` -- real run 2026-09-23
 
 ```bash
-python -m src.cli sweden data grid assemble
+noise_pollution sweden data grid assemble
 # default band radii: 100/200/300/400/500/1000m
 ```
 
@@ -238,12 +245,12 @@ The side-unknown cells left are almost all due to undated barriers in the
 audit's last batches (`national_4`/`_5`): road 7,077, rail 4,912. Treatment
 is judged at the cell centroid; for 13-18% of residences near a protection
 zone the cell's status differs from the residence's own, about equally in
-both directions (`src/experiments/sweden/grid.ipynb` §9).
+both directions (`notebooks/sweden-residents/18_grid.ipynb` §9).
 
 ### `export` -- the shared copy (2026-10-22)
 
 ```bash
-python -m src.cli sweden data grid export   # --out-dir; default ~/Dropbox/Noise Pollution/data/grid
+noise_pollution sweden data grid export   # --out-dir; default ~/Dropbox/Noise Pollution/data/grid
 ```
 
 REQUIRES `grid assemble` and `barrier-protection build`
@@ -340,7 +347,7 @@ data source (see "What couldn't be ported" below for why):
 > section above). Kept as history; the numbers here are from the
 > pre-rewrite code.
 
-Found while building `src/experiments/sweden/grid.ipynb`'s road case
+Found while building `notebooks/sweden-residents/18_grid.ipynb`'s road case
 study: a real barrier's `same_side` split showed some cells on the visibly
 wrong side of the road, not just noise. Root cause, checked live: the
 original `same_side` (road) compared each cell's distance to the wall's

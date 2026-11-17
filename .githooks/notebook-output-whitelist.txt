@@ -1,84 +1,10 @@
-# Notebooks under src/experiments/ allowed to keep committed cell outputs,
-# one repo-relative path per line. Use only when the rendered output IS the
-# deliverable (e.g. a poster/visualization notebook).
+# Notebooks allowed to commit cell outputs and execution counts.
 #
-# barriers.ipynb: the basemap example maps are the point of the notebook; it
-# reads only public FGDL / NCES data, no confidential content.
-src/experiments/florida/barriers.ipynb
-#
-# assessments.ipynb: a descriptive pass over the FLDOE assessment panel — the
-# tables and plots are the deliverable (it writes no file); reads only the
-# public FLDOE result workbooks, no confidential content.
-src/experiments/florida/assessments.ipynb
-#
-# schools.ipynb: prototype of the `schools preprocess` step — spine, crosswalk,
-# coordinates, operation panel and point-only barrier matching, with the
-# validation tables/figures as the deliverable; reads only public FLDOE MSID /
-# NCES EDGE / FDOT data, no confidential content.
-src/experiments/florida/schools.ipynb
-#
-# road_network.ipynb: investigates the `rciroads` fetch output (descriptives,
-# data-quality checks) and prototypes the nearest-road / linear-referencing /
-# side-of-centerline logic for schools/assemble.py's matching algorithms 3-5,
-# ahead of road_network/preprocess.py existing; the validation tables/figures
-# (incl. the >=95% match-rate acceptance check) are the deliverable; reads
-# only public FGDL / FLDOE MSID data, no confidential content.
-src/experiments/florida/road_network.ipynb
-#
-# traffic.ipynb: imports `traffic/{preprocess,assemble}.py` and walks through
-# the source's main data-preparation decisions (roadway-level not
-# segment-level grain, length-weighted AADT aggregation, the duplicate-release
-# bug fix, local-intensity scaling, the 2003-2010 vs. 2014+ match-rate
-# investigation) with real FGDL data; the validation tables/figures are the
-# deliverable; reads only public FGDL data, no confidential content.
-src/experiments/florida/traffic.ipynb
-#
-# road_projects.ipynb: imports `road_projects/{preprocess,assemble}.py` and
-# walks through the source's main data-preparation decisions (two ArcGIS
-# extracts' differing temporal coverage, the roadway_id+milepost join
-# validated against road_network, the is_wall_project keyword-flag false
-# positive) with real FDOT data; the validation tables/figures are the
-# deliverable; reads only public FDOT ArcGIS data, no confidential content.
-src/experiments/florida/road_projects.ipynb
-#
-# shocks.ipynb: imports `shocks/{preprocess,assemble}.py` and walks through
-# the source's main data-preparation decisions (the county-name-not-FIPS
-# join validated against the FLDOE district roster, the month-aware
-# assessment-year derivation, the Statewide-declaration expansion) with real
-# OpenFEMA data; the validation tables/figures are the deliverable; reads
-# only public OpenFEMA data, no confidential content.
-src/experiments/florida/shocks.ipynb
-#
-# sweden/grid.ipynb: imports `grid/{preprocess,side,assemble}.py` and walks
-# through the source's main data-preparation decisions (why only a
-# barrier-corridor buffer is tiled instead of all of Sweden, per-component
-# tiling overshoot, the nearest-barrier point match, the distance-decay
-# exposure index vs. Moretti & Wheeler's Table A3, a same_route/same_side
-# case study) with real Trafikverket noise-barrier/road-network data; the
-# maps/plots are the deliverable; reads only public Trafikverket data
-# (ordered via Lastkajen), no confidential content.
-src/experiments/sweden/grid.ipynb
-#
-# sweden/barriers.ipynb: imports `noise_barriers` + `schools/assemble.py` and
-# walks through the Trafikverket noise-barrier inventory (road + rail),
-# its cleaning and the school matching, with real data; the maps/tables are
-# the deliverable; reads only public Trafikverket data, no confidential
-# content.
-src/experiments/sweden/barriers.ipynb
-#
-# sweden/schools.ipynb: checks `schools/assemble.py`'s school<->barrier
-# matching tiers (point/same_route/same_side) against the real persisted
-# output; the tables are the deliverable; reads only public Skolverket and
-# Trafikverket data, no confidential content.
-src/experiments/sweden/schools.ipynb
-#
-# sweden/schools_lineage.ipynb: the school-unit reorg-lineage crosswalk
-# (`schools/lineage.py`) and the vanished pre-registry schools, with real
-# public Skolenhetsregistret and SIRIS data; the tables are the
-# deliverable; no confidential content.
-src/experiments/sweden/schools_lineage.ipynb
-#
-# shared_methodology.ipynb: cross-region (Florida + Sweden) design notes,
-# illustrated with real public data from both pipelines; the figures are the
-# deliverable; no confidential content.
-src/experiments/shared_methodology.ipynb
+# One fnmatch pattern per line, matched against the repo-relative path of each staged .ipynb
+# ('*' matches across '/'). A line starting with '!' blocks the paths it matches again; the
+# last matching line wins. Independently of this list, outputs are blocked in any notebook
+# whose code matches restricted-patterns.txt. Add a '!' line for a notebook that reaches
+# restricted data indirectly (through an analysis module).
+
+# Notebooks under notebooks/ are runs of record and keep their outputs.
+notebooks/*.ipynb

@@ -7,10 +7,10 @@ import pandas as pd
 import pytest
 from shapely.geometry import LineString, Point
 
-from src.regions.sweden.sources.grid import assemble as ga
-from src.regions.sweden.sources.grid import export as gx
-from src.regions.sweden.sources.barrier_protection import build as bpb
-from src.regions.sweden.sources.barrier_protection import shared as bps
+from noise_pollution.regions.sweden.sources.barrier_protection import build as bpb
+from noise_pollution.regions.sweden.sources.barrier_protection import shared as bps
+from noise_pollution.regions.sweden.sources.grid import assemble as ga
+from noise_pollution.regions.sweden.sources.grid import export as gx
 
 
 def _cells_gdf() -> gpd.GeoDataFrame:

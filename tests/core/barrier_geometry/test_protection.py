@@ -1,4 +1,4 @@
-"""Tests for `src/core/barrier_geometry/protection.py`'s control band: the
+"""Tests for `src/noise_pollution/core/barrier_geometry/protection.py`'s control band: the
 opt-in ring beyond the protected area (same side, beside the stretch,
 600-1500m from the road) and its zones. Synthetic geometry in EPSG:3006; the
 protected area itself is tested per region (`tests/regions/*/test_barrier_protection.py`)."""
@@ -7,8 +7,8 @@ import pandas as pd
 import pytest
 from shapely.geometry import LineString, Point
 
-from src.core.barrier_geometry.linear_ref import signed_side
-from src.core.barrier_geometry.protection import (
+from noise_pollution.core.barrier_geometry.linear_ref import signed_side
+from noise_pollution.core.barrier_geometry.protection import (
     ZONE_STEP_M,
     BarrierReferences,
     classify_points,

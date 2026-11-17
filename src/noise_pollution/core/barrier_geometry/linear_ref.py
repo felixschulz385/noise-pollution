@@ -1,0 +1,518 @@
+"""Line-network geometry primitives for barrier matching, shared by every
+region: nearest-segment matching, linear referencing, signed side-of-line, a
+network-distance-bounded corridor, a "through-line" following one road
+across junctions, and a parallel-neighbour search. CRS-agnostic: callers pass
+geometry in a metric CRS of their choice. `protection.py` builds the
+protected-area model on top; each region's barrier-reference module decides
+which road a barrier belongs to and which side it stands on. See
+`docs/data/sweden/barrier_matching.md`.
+"""
+from __future__ import annotations
+
+from collections import deque
+from typing import TYPE_CHECKING
+
+import geopandas as gpd
+import numpy as np
+import shapely
+from shapely.geometry import LineString
+from shapely.ops import substring, unary_union
+
+if TYPE_CHECKING:
+    import pandas as pd
+
+
+DEFAULT_CORRIDOR_BUDGET_M = 800.0
+DEFAULT_CORRIDOR_BUFFER_M = 600.0
+
+
+def nearest_segment(points: gpd.GeoDataFrame, network: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """One row per input point: its nearest `network` segment + distance.
+    `sjoin_nearest` only returns the LEFT geometry column -- the matched
+    segment's own geometry is pulled back explicitly via `index_right`."""
+    joined = gpd.sjoin_nearest(points[["geometry"]], network, distance_col="dist_m", how="left")
+    joined = joined[~joined.index.duplicated(keep="first")]
+    joined = joined.rename(columns={"geometry": "point_geometry"})
+    joined["segment_geometry"] = network.geometry.loc[joined["index_right"]].to_numpy()
+    return joined
+
+
+def position_and_side(point, line, begin: float, end: float) -> tuple[float, float, float]:
+    """Project `point` onto `line`: `(position, signed_side, offset_m)`,
+    rescaling the 0-1 fraction along `line` to `[begin, end]`.
+
+    `side` is the sign of the cross product between the line's local
+    tangent and the offset vector -- it is **not** a compass direction
+    (the network's own digitizing-direction convention was not verified
+    to be consistent -- Florida's own equivalent found `rciroads`'
+    direction was empirically inconsistent, not assumed safe). Valid
+    **only pairwise**, comparing two points projected onto the SAME line.
+    """
+    frac = line.project(point, normalized=True)
+    position = begin + frac * (end - begin)
+    eps = 1e-4
+    f0, f1 = max(0.0, frac - eps), min(1.0, frac + eps)
+    tangent = np.array(line.interpolate(f1, normalized=True).coords[0]) - np.array(
+        line.interpolate(f0, normalized=True).coords[0]
+    )
+    proj_pt = line.interpolate(frac, normalized=True)
+    offset_vec = np.array([point.x - proj_pt.x, point.y - proj_pt.y])
+    offset_m = point.distance(proj_pt)
+    cross = tangent[0] * offset_vec[1] - tangent[1] * offset_vec[0]
+    side = float(np.sign(cross)) if offset_m > 1e-6 else 0.0
+    return position, side, offset_m
+
+
+def signed_side(line, points) -> tuple[np.ndarray, np.ndarray]:
+    """Vectorized :func:`position_and_side` for many points against ONE line:
+    `(sign, offset_m)` arrays. Sign is +1 left / -1 right of the line's own
+    digitizing direction, 0 on it -- meaningful only when comparing points
+    against the same `line`. A point projecting past an end is judged by the
+    tangent at that end; its along-line component doesn't enter the cross
+    product, so the sign still reflects the lateral side."""
+    pts = np.asarray(points)
+    frac = shapely.line_locate_point(line, pts, normalized=True)
+    eps = 1e-4
+    p0 = shapely.line_interpolate_point(line, np.clip(frac - eps, 0.0, 1.0), normalized=True)
+    p1 = shapely.line_interpolate_point(line, np.clip(frac + eps, 0.0, 1.0), normalized=True)
+    proj = shapely.line_interpolate_point(line, frac, normalized=True)
+    tx, ty = shapely.get_x(p1) - shapely.get_x(p0), shapely.get_y(p1) - shapely.get_y(p0)
+    ox, oy = shapely.get_x(pts) - shapely.get_x(proj), shapely.get_y(pts) - shapely.get_y(proj)
+    offset = np.hypot(ox, oy)
+    sign = np.where(offset > 1e-6, np.sign(tx * oy - ty * ox), 0.0)
+    return sign, offset
+
+
+def _unit(vec: np.ndarray) -> np.ndarray:
+    norm = np.linalg.norm(vec)
+    return vec / norm if norm > 0 else vec
+
+
+def local_tangent(line, point) -> np.ndarray:
+    """Unit tangent of `line` (2-D) at the point on it nearest `point`."""
+    frac = line.project(point, normalized=True)
+    eps = 1e-4
+    a = line.interpolate(max(0.0, frac - eps), normalized=True)
+    b = line.interpolate(min(1.0, frac + eps), normalized=True)
+    return _unit(np.array([b.x - a.x, b.y - a.y]))
+
+
+def _endpoint_key(pt, precision: int = 0) -> tuple[float, float]:
+    return (round(pt[0], precision), round(pt[1], precision))
+
+
+def build_adjacency(network: gpd.GeoDataFrame) -> dict[tuple[float, float], list[int]]:
+    """Endpoint-adjacency graph: maps a rounded `(x, y)` junction (1 m grid,
+    to absorb float noise) to the row-positions of every `network` segment
+    whose `LineString` starts or ends there. `network` must be positionally
+    indexed 0..n-1."""
+    endpoints: dict[tuple[float, float], list[int]] = {}
+    for i, geom in enumerate(network.geometry):
+        coords = list(geom.coords)
+        for pt in (coords[0], coords[-1]):
+            endpoints.setdefault(_endpoint_key(pt), []).append(i)
+    return endpoints
+
+
+def corridor_geometry(
+    seg_idx: int,
+    origin_point,
+    geoms: np.ndarray,
+    lengths: np.ndarray,
+    endpoints: dict[tuple[float, float], list[int]],
+    budget_m: float = DEFAULT_CORRIDOR_BUDGET_M,
+):
+    """Network-distance-bounded flood fill from `origin_point` (projected
+    onto `geoms[seg_idx]`), walking the connectivity graph `endpoints`
+    outward in both directions and consuming *true path distance* -- not a
+    segment-count or per-hop-length proxy (Florida's own corridor code
+    found that proxy silently breaks on long unsegmented stretches; both
+    Sweden networks have the same shape of risk -- segment lengths up to
+    13 km on rail, 130 km on the road network).
+
+    The seed segment is trimmed (`shapely.ops.substring`) to the portion
+    within `budget_m` of `origin_point`. A neighbor segment longer than the
+    remaining budget is trimmed the same way from its entry junction rather
+    than dropped -- dropping it cut corridors off at the first junction
+    whenever a short seed row met a long neighbour (see
+    `docs/data/sweden/barrier_matching.md` §2).
+
+    Returns the corridor's (unbuffered) centerline geometry.
+    """
+    seg = geoms[seg_idx]
+    dist_along = seg.project(origin_point)
+    length0 = lengths[seg_idx]
+    dist_to_start, dist_to_end = dist_along, length0 - dist_along
+
+    pieces = [substring(seg, max(0.0, dist_along - budget_m), min(length0, dist_along + budget_m))]
+    coords0 = list(seg.coords)
+    start_key, end_key = _endpoint_key(coords0[0]), _endpoint_key(coords0[-1])
+    included = {seg_idx}
+    q: deque[tuple[tuple[float, float], float]] = deque()
+    if dist_to_start < budget_m:
+        q.append((start_key, budget_m - dist_to_start))
+    if dist_to_end < budget_m:
+        q.append((end_key, budget_m - dist_to_end))
+
+    while q:
+        junction, remaining = q.popleft()
+        for nb in endpoints.get(junction, []):
+            if nb in included:
+                continue
+            nb_len = lengths[nb]
+            included.add(nb)
+            nb_coords = list(geoms[nb].coords)
+            nb_start, nb_end = _endpoint_key(nb_coords[0]), _endpoint_key(nb_coords[-1])
+            enters_at_start = nb_start == junction
+            if nb_len <= remaining:
+                pieces.append(geoms[nb])
+                other_end = nb_end if enters_at_start else nb_start
+                if remaining - nb_len > 0:
+                    q.append((other_end, remaining - nb_len))
+            elif enters_at_start:
+                pieces.append(substring(geoms[nb], 0.0, remaining))
+            else:
+                pieces.append(substring(geoms[nb], nb_len - remaining, nb_len))
+    return unary_union(pieces)
+
+
+def through_line(
+    seg_idx: int,
+    origin_point,
+    geoms: np.ndarray,
+    endpoints: dict[tuple[float, float], list[int]],
+    budget_m: float = DEFAULT_CORRIDOR_BUDGET_M,
+    min_cos: float = 0.7,
+    sindex=None,
+    bridge_m: float = 2.0,
+) -> tuple[LineString, set[int]]:
+    """One continuous 2-D line following the road `seg_idx` belongs to,
+    about `budget_m` either side of `origin_point`: at each junction it
+    continues onto the neighbour that turns least (|turn| < ~45°), so side
+    streets aren't followed the way :func:`corridor_geometry`'s flood fill
+    follows them, and it stops rather than take a segment that heads back
+    against the seed's direction (a loop or hook would otherwise flip the
+    side for everything projecting onto it). Used as the single reference
+    line for side tests, since a sign is only comparable along one line.
+
+    With `sindex`, an end that has no such continuation also *bridges* onto
+    a row whose interior passes within `bridge_m` of it, under the same
+    turn and no-reversal rules: NVDB often starts a ramp mid-way along the
+    mainline row with no shared node (16% of road barriers' lines had such
+    an end), which would otherwise cut the line short at the ramp.
+    Returns the line and the network rows it uses."""
+    coords = [np.array(c[:2], dtype=float) for c in geoms[seg_idx].coords]
+    used = {seg_idx}
+    along = geoms[seg_idx].project(origin_point)
+    length0 = geoms[seg_idx].length
+
+    def bridge(end: np.ndarray, heading: np.ndarray, seed_heading: np.ndarray):
+        best, best_cos, best_coords = None, min_cos, None
+        end_pt = shapely.Point(end)
+        for j in sindex.query(end_pt, predicate="dwithin", distance=bridge_m):
+            if j in used:
+                continue
+            at = geoms[j].project(end_pt)
+            tangent = local_tangent(geoms[j], end_pt)
+            piece = substring(geoms[j], at, geoms[j].length if tangent @ heading >= 0 else 0.0)
+            if piece.is_empty or piece.geom_type != "LineString" or piece.length < bridge_m:
+                continue
+            piece_coords = [np.array(c[:2], dtype=float) for c in piece.coords]
+            cos = abs(float(tangent @ heading))
+            if cos > best_cos and float(np.dot(seed_heading, _unit(piece_coords[-1] - piece_coords[0]))) > 0:
+                best, best_cos, best_coords = int(j), cos, piece_coords
+        return best, best_coords
+
+    def extend(path: list[np.ndarray], remaining: float) -> list[np.ndarray]:
+        seed_heading = _unit(path[-1] - path[0])
+        while remaining > 0:
+            heading = _unit(path[-1] - path[-2])
+            best, best_cos, best_coords = None, min_cos, None
+            for nb in endpoints.get(_endpoint_key(path[-1]), []):
+                if nb in used:
+                    continue
+                nb_coords = [np.array(c[:2], dtype=float) for c in geoms[nb].coords]
+                if _endpoint_key(nb_coords[0]) != _endpoint_key(path[-1]):
+                    nb_coords = nb_coords[::-1]
+                cos = float(np.dot(heading, _unit(nb_coords[1] - nb_coords[0])))
+                if cos > best_cos and float(np.dot(seed_heading, _unit(nb_coords[-1] - nb_coords[0]))) > 0:
+                    best, best_cos, best_coords = nb, cos, nb_coords
+            if best is None and sindex is not None:
+                best, best_coords = bridge(path[-1], heading, seed_heading)
+            if best is None:
+                break
+            used.add(best)
+            path.extend(best_coords[1:])
+            remaining -= LineString(best_coords).length
+        return path
+
+    forward = extend(list(coords), budget_m - (length0 - along))
+    backward = extend(list(coords[::-1]), budget_m - along)
+    line = LineString(backward[::-1][: len(backward) - len(coords)] + forward)
+    return line, used
+
+
+def _parallel_candidates(
+    anchor,
+    own_line: LineString,
+    exclude: set[int],
+    geoms: np.ndarray,
+    sindex,
+    endpoints: dict[tuple[float, float], list[int]],
+    *,
+    search_m: float = 100.0,
+    min_cos: float = 0.9,
+    min_lateral_m: float = 2.0,
+    span_m: float = 200.0,
+    step_m: float = 50.0,
+    max_lateral_m: float = 80.0,
+):
+    """Rows that pass `parallel_neighbor`'s tests, nearest first, with the
+    side of `own_line` each stays on (+1 left, -1 right)."""
+    tangent = local_tangent(own_line, anchor)
+    normal = np.array([-tangent[1], tangent[0]])
+    candidates = []
+    for i in sindex.query(anchor.buffer(search_m), predicate="intersects"):
+        if i in exclude:
+            continue
+        nearest = geoms[i].interpolate(geoms[i].project(anchor))
+        vec = np.array([nearest.x - anchor.x, nearest.y - anchor.y])
+        lateral, longitudinal = abs(float(vec @ normal)), abs(float(vec @ tangent))
+        if lateral < min_lateral_m or lateral <= longitudinal or np.hypot(lateral, longitudinal) > search_m:
+            continue
+        if abs(float(local_tangent(geoms[i], anchor) @ tangent)) < min_cos:
+            continue
+        candidates.append((lateral, int(i), nearest))
+    along = own_line.project(anchor)
+    for _, i, nearest in sorted(candidates, key=lambda c: c[0]):
+        other, _ = through_line(i, nearest, geoms, endpoints, budget_m=span_m + 2 * step_m)
+        samples = [
+            own_line.interpolate(min(max(along + d, 0.0), own_line.length))
+            for d in np.arange(-span_m, span_m + step_m / 2, step_m)
+        ]
+        if any(q.distance(other) > max_lateral_m for q in samples):
+            continue
+        sides, _ = signed_side(own_line, [other.interpolate(other.project(q)) for q in samples])
+        found = set(sides[sides != 0])
+        if len(found) == 1:
+            yield i, float(found.pop())
+
+
+def parallel_neighbor(
+    anchor,
+    own_line: LineString,
+    exclude: set[int],
+    geoms: np.ndarray,
+    sindex,
+    endpoints: dict[tuple[float, float], list[int]],
+    **tests,
+) -> int | None:
+    """Nearest network row that runs *alongside* `own_line` at `anchor`: a
+    divided road's other carriageway, or the mainline beside a ramp.
+
+    A candidate must be parallel at its own nearest point (local tangent,
+    not the row's chord), within `search_m`, and mostly *sideways* from
+    `anchor` (at least `min_lateral_m` across and more across than along),
+    which rejects the same road's own continuation past a junction. It must
+    also stay beside `own_line` on one side, within `max_lateral_m`, for
+    `span_m` either way, which rejects a cross street or a frontage road
+    that only briefly parallels it. Validated against OSM wall positions
+    2026-09-23: the wall stands on the side of `own_line` away from the
+    neighbour for 93% of tagged / 100% of untyped OSM walls (n=102 / 37),
+    vs. 76% when simply taking the nearest parallel row; see
+    `docs/data/sweden/barrier_matching.md`. `exclude` holds `own_line`'s
+    own rows; `tests` overrides `_parallel_candidates`' thresholds."""
+    return next((i for i, _ in _parallel_candidates(anchor, own_line, exclude, geoms, sindex, endpoints, **tests)), None)
+
+
+def parallel_neighbors_by_side(
+    anchor,
+    own_line: LineString,
+    exclude: set[int],
+    geoms: np.ndarray,
+    sindex,
+    endpoints: dict[tuple[float, float], list[int]],
+    **tests,
+) -> dict[float, int]:
+    """The nearest row alongside `own_line` on each side it has one: side
+    (+1 left, -1 right of `own_line`) -> row, same tests as
+    `parallel_neighbor`. One entry: `own_line` is an outer track or
+    carriageway; two: it runs between others."""
+    found: dict[float, int] = {}
+    for i, side in _parallel_candidates(anchor, own_line, exclude, geoms, sindex, endpoints, **tests):
+        found.setdefault(side, i)
+        if len(found) == 2:
+            break
+    return found
+
+
+CHAIN_JOIN_M = 2.0
+CHAIN_GAP_M = 5.0
+CHAIN_GAP_LATERAL_M = 1.5
+CHAIN_GROUP_GAP_M = 25.0
+CHAIN_MAX_TURN_DEG = 30.0
+CO_LOCATED_M = 1.0
+CO_LOCATED_MIN_SHARE = 0.5
+
+
+def _outward_ends(line) -> list[tuple[np.ndarray, np.ndarray]] | None:
+    """(point, unit direction pointing out of the line) at its start and end."""
+    coords = shapely.get_coordinates(line)
+    if len(coords) < 2:
+        return None
+    return [(coords[0], _unit(coords[0] - coords[1])), (coords[-1], _unit(coords[-1] - coords[-2]))]
+
+
+def co_located(lines, *, within_m: float = CO_LOCATED_M, min_share: float = CO_LOCATED_MIN_SHARE) -> list[set[int]]:
+    """Per line, the other lines on the same line: within `within_m`, over at
+    least `min_share` of the shorter one's length. A road with a wall on each
+    side, or a track with several walls, has one register record per wall,
+    all drawn on the centreline. Lines under 1 m (stubs) have no partners."""
+    lines = list(lines)
+    tree = shapely.STRtree(lines)
+    partners: list[set[int]] = [set() for _ in lines]
+    for i, line in enumerate(lines):
+        if line.length < 1.0:
+            continue
+        zone = line.buffer(within_m)
+        for k in tree.query(zone, predicate="intersects"):
+            k = int(k)
+            if k <= i or lines[k].length < 1.0:
+                continue
+            if lines[k].intersection(zone).length >= min_share * min(line.length, lines[k].length):
+                partners[i].add(k)
+                partners[k].add(i)
+    return partners
+
+
+def chain_lines(
+    lines,
+    *,
+    labels=None,
+    groups=None,
+    join_m: float = CHAIN_JOIN_M,
+    gap_m: float = CHAIN_GAP_M,
+    gap_lateral_m: float = CHAIN_GAP_LATERAL_M,
+    group_gap_m: float = CHAIN_GROUP_GAP_M,
+    max_turn_deg: float = CHAIN_MAX_TURN_DEG,
+) -> "pd.DataFrame":
+    """Group lines that continue one another end to end into chains: pieces
+    of one physical wall that its register splits wherever an attribute
+    (height, material) or the road link / track element changes.
+
+    **Which ends may join.** Both ends point away from their lines within
+    `max_turn_deg` of opposite directions, and either lie within `join_m`,
+    or within `gap_m` with at most `gap_lateral_m` sideways (a small gap in
+    the register), or within `group_gap_m`, at most `gap_lateral_m`
+    sideways, on two lines of the same `groups` value (rail: one BIS
+    object, i.e. one wall in the asset register).
+
+    **Best continuation.** Each end joins at most one other: candidates are
+    taken best first -- consistent `labels`, then the same group, then the
+    smaller gap, then the smaller turn -- and a join is skipped if an end is
+    already taken, if it would close a loop, or if it would put two
+    `co_located` lines (a wall on each side of one road) into one chain.
+    `labels` is Trafikverket's `side` (left/right of the record's own
+    direction): it says nothing about the physical side, but consecutive
+    pieces of one wall keep it when digitised the same way (road 571/574,
+    rail 648/649 joints) and flip it when not (18/18), so a joint is
+    consistent when "same label" equals "same direction". Other labels
+    (both_sides, center, missing) are neutral.
+
+    One row per input line: `chain_id` (shared by a chain's members, numbered
+    by their lowest index), `chain_pos` (0.. along the chain), `chain_orient`
+    (+1 if the line is digitised along the chain's direction, -1 against it;
+    the chain runs the way most of its length is digitised) and
+    `chain_size`."""
+    import pandas as pd
+    from scipy.spatial import cKDTree
+
+    lines = list(lines)
+    n = len(lines)
+    labels = [None] * n if labels is None else list(labels)
+    groups = [None] * n if groups is None else list(groups)
+    ends = [_outward_ends(line) for line in lines]
+    nodes = [(i, j) for i, e in enumerate(ends) if e is not None for j in (0, 1)]
+    min_cos = np.cos(np.radians(max_turn_deg))
+    candidates = []
+    if nodes:
+        points = np.array([ends[i][j][0] for i, j in nodes])
+        tree = cKDTree(points)
+        for a, b in tree.query_pairs(max(join_m, gap_m, group_gap_m)):
+            (i, j), (k, m) = nodes[a], nodes[b]
+            if i == k:
+                continue
+            turn = float(-(ends[i][j][1] @ ends[k][m][1]))
+            if turn < min_cos:
+                continue
+            step = points[b] - points[a]
+            gap = float(np.hypot(*step))
+            direction = ends[i][j][1]
+            sideways = abs(float(step[0] * direction[1] - step[1] * direction[0]))
+            same_group = groups[i] is not None and not pd.isna(groups[i]) and groups[i] == groups[k]
+            if gap > join_m and (sideways > gap_lateral_m or gap > (group_gap_m if same_group else gap_m)):
+                continue
+            label_i, label_k = labels[i], labels[k]
+            if label_i in ("left", "right") and label_k in ("left", "right"):
+                consistent = (label_i == label_k) == (j != m)  # an end meeting a start: digitised the same way
+            else:
+                consistent = True
+            candidates.append(((not consistent, not same_group, gap, 1.0 - turn), a, b))
+    candidates.sort()
+
+    colocated = co_located(lines)
+    root = list(range(n))
+    members = {i: {i} for i in range(n)}
+
+    def find(x: int) -> int:
+        while root[x] != x:
+            root[x] = root[root[x]]
+            x = root[x]
+        return x
+
+    partner: dict[tuple[int, int], tuple[int, int]] = {}
+    for _, a, b in candidates:
+        if nodes[a] in partner or nodes[b] in partner:
+            continue
+        ra, rb = find(nodes[a][0]), find(nodes[b][0])
+        if ra == rb:  # would close a loop
+            continue
+        if any(colocated[x] & members[rb] for x in members[ra]):
+            continue
+        partner[nodes[a]], partner[nodes[b]] = nodes[b], nodes[a]
+        root[ra] = rb
+        members[rb] |= members.pop(ra)
+
+    chain_id, pos, orient, size = np.arange(n), np.zeros(n, int), np.ones(n, int), np.ones(n, int)
+    for chain in members.values():
+        if len(chain) < 2:
+            continue
+        # Each end has at most one partner and there are no loops: a simple
+        # path. Walk it from the free end of its lowest-index end piece.
+        i, j = min((i, j) for i in chain for j in (0, 1) if (i, j) not in partner)
+        walk = []
+        while True:
+            walk.append((i, 1 if j == 0 else -1))  # entering at the start: digitised along the walk
+            exit_end = (i, 1 - j)
+            if exit_end not in partner:
+                break
+            i, j = partner[exit_end]
+        along = sum(lines[i].length * o for i, o in walk)
+        if along < 0:
+            walk = [(i, -o) for i, o in reversed(walk)]
+        for p, (i, o) in enumerate(walk):
+            chain_id[i], pos[i], orient[i], size[i] = min(chain), p, o, len(walk)
+    return pd.DataFrame({"chain_id": chain_id, "chain_pos": pos, "chain_orient": orient, "chain_size": size})
+
+
+def join_chain(lines, orients) -> LineString:
+    """A chain's pieces (in chain order, each with its `chain_orient`) as one
+    line in the chain's direction; the small gaps between pieces are bridged."""
+    coords = []
+    for line, o in zip(lines, orients):
+        c = shapely.get_coordinates(line)
+        c = c if o > 0 else c[::-1]
+        if coords and np.allclose(coords[-1], c[0]):
+            c = c[1:]
+        coords.extend(c)
+    return LineString(coords)

@@ -1,15 +1,11 @@
-"""Test suite configuration.
+"""Root conftest.
 
-`__init__.py` convention: there are NO `__init__.py` files anywhere in
-`tests/`. Pytest imports each test file by its (unique) basename, so adding a
-test directory needs no bookkeeping. The cost is that every test file's
-basename must stay unique across the whole tree.
+Convention: no ``__init__.py`` anywhere in ``tests/``; pytest imports each test file by its
+basename, so basenames must be unique across the tree (region test files that would collide
+carry the region, e.g. ``test_sweden_panel_assemble.py``). Test files never import each other or
+a ``conftest.py``; shared setup is a fixture (a helper function is a fixture that returns it).
+Run ``pytest`` from the repository root with the package installed (``pip install -e .``).
 
-Running the suite: run `pytest` from the repository root so that
-`from src.… import …` imports resolve. There is no `pytest.ini` /
-`[tool.pytest.ini_options]` section — rootdir detection is left to pytest's
-defaults.
-
-`tests/` mirrors `src/` 1:1: a module at `src/x/y.py` has its tests under
-`tests/x/`.
+``tests/`` mirrors ``src/noise_pollution/``: a module at ``src/noise_pollution/x/y.py`` has its
+tests under ``tests/x/``; tools under ``scripts/`` are tested under ``tests/scripts/``.
 """

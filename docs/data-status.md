@@ -1,4 +1,14 @@
+---
+type: note
+state: superseded
+updated: 2026-09-24
+summary: "Hand-typed status of both pipelines as of 2026-09-18/24; status now lives in the line charters and the data pages"
+note: "kept as a record; not maintained"
+---
+
 # Data status — Florida & Sweden (as of 2026-09-18)
+
+> **Superseded 2026-11-17.** A hand-typed snapshot, kept as a record. The status of each line of work is in its charter ([`lines/`](lines/)), and each source's state in its page under [`data/`](data/README.md).
 
 Both pipelines study the same design: a staggered event study of road noise-barrier construction on school achievement, school/time fixed effects, so the open work is chiefly **time-varying confounders correlated with barrier timing**. Florida is the mature pipeline (outcome panel + 3 covariate clusters built and joined); Sweden's outcome panel, traffic, and neighbourhood (income/education/employment) are now built and joined, the rest of its covariate catalogue is research-only.
 
@@ -29,7 +39,7 @@ Both pipelines study the same design: a staggered event study of road noise-barr
 | Cluster / module | Status | Notes |
 |------------------------|------------------------|------------------------|
 | `assessments` (outcome) | **Done, full scale** | `kvalitetssystem` PxWeb (2022/23–2025/26, 1.07M rows) + SIRIS archive (1998–2019). Cross-era stitching **decided 2026-09-17**: `kvalitetssystem` dropped from the panel join (kept as a standalone module); SIRIS's own pre-/post-2014/15 grading-scale reform stitched into one continuous `meritvärde_z` via within-side z-scoring. |
-| `schools` + `noise_barriers` + `network`/`road_network` (spine, treatment) | **Done** | Point/`same_route` reliable; road `same_side` confirmed unreliable (barrier geometry coincides with the road centerline), `same_route` used instead. **A candidate fix (the barrier's own recorded `side` attribute) was tried and refuted 2026-09-18** — validated at scale using rail as an independent ground truth (949 barriers), `side` shows no usable correlation with the geometrically-derived side (an almost exact coin flip); see [`schools/README.md`](sweden/schools/README.md) and [`src/experiments/sweden/schools.ipynb`](../src/experiments/sweden/schools.ipynb) §3. No attribute-based substitute exists for road `same_side`. |
+| `schools` + `noise_barriers` + `network`/`road_network` (spine, treatment) | **Done** | Point/`same_route` reliable; road `same_side` confirmed unreliable (barrier geometry coincides with the road centerline), `same_route` used instead. **A candidate fix (the barrier's own recorded `side` attribute) was tried and refuted 2026-09-18** — validated at scale using rail as an independent ground truth (949 barriers), `side` shows no usable correlation with the geometrically-derived side (an almost exact coin flip); see [`schools/README.md`](data/sweden/schools/README.md) and [`src/experiments/sweden/schools.ipynb`](../notebooks/sweden-schools/13_schools.ipynb) §3. No attribute-based substitute exists for road `same_side`. |
 | `panel` (final join) | **Done, SIRIS-only** | Joins SIRIS (1998–2019) only — `kvalitetssystem` excluded (see cross-era note below). **437,948 rows, 2,651 schools, 1998–2019.** Long grain (raw per-measure rows + the stitched `meritvärde_z` series), plus traffic (interval-overlap join) and neighbourhood (plain year merge) covariates attached. |
 | Cluster C — Traffic (ÅDT) | **Built + joined** | Real multi-vintage historical panel via `Betraktelsedatum` orders, now **8 orders** (1999/2003/2007/2011/2015/2019/2022/2026) — 295,696 windows/77,485 elements, spanning 1984–2026. Panel traffic match rate **~30–40%, roughly uniform across 1998–2019** (up from a thin pre-2011/~70%-by-2022 shape with only 2 orders). |
 | Cluster D — Road-works | **Not viable as scoped** | `Situation` API confirmed live but \~1yr retention only — can't support historical co-timing; needs a different source. |

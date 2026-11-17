@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.regions.florida.sources.assessments.preprocess import (
+from noise_pollution.regions.florida.sources.assessments.preprocess import (
     _to_id,
     build_assessments_table,
     parse_sheet,
@@ -201,7 +201,7 @@ def test_parse_workbook_dispatches_html_excel_export(tmp_path):
     path = tmp_path / "FL2004_SCI_G05_school.xls"
     path.write_text(html)
 
-    from src.regions.florida.sources.assessments.preprocess import parse_workbook
+    from noise_pollution.regions.florida.sources.assessments.preprocess import parse_workbook
     out = parse_workbook(path, year=2004, subject="SCI", grade="05")
     assert out.iloc[0]["school_name"] == "FINLEY ELEM"
     assert out.iloc[0]["mean_scale_score"] == 283
@@ -230,7 +230,7 @@ def test_regime_map(year, subject, expected):
 
 
 def test_build_table_indexes_and_zscores(tmp_path, monkeypatch):
-    import src.regions.florida.sources.assessments.preprocess as pp
+    import noise_pollution.regions.florida.sources.assessments.preprocess as pp
 
     # 2022 on the FSA scale (~300), 2023 rescaled to FAST (~200); the three
     # schools keep the same spacing (-20, 0, +20 about the mean) across the break.

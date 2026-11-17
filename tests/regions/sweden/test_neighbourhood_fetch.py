@@ -7,7 +7,7 @@ import io
 
 import pytest
 
-from src.regions.sweden.sources.neighbourhood import fetch as nf
+from noise_pollution.regions.sweden.sources.neighbourhood import fetch as nf
 
 
 @pytest.fixture(autouse=True)

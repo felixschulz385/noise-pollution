@@ -6,8 +6,12 @@ import geopandas as gpd
 import pandas as pd
 from shapely.geometry import LineString
 
-from src.regions.sweden.sources._barrier_reference import build_barrier_references
-from src.regions.sweden.sources.grid.side import NEAREST_COLUMNS, match_grid_protection, match_grid_side
+from noise_pollution.regions.sweden.sources._barrier_reference import build_barrier_references
+from noise_pollution.regions.sweden.sources.grid.side import (
+    NEAREST_COLUMNS,
+    match_grid_protection,
+    match_grid_side,
+)
 
 CRS = "EPSG:3006"
 

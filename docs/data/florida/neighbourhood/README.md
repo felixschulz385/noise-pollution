@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-24
+summary: "Florida neighbourhood (Cluster F): tract ACS demographics and Zillow ZHVI home values matched to schools"
+---
+
 # Florida — `neighbourhood` source: implementation brief (Cluster F)
 
 **Status: `fetch`/`preprocess`/`assemble` all implemented and fully run
@@ -53,10 +60,10 @@ is a direct, useful test of barrier-siting endogeneity (`selection` role).
 ## Read first
 
 1. `docs/data/florida/covariates.md`, Cluster F section.
-2. `src/regions/florida/sources/neighbourhood/__init__.py` — the module
+2. `src/noise_pollution/regions/florida/sources/neighbourhood/__init__.py` — the module
    docstring covers the two live findings that reshaped this module's
    design (Census's key requirement, the ACS tract-vintage switch).
-3. `src/regions/florida/sources/traffic/assemble.py` — the closest
+3. `src/noise_pollution/regions/florida/sources/traffic/assemble.py` — the closest
    precedent for "a static school-side spatial match, then time-varying
    data joined on top of it" (there: nearest-roadway; here:
    point-in-polygon).
@@ -166,7 +173,7 @@ home values (ZIP, live). Deferred:
 ## Suggested layout (mirror `staff`)
 
 ```
-src/regions/florida/sources/neighbourhood/
+src/noise_pollution/regions/florida/sources/neighbourhood/
     __init__.py       # module docstring
     shared.py          # DOMAIN="neighbourhood", paths, ACS variable registry
                         #   (year-aware education table), boundary/ZHVI URLs,

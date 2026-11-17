@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-11
+summary: "Florida road_network: FGDL rciroads releases cleaned into a GeoParquet roadway layer with linear referencing"
+---
+
 # Florida — `road_network` source: requirements for implementation
 
 **Status: implemented, all stages.** `fetch` and `preprocess` work end to
@@ -6,7 +13,7 @@ end against the live FGDL archive and produce `road_network.parquet` (see
 `schools`-side algorithms 3–5 (`road_gated` / `same_segment` / `same_side`)
 are real pipeline code too: `road_network/linear_ref.py` (the nearest-road
 match, linear referencing, and a network-distance-bounded corridor test —
-validated first in `src/experiments/florida/schools.ipynb` §7, see [Open
+validated first in `notebooks/florida-schools/06_schools.ipynb` §7, see [Open
 questions](#open-questions--resolved--remaining) item 7 for the design
 writeup) and `schools/assemble.py`'s `match_barriers_road`, run as part of
 `florida data schools assemble`. Real run: **99.1%** of the point-only
@@ -20,7 +27,7 @@ the source without further context from this conversation.
 The project is a staggered difference-in-differences event study of **FDOT
 noise-barrier construction on school achievement** in Florida
 (`docs/data/florida/covariates.md` has the full design). The `schools` source
-(`src/regions/florida/sources/schools/`) is fully implemented and matches
+(`src/noise_pollution/regions/florida/sources/schools/`) is fully implemented and matches
 schools to nearby noise walls, but only with **point-only** distance — it
 cannot yet tell whether a wall is on the school's side of the road or the far
 carriageway of a divided highway, which materially changes whether the wall
@@ -40,9 +47,9 @@ its schema to `schools` alone.
    especially the "Stage 2" / matching-algorithm and "side-of-road" sections.
    It documents algorithms 1–2 (already implemented, point-only) and the
    intended shape of algorithms 3–6 (this source unlocks them).
-2. `src/regions/florida/sources/schools/assemble.py` — the consumer. Read
+2. `src/noise_pollution/regions/florida/sources/schools/assemble.py` — the consumer. Read
    `match_barriers_point`, `PENDING_ROAD_COLUMNS`, and the module docstring.
-3. `src/regions/florida/sources/noise_barriers/{fetch,preprocess}.py` +
+3. `src/noise_pollution/regions/florida/sources/noise_barriers/{fetch,preprocess}.py` +
    `docs/data/florida/README.md`'s `noise_barriers` section — **the pattern to
    mirror**. This source's primary data provider (FGDL, below) is the same one
    `noise_barriers` already uses, with the same versioned-archive naming/index
@@ -52,7 +59,7 @@ its schema to `schools` alone.
    zipped **Shapefile**, not a zipped Geodatabase, so `fetch.py`'s extraction
    logic (`_find_shapefile_members`, `_extract_shapefile`) differs from
    `noise_barriers`' `_find_gdb_prefix`/`_extract_gdb`, see [Open questions](#open-questions--resolved--remaining).
-4. `src/regions/florida/sources/_layout.py`, `_http.py` — shared path/HTTP
+4. `src/noise_pollution/regions/florida/sources/_layout.py`, `_http.py` — shared path/HTTP
    helpers every Florida source uses.
 
 ## The data source (researched, not guessed — verify before building)
@@ -164,7 +171,7 @@ side" when the signs agree.
 > them that way.** The sign comes from `rciroads`' own digitizing direction
 > (which end of a `ROADWAY` FGDL happened to call milepost 0), which is
 > **not** consistently north/south or east/west across roadways. Confirmed
-> empirically in `src/experiments/florida/schools.ipynb` §7.2 (the matching-
+> empirically in `notebooks/florida-schools/06_schools.ipynb` §7.2 (the matching-
 > algorithm prototype lives there, not in this domain's own notebook — it
 > consumes `schools/assemble.py`'s point-only match as its baseline): among
 > the 1,245 matched `fdot_barrier` walls, side splits **1,077 vs 168**
@@ -214,7 +221,7 @@ today. Don't block on it.
 ## `fetch` — what's implemented
 
 ```
-src/regions/florida/sources/road_network/
+src/noise_pollution/regions/florida/sources/road_network/
     __init__.py     # module docstring: what this is, why, what it feeds
     shared.py        # DOMAIN="road_network", DATASET_PREFIX="rciroads",
                       #   paths + version-tag helpers (copy of
@@ -225,9 +232,9 @@ docs/data/florida/road_network/README.md   # this file
 ```
 
 ```bash
-python -m src.cli florida data road-network list-versions
-python -m src.cli florida data road-network fetch                 # -> data/florida/road_network/raw/rciroads_jul26/rciroads_jul26.shp
-python -m src.cli florida data road-network fetch --version apr23 --keep-zip
+noise_pollution florida data road-network list-versions
+noise_pollution florida data road-network fetch                 # -> data/florida/road_network/raw/rciroads_jul26/rciroads_jul26.shp
+noise_pollution florida data road-network fetch --version apr23 --keep-zip
 ```
 
 `fetch` downloads one FGDL `rciroads_<version>.zip`, extracts its shapefile
@@ -252,7 +259,7 @@ is fine since `BEGIN_POST`/`END_POST` are separate attribute fields).
 ## Suggested layout for the rest (mirror the existing sources)
 
 ```
-src/regions/florida/sources/road_network/
+src/noise_pollution/regions/florida/sources/road_network/
     preprocess.py     # tidy the shapefile -> one GeoParquet, EPSG:3087, with
                       #   whatever subset of RCIROADS_JUL26's columns downstream
                       #   needs (ROADWAY, BEGIN_POST, END_POST, geometry at
@@ -266,7 +273,7 @@ tests/regions/florida/test_road_network_preprocess.py
 (`_layout.py`) — no new plumbing needed there.
 
 **CLI**: `florida data road-network {list-versions,fetch,preprocess}` — the
-first two are wired up (`src/regions/florida/cli.py`'s
+first two are wired up (`src/noise_pollution/regions/florida/cli.py`'s
 `_register_road_network`, `handlers.py`'s `command_road_network_*`);  add a
 `preprocess` subparser there matching `_register_noise_barriers`'s shape when
 that stage is built.
@@ -359,7 +366,7 @@ naming conventions already used (`noise_barriers`' `gcid`/`fed_route`/
 
 ## Definition of done
 
-- ~~`python -m src.cli florida data road-network fetch` and `... preprocess`
+- ~~`noise_pollution florida data road-network fetch` and `... preprocess`
   work end to end and produce `road_network.parquet` + a provenance
   sidecar.~~ **done** (2026-09-11) — `preprocess.py` tidies the shapefile
   (column rename, `MultiLineString` flattening, `year` sentinel → `NA`), unit

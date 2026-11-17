@@ -1,15 +1,19 @@
-# Git hooks
+# Repo-managed git hooks
 
-Opt-in. Run `./.githooks/install.sh` once per clone to point
-`core.hooksPath` at this directory.
+Enable once per clone (`core.hooksPath` is local config and is not cloned):
 
-## `pre-commit` → `check-notebook-outputs.py`
+```bash
+./.githooks/install.sh        # = git config core.hooksPath .githooks
+```
 
-Blocks a commit that stages a notebook under `src/experiments/` with cell
-outputs or execution counts, to keep rendered images and output blobs out of
-repository history.
+`pre-commit` runs three checks, all standard library only (Python 3.11+):
 
-- **Allow a notebook to keep outputs:** add its repo-relative path to
-  `notebook-output-whitelist.txt`.
-- **Bypass once:** `git commit --no-verify`.
-- **Strip outputs:** `jupyter nbconvert --clear-output --inplace <notebook>`.
+| Check | Blocks | Configure |
+|---|---|---|
+| `check-notebook-outputs.py` | cell outputs in staged notebooks that are not whitelisted (`notebooks/*` keep theirs), and in any notebook whose code reads restricted data | `notebook-output-whitelist.txt`, `restricted-patterns.txt` |
+| `check-restricted.py` | staged files under `restricted/`, data files, and figures named after restricted data | `restricted-patterns.txt`, `restricted-allowlist.txt` |
+| `scripts/docs.py check` | invalid doc metadata, broken links, stale derived docs, out-of-date generated tables (`docs/conventions.md`) | `docs/docs.toml` |
+
+- Only staged content is inspected by the first two; the docs check reads the working tree.
+- Fix generated tables with `python scripts/docs.py index`, then `git add` again.
+- Bypass once, deliberately: `git commit --no-verify`.

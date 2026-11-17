@@ -1,3 +1,10 @@
+---
+type: note
+state: current
+updated: 2026-09-24
+summary: "Catalogue of Sweden's control variables (clusters A-G) for the barrier event study and the sources that supply them"
+---
+
 # Sweden — covariates for the barrier-construction event study
 
 Catalogue of control / covariate variables for the **main analysis**: a

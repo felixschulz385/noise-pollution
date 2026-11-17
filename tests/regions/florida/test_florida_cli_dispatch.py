@@ -3,12 +3,26 @@ subcommand to a handler, and `noise-barriers fetch` defaults to the release the
 notebook is built against."""
 import pytest
 
-from src.core.cli.main import build_parser
-from src.regions.florida.sources.assessments.shared import (
+from noise_pollution.cli.main import build_parser
+from noise_pollution.regions.florida.sources.assessments.shared import (
     RESULTS_PAGES,
     validate_year,
 )
-from src.regions.florida.sources.schools.shared import (
+from noise_pollution.regions.florida.sources.noise_barriers.fetch import _find_gdb_prefix
+from noise_pollution.regions.florida.sources.noise_barriers.shared import (
+    DEFAULT_VERSION,
+    parse_index_versions,
+    validate_version,
+    version_sort_key,
+)
+from noise_pollution.regions.florida.sources.road_network.fetch import _find_shapefile_members
+from noise_pollution.regions.florida.sources.road_network.shared import (
+    DEFAULT_VERSION as ROAD_NETWORK_DEFAULT_VERSION,
+)
+from noise_pollution.regions.florida.sources.road_network.shared import (
+    dataset_stem as road_network_dataset_stem,
+)
+from noise_pollution.regions.florida.sources.schools.shared import (
     DEFAULT_SUBSOURCES,
     MSID_DATASETS,
     MSID_DEFAULT_DATASET,
@@ -18,18 +32,6 @@ from src.regions.florida.sources.schools.shared import (
     msid_dataset_url,
     parse_year_range,
     resolve_subsources,
-)
-from src.regions.florida.sources.noise_barriers.fetch import _find_gdb_prefix
-from src.regions.florida.sources.noise_barriers.shared import (
-    DEFAULT_VERSION,
-    parse_index_versions,
-    validate_version,
-    version_sort_key,
-)
-from src.regions.florida.sources.road_network.fetch import _find_shapefile_members
-from src.regions.florida.sources.road_network.shared import (
-    DEFAULT_VERSION as ROAD_NETWORK_DEFAULT_VERSION,
-    dataset_stem as road_network_dataset_stem,
 )
 
 

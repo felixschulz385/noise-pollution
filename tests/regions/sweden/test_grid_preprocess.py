@@ -6,8 +6,8 @@ import pandas as pd
 import pytest
 from shapely.geometry import LineString
 
-from src.regions.sweden.sources.grid import preprocess as gp
-from src.regions.sweden.sources.grid.shared import cell_id
+from noise_pollution.regions.sweden.sources.grid import preprocess as gp
+from noise_pollution.regions.sweden.sources.grid.shared import cell_id
 
 
 def _road_gdf() -> gpd.GeoDataFrame:

@@ -9,7 +9,7 @@ docstring for why."""
 import pandas as pd
 import pytest
 
-from src.regions.florida.sources.road_projects.preprocess import (
+from noise_pollution.regions.florida.sources.road_projects.preprocess import (
     OUTPUT_COLUMNS,
     preprocess_road_projects,
 )

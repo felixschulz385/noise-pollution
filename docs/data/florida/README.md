@@ -1,24 +1,31 @@
+---
+type: source
+state: current
+updated: 2026-10-20
+summary: "Florida's data sources: index of every domain, and the noise_barriers and assessments pages"
+---
+
 # Florida — data sources
 
 Index of every data domain in the Florida pipeline. Maintained by hand from
-`src/regions/florida/cli.py` and the modules under
-`src/regions/florida/sources/` until the per-region source registry
+`src/noise_pollution/regions/florida/cli.py` and the modules under
+`src/noise_pollution/regions/florida/sources/` until the per-region source registry
 (template `docs/02`, see also [`../../design/01-multi-region-layout.md`](../../design/01-multi-region-layout.md))
 is in place.
 
 | Domain | Steps implemented | Prerequisites | Module |
 |---|---|---|---|
-| `noise_barriers` | `list-versions`, `fetch`, `preprocess` (clean one FGDL release → tidy GeoParquet barrier layer) | — | `src/regions/florida/sources/noise_barriers/` |
-| `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2003–2026**, 435 files — plain FCAT + FCAT 2.0 + FSA + FAST/B.E.S.T.), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/regions/florida/sources/assessments/` |
-| `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/regions/florida/sources/schools/` |
-| `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and underpins `traffic`. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, planned `road_projects`) | `src/regions/florida/sources/road_network/` |
-| `barrier_protection` | `build` (new 2026-09-24: each FDOT wall's reference arterial road, side (from the wall's own geometry, checked against `BLOC_SIDE`) and protected area, computed once and saved, plus a **statewide protection-zone layer**, one polygon per wall. Built on the region-agnostic `src/core/barrier_geometry/`, shared with Sweden. See [`barrier_protection.md`](barrier_protection.md)) | `noise_barriers`, `road_network` | `src/regions/florida/sources/barrier_protection/` |
-| `traffic` | `list-versions`, `fetch`, `preprocess` (fetch many FGDL `rciroads` releases' `AADT` field and stack into `aadt_panel.parquet`, one row per `roadway_id × release_year`), `assemble` (match schools to a roadway, join its AADT time series → `school_aadt_panel.parquet`, 89.7% match rate) — all implemented, see [`traffic/README.md`](traffic/README.md). Covariate Cluster C. **Joined into `panel`'s final event-study table** (nearest-release-year match, 71.3% of rows matched). | `road_network`'s fetch machinery (reused directly), `schools preprocess` + `road_network preprocess` (`assemble`) | `src/regions/florida/sources/traffic/` |
-| `panel` | `assemble` (join `assessments` + `schools` + `traffic` + `road_projects` + `shocks` + `staff` + `neighbourhood` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, `traffic` (nearest-release-year match, 71.3% of rows matched), `road_projects` (year-interval-overlap match, 4.5% of rows matched an active project), `shocks` (exact county-year match, 44.7% of rows matched a disaster declaration), `staff` (two exact-key joins — salary/experience 5.4%, per-pupil expenditure 60.3%, out-of-field 5.3%), and now `neighbourhood` (two exact-key joins — ACS demographics 68.0% matched, ZHVI home values 98.6% matched, see the sections below), but doesn't yet carry the remaining covariate module (`air_quality` — see [`covariates.md`](covariates.md)). | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`), `road_projects` (`fetch` + `preprocess` + `assemble`), `shocks` (`fetch` + `preprocess` + `assemble`), `staff` (`fetch` + `preprocess` + `assemble`), `neighbourhood` (`fetch` + `preprocess` + `assemble`) | `src/regions/florida/sources/panel/` |
-| `road_projects` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`road_projects/README.md`](road_projects/README.md). Covariate Cluster D (widening/PD&E/construction projects co-timed with a wall). Pulls FDOT `Work_Program_Current` layers 2/13 + `Active_Construction_Projects` ArcGIS REST services (both keyed by the same `ROADWAY` id format as `road_network.roadway_id`, confirmed live) into `road_projects.parquet` (118,014 project-item rows, 4,676 distinct roadways). `assemble` matches schools to a roadway + milepost and joins nearby projects via milepost-range overlap (5,366/5,984 schools matched, 40,729 school↔project pairs, 2,586 schools with ≥1 nearby project). **Joined into `panel`'s `event_study_panel.parquet`** via a year-interval-overlap match (4.5% of panel rows matched an active project). | `schools` (`preprocess`), `road_network` (`preprocess`) | `src/regions/florida/sources/road_projects/` |
-| `shocks` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`shocks/README.md`](shocks/README.md). Covariate Cluster G (county-level hurricane/disaster declarations). Pulls OpenFEMA `DisasterDeclarationsSummaries` v2 (entire FL history, 2,794 rows, in one request — no pagination needed) into `disaster_declarations.parquet`. `assemble` rolls up to `county_name x assessment_year` (1,774 rows) and validates the join against the real 67-county FLDOE district roster — a name join, not FIPS, since Florida has one district per county. **Joined into `panel`'s `event_study_panel.parquet`** via an exact `(district_name, year)` match (44.7% of panel rows matched a declaration, 35.6% a hurricane). | `schools` (`preprocess`) | `src/regions/florida/sources/shocks/` |
-| `staff` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-17, see [`staff/README.md`](staff/README.md). Covariate Cluster B (teacher salary/experience, in-field/out-of-field teaching, per-pupil expenditure). Two FLDOE workbooks (`teacher_salary` district-level, `out_of_field` SCHOOL-level) fetched via their Wayback Machine archive (`www.fldoe.org` itself blocks scripted clients, same as `assessments`) — FLDOE's own numbering matches `schools`' `district`/`school` fields directly, no crosswalk needed there. `district_finance` (per-pupil expenditure) via NCES CCD F-33, Urban API, 1995-2020, joined through a modal `district->leaid` crosswalk (min 88.5%/median 100% coverage). **Joined into `panel`'s `event_study_panel.parquet`** via two exact-key matches (salary/experience 5.4% of rows — historical backfill paused on a live Internet Archive outage, mechanically ready; per-pupil expenditure 60.3%; out-of-field 5.3%). Teacher turnover / % advanced degree not built (no aggregate FLDOE source found). | `schools` (`preprocess`) | `src/regions/florida/sources/staff/` |
-| `neighbourhood` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-17, see [`neighbourhood/README.md`](neighbourhood/README.md). Covariate Cluster F (tract ACS demographics + Zillow ZHVI home values). The only Florida source doing a point-in-polygon spatial join (school -> Census tract/ZCTA via cartographic boundary files) rather than a linear-referencing one; two tract-boundary vintages (2010/2020) handled since ACS5 switched vintage at its "2020" release. Zillow ZHVI (ZIP-level, no auth) and ACS demographics (Census Data API, key-required since a 2026-05 policy change — `CENSUS_API_KEY` env var, user-supplied) both live: 5,984/5,984 schools matched to both a tract and a ZIP, 16/16 ACS years (2009-2024) fetched clean. **Joined into `panel`'s `event_study_panel.parquet`**: 68.0% of rows matched ACS demographics, 98.6% matched a ZHVI value. | `schools` (`preprocess`) | `src/regions/florida/sources/neighbourhood/` |
+| `noise_barriers` | `list-versions`, `fetch`, `preprocess` (clean one FGDL release → tidy GeoParquet barrier layer) | — | `src/noise_pollution/regions/florida/sources/noise_barriers/` |
+| `assessments` | `list-years`, `fetch` (manual-download orchestrator; **raw stage complete 2003–2026**, 435 files — plain FCAT + FCAT 2.0 + FSA + FAST/B.E.S.T.), `preprocess` (merge raw workbooks → tidy `assessments.parquet`, indexed on school × grade × subject × year, with the within-cell z-score) | `schools` crosswalk | `src/noise_pollution/regions/florida/sources/assessments/` |
+| `schools` | `fetch` (subsources `msid`, `edge`, `ccd_directory`, `ccd_enrollment` default; `crdc`, `crdc_lep`, `edfacts` opt-in — MSID from the FLDOE EDS app + NCES EDGE geocode + Urban Institute Education Data API); `preprocess` (spine + operation panel + Cluster-A covariates → `school_cross_section.parquet` / `school_year_panel.parquet`); `assemble` (school↔barrier match, algorithms 1–5 → `schools_treatment.parquet` + rollup) — all implemented, see [`schools/README.md`](schools/README.md). Absorbs the former `master_file` source and `school_panel` (covariates.md Cluster A). Crosswalk to `NCESSCH` embedded in MSID (`FEDERAL_DIST_NO`/`FEDERAL_SCHL_NO`); classification codes from `msid_codes.py` (FLDOE MSID Application Guidelines). `assemble`'s algorithm 6 (`shielded_arc`) is a stretch goal, left `NA`. | `noise_barriers` (`assemble`), `road_network` (`assemble`) | `src/noise_pollution/regions/florida/sources/schools/` |
+| `road_network` | `list-versions`, `fetch`, `preprocess` (clean one FGDL `rciroads` release → tidy GeoParquet `road_network.parquet`) — all implemented, see [`road_network/README.md`](road_network/README.md). Feeds `schools assemble`'s matching algorithms 3–5 (`road_gated`/`same_segment`/`same_side`, implemented via `road_network/linear_ref.py`; 6 is a stretch goal) and underpins `traffic`. Primary data: FGDL `rciroads_<version>.zip` (same provider/index scheme as `noise_barriers`, archived back to `jun04`; unlike `noise_barriers` it's a zipped Shapefile, not a Geodatabase). | — (feeds `schools assemble`, `traffic`, planned `road_projects`) | `src/noise_pollution/regions/florida/sources/road_network/` |
+| `barrier_protection` | `build` (new 2026-09-24: each FDOT wall's reference arterial road, side (from the wall's own geometry, checked against `BLOC_SIDE`) and protected area, computed once and saved, plus a **statewide protection-zone layer**, one polygon per wall. Built on the region-agnostic `src/noise_pollution/core/barrier_geometry/`, shared with Sweden. See [`barrier_protection.md`](barrier_protection.md)) | `noise_barriers`, `road_network` | `src/noise_pollution/regions/florida/sources/barrier_protection/` |
+| `traffic` | `list-versions`, `fetch`, `preprocess` (fetch many FGDL `rciroads` releases' `AADT` field and stack into `aadt_panel.parquet`, one row per `roadway_id × release_year`), `assemble` (match schools to a roadway, join its AADT time series → `school_aadt_panel.parquet`, 89.7% match rate) — all implemented, see [`traffic/README.md`](traffic/README.md). Covariate Cluster C. **Joined into `panel`'s final event-study table** (nearest-release-year match, 71.3% of rows matched). | `road_network`'s fetch machinery (reused directly), `schools preprocess` + `road_network preprocess` (`assemble`) | `src/noise_pollution/regions/florida/sources/traffic/` |
+| `panel` | `assemble` (join `assessments` + `schools` + `traffic` + `road_projects` + `shocks` + `staff` + `neighbourhood` into one msid × grade × subject × year analysis panel, `event_study_panel.parquet`) — implemented. No `fetch`/`preprocess` of its own. **First-pass panel**: carries Cluster A covariates, all three barrier-treatment-timing definitions, `traffic` (nearest-release-year match, 71.3% of rows matched), `road_projects` (year-interval-overlap match, 4.5% of rows matched an active project), `shocks` (exact county-year match, 44.7% of rows matched a disaster declaration), `staff` (two exact-key joins — salary/experience 5.4%, per-pupil expenditure 60.3%, out-of-field 5.3%), and now `neighbourhood` (two exact-key joins — ACS demographics 68.0% matched, ZHVI home values 98.6% matched, see the sections below), but doesn't yet carry the remaining covariate module (`air_quality` — see [`covariates.md`](covariates.md)). | `assessments` (`preprocess`), `schools` (`preprocess` + `assemble`), `traffic` (`fetch` + `preprocess` + `assemble`), `road_projects` (`fetch` + `preprocess` + `assemble`), `shocks` (`fetch` + `preprocess` + `assemble`), `staff` (`fetch` + `preprocess` + `assemble`), `neighbourhood` (`fetch` + `preprocess` + `assemble`) | `src/noise_pollution/regions/florida/sources/panel/` |
+| `road_projects` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`road_projects/README.md`](road_projects/README.md). Covariate Cluster D (widening/PD&E/construction projects co-timed with a wall). Pulls FDOT `Work_Program_Current` layers 2/13 + `Active_Construction_Projects` ArcGIS REST services (both keyed by the same `ROADWAY` id format as `road_network.roadway_id`, confirmed live) into `road_projects.parquet` (118,014 project-item rows, 4,676 distinct roadways). `assemble` matches schools to a roadway + milepost and joins nearby projects via milepost-range overlap (5,366/5,984 schools matched, 40,729 school↔project pairs, 2,586 schools with ≥1 nearby project). **Joined into `panel`'s `event_study_panel.parquet`** via a year-interval-overlap match (4.5% of panel rows matched an active project). | `schools` (`preprocess`), `road_network` (`preprocess`) | `src/noise_pollution/regions/florida/sources/road_projects/` |
+| `shocks` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-14, see [`shocks/README.md`](shocks/README.md). Covariate Cluster G (county-level hurricane/disaster declarations). Pulls OpenFEMA `DisasterDeclarationsSummaries` v2 (entire FL history, 2,794 rows, in one request — no pagination needed) into `disaster_declarations.parquet`. `assemble` rolls up to `county_name x assessment_year` (1,774 rows) and validates the join against the real 67-county FLDOE district roster — a name join, not FIPS, since Florida has one district per county. **Joined into `panel`'s `event_study_panel.parquet`** via an exact `(district_name, year)` match (44.7% of panel rows matched a declaration, 35.6% a hurricane). | `schools` (`preprocess`) | `src/noise_pollution/regions/florida/sources/shocks/` |
+| `staff` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-17, see [`staff/README.md`](staff/README.md). Covariate Cluster B (teacher salary/experience, in-field/out-of-field teaching, per-pupil expenditure). Two FLDOE workbooks (`teacher_salary` district-level, `out_of_field` SCHOOL-level) fetched via their Wayback Machine archive (`www.fldoe.org` itself blocks scripted clients, same as `assessments`) — FLDOE's own numbering matches `schools`' `district`/`school` fields directly, no crosswalk needed there. `district_finance` (per-pupil expenditure) via NCES CCD F-33, Urban API, 1995-2020, joined through a modal `district->leaid` crosswalk (min 88.5%/median 100% coverage). **Joined into `panel`'s `event_study_panel.parquet`** via two exact-key matches (salary/experience 5.4% of rows — historical backfill paused on a live Internet Archive outage, mechanically ready; per-pupil expenditure 60.3%; out-of-field 5.3%). Teacher turnover / % advanced degree not built (no aggregate FLDOE source found). | `schools` (`preprocess`) | `src/noise_pollution/regions/florida/sources/staff/` |
+| `neighbourhood` | `fetch`, `preprocess`, `assemble` — all implemented and run 2026-09-17, see [`neighbourhood/README.md`](neighbourhood/README.md). Covariate Cluster F (tract ACS demographics + Zillow ZHVI home values). The only Florida source doing a point-in-polygon spatial join (school -> Census tract/ZCTA via cartographic boundary files) rather than a linear-referencing one; two tract-boundary vintages (2010/2020) handled since ACS5 switched vintage at its "2020" release. Zillow ZHVI (ZIP-level, no auth) and ACS demographics (Census Data API, key-required since a 2026-05 policy change — `CENSUS_API_KEY` env var, user-supplied) both live: 5,984/5,984 schools matched to both a tract and a ZIP, 16/16 ACS years (2009-2024) fetched clean. **Joined into `panel`'s `event_study_panel.parquet`**: 68.0% of rows matched ACS demographics, 98.6% matched a ZHVI value. | `schools` (`preprocess`) | `src/noise_pollution/regions/florida/sources/neighbourhood/` |
 
 On-disk output lands under `data/florida/<domain>/{raw,processed,assembled}/`.
 
@@ -39,7 +46,7 @@ no authentication.
 - Metadata: `https://fgdl.org/zips/metadata/xml/noise_barriers_<mon><yy>.xml`
 - Releases are irregular (~annual); `list-versions` scrapes the archive index.
   `fetch` defaults to **`jul26`**, the release the exploratory notebook
-  (`src/experiments/florida/barriers.ipynb`) is built against.
+  (`notebooks/florida-schools/03_barriers.ipynb`) is built against.
 - CRS EPSG:3087 (Florida GDL Albers, metres); `jul26` has 1 883
   `MultiLineString-M` features across 63 columns (the schema drifts between
   releases — e.g. `jul26` dropped `TBR` / `BEGIN_POST` and added `PERIMETER
@@ -48,10 +55,10 @@ no authentication.
   dictionary is in the exploratory notebook.
 
 ```bash
-python -m src.cli florida data noise-barriers list-versions
-python -m src.cli florida data noise-barriers fetch                 # -> data/florida/noise_barriers/raw/noise_barriers_jul26.gdb
-python -m src.cli florida data noise-barriers fetch --version apr23 --keep-zip
-python -m src.cli florida data noise-barriers preprocess            # -> data/florida/noise_barriers/processed/barriers.parquet (+ barriers.json)
+noise_pollution florida data noise-barriers list-versions
+noise_pollution florida data noise-barriers fetch                 # -> data/florida/noise_barriers/raw/noise_barriers_jul26.gdb
+noise_pollution florida data noise-barriers fetch --version apr23 --keep-zip
+noise_pollution florida data noise-barriers preprocess            # -> data/florida/noise_barriers/processed/barriers.parquet (+ barriers.json)
 ```
 
 ### `preprocess` — clean one release to a tidy barrier layer
@@ -75,7 +82,7 @@ writes, into `processed/`:
   title / publication date, row counts by category, duplicates dropped,
   `built_year` coverage, and the column list.
 
-Cleaning rules (crystallized from `src/experiments/florida/barriers.ipynb`):
+Cleaning rules (crystallized from `notebooks/florida-schools/03_barriers.ipynb`):
 
 1. **Physically-present walls only.** `TYPE ∈ {CONSTRUCTED BARRIERS, REPLACED
    BARRIERS}` → `category = "fdot_barrier"`; `TYPE ∈ {PRIVATE WALL, PERIMETER
@@ -141,10 +148,10 @@ for the full brief.
   AUTOID, SHAPE_LEN` + geometry).
 
 ```bash
-python -m src.cli florida data road-network list-versions
-python -m src.cli florida data road-network fetch                 # -> data/florida/road_network/raw/rciroads_jul26/rciroads_jul26.shp
-python -m src.cli florida data road-network fetch --version apr23 --keep-zip
-python -m src.cli florida data road-network preprocess            # -> data/florida/road_network/processed/road_network.parquet (+ road_network.json)
+noise_pollution florida data road-network list-versions
+noise_pollution florida data road-network fetch                 # -> data/florida/road_network/raw/rciroads_jul26/rciroads_jul26.shp
+noise_pollution florida data road-network fetch --version apr23 --keep-zip
+noise_pollution florida data road-network preprocess            # -> data/florida/road_network/processed/road_network.parquet (+ road_network.json)
 ```
 
 ### `preprocess` — clean one release to a tidy roadway-segment layer
@@ -170,7 +177,7 @@ The `schools`-side matching algorithms 3–5 that consume this layer are
 implemented in `road_network/linear_ref.py` + `schools/assemble.py`'s
 `match_barriers_road` — a network-distance-bounded corridor test, not
 `ROADWAY`-id equality (design validated first in
-`src/experiments/florida/schools.ipynb` §7), recovering 99.1%/82.3% of the
+`notebooks/florida-schools/06_schools.ipynb` §7), recovering 99.1%/82.3% of the
 point-only baseline on the real fetched data. See the `road_network`
 README's Open Question 7 for the full design writeup.
 
@@ -187,11 +194,11 @@ one release's `AADT` field is a cross-section, but fetching **many** releases
 Full design brief: [`traffic/README.md`](traffic/README.md).
 
 ```bash
-python -m src.cli florida data traffic list-versions
-python -m src.cli florida data traffic fetch                       # every archived release (57 downloads)
-python -m src.cli florida data traffic fetch --version jul26 --version jan19
-python -m src.cli florida data traffic fetch --limit 5             # smoke test: 5 most recent releases only
-python -m src.cli florida data traffic preprocess                  # -> data/florida/traffic/processed/aadt_panel.parquet (+ traffic.json)
+noise_pollution florida data traffic list-versions
+noise_pollution florida data traffic fetch                       # every archived release (57 downloads)
+noise_pollution florida data traffic fetch --version jul26 --version jan19
+noise_pollution florida data traffic fetch --limit 5             # smoke test: 5 most recent releases only
+noise_pollution florida data traffic preprocess                  # -> data/florida/traffic/processed/aadt_panel.parquet (+ traffic.json)
 ```
 
 `fetch` reuses `road_network.fetch.fetch_road_network` for each requested
@@ -236,7 +243,7 @@ isolation reason `schools`' own stages are split: editing an outcome-panel
 filter should never re-run the geospatial barrier match.
 
 ```bash
-python -m src.cli florida data panel assemble   # -> data/florida/panel/assembled/event_study_panel.parquet (+ .json)
+noise_pollution florida data panel assemble   # -> data/florida/panel/assembled/event_study_panel.parquet (+ .json)
 ```
 
 - **Grain**: one row per `(msid, grade, subject, year)` — the `assessments`
@@ -266,7 +273,7 @@ python -m src.cli florida data panel assemble   # -> data/florida/panel/assemble
 - **Treatment distance** (since 2026-09-30): `protected_lateral_m`, the
   distance from its road of the wall that dates a protected school's
   treatment (116 panel schools: 57 within 300m, 59 beyond). See
-  [`within_barrier_design.md`](within_barrier_design.md).
+  [`within_barrier_design.md`](../../lines/florida-schools/notes/within_barrier_design.md).
   `protected_project_type` is that wall's `project_type` (`I` / `S` / `O`
   / `C`). `proposed_lateral_m` is the same distance for the nearest
   proposed wall protecting a `proposed_protected` school.
@@ -418,9 +425,9 @@ is **no unattended download**. `fetch` is a manual-download orchestrator:
   direct link — expect it to 403 unless your network is exempt.
 
 ```bash
-python -m src.cli florida data assessments list-years
-python -m src.cli florida data assessments fetch                       # lay out folders + status
-python -m src.cli florida data assessments fetch --year 2024 --from-file ~/Downloads/FL24_ELA_sch.xlsx
+noise_pollution florida data assessments list-years
+noise_pollution florida data assessments fetch                       # lay out folders + status
+noise_pollution florida data assessments fetch --year 2024 --from-file ~/Downloads/FL24_ELA_sch.xlsx
 ```
 
 ### Collected so far — full raw stage, 2015–2026 (2026-09)
@@ -635,8 +642,8 @@ for the first time across the whole panel.
 ### `preprocess` — merge the raw workbooks to one tidy table
 
 ```bash
-python -m src.cli florida data assessments preprocess           # -> data/florida/assessments/processed/assessments.parquet (+ assessments.json)
-python -m src.cli florida data assessments preprocess --year 2024 --year 2025
+noise_pollution florida data assessments preprocess           # -> data/florida/assessments/processed/assessments.parquet (+ assessments.json)
+noise_pollution florida data assessments preprocess --year 2024 --year 2025
 ```
 
 `preprocess` parses every `raw/<year>/*.xls` (both layouts, header found by
@@ -665,7 +672,7 @@ name) and writes, into `processed/`:
 Current run: **435 files → 661k rows, ~5.0k distinct schools** (years 2003-2026,
 skipping 2020), suppressed share ≈ 0.10, both achievement-level consistency
 checks at 1.0, `state_total_rows == n_files` exactly.
-`src/experiments/florida/assessments.ipynb`
+`notebooks/florida-schools/04_assessments.ipynb`
 imports this same parser and investigates the merged frame (regime breaks,
 panel shape, the 2015-scale check, the z-score's continuity) — it writes
 nothing. The join key is `msid` = FLDOE District + School number; the
@@ -697,9 +704,9 @@ does this directly and writes `data/florida/master_file/raw/MSID_<dataset>.tsv`
 (the body is TSV even though the server labels it `.xls` / `application/msexcel`).
 
 ```bash
-python -m src.cli florida data master-file fetch                              # all_schools (default)
-python -m src.cli florida data master-file fetch --dataset all_schools --dataset active_schools
-python -m src.cli florida data master-file fetch --from-file ~/Downloads/MSID.xls   # import instead
+noise_pollution florida data master-file fetch                              # all_schools (default)
+noise_pollution florida data master-file fetch --dataset all_schools --dataset active_schools
+noise_pollution florida data master-file fetch --from-file ~/Downloads/MSID.xls   # import instead
 ```
 
 Datasets: `all_schools` (default), `active_schools`, `future_schools`,

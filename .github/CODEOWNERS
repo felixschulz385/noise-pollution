@@ -2,19 +2,19 @@
 # See docs/design/01-multi-region-layout.md.
 #
 # Shared framework — changes reviewed by every region owner:
-/src/core/            @felixschulz385
-/tests/core/          @felixschulz385
+/src/noise_pollution/core/      @felixschulz385
+/src/noise_pollution/cli/       @felixschulz385
+/src/noise_pollution/config/    @felixschulz385
+/tests/core/                    @felixschulz385
+/orchestration/configs/         @felixschulz385
 
 # Per-region worlds — owned by that region's maintainer:
-/src/regions/sweden/  @felixschulz385
-/tests/regions/sweden/ @felixschulz385
-/data/sweden/         @felixschulz385
-/orchestration/configs/sweden.yaml @felixschulz385
-/docs/data/sweden/    @felixschulz385
+/src/noise_pollution/regions/sweden/  @felixschulz385
+/tests/regions/sweden/                @felixschulz385
+/docs/data/sweden/                    @felixschulz385
 
-# Florida: add the region owner's GitHub handle here and to the /src/core/
-# lines above once they join.
-# /src/regions/florida/  @florida-owner
-# /tests/regions/florida/ @florida-owner
-# /orchestration/configs/florida.yaml @florida-owner
-# /docs/data/florida/    @florida-owner
+# Florida: add the region owner's GitHub handle here and to the shared lines
+# above once they join.
+# /src/noise_pollution/regions/florida/  @florida-owner
+# /tests/regions/florida/                @florida-owner
+# /docs/data/florida/                    @florida-owner

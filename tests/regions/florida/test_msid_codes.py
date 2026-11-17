@@ -2,7 +2,7 @@
 and the grade-code → grade-span helpers."""
 import pytest
 
-from src.regions.florida.sources.schools import msid_codes as mc
+from noise_pollution.regions.florida.sources.schools import msid_codes as mc
 
 
 def test_single_value_tables_cover_the_observed_file_codes():

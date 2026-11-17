@@ -2,7 +2,7 @@
 a handler, and noise-barriers keeps `--source` as an alias for `--dataset-source`."""
 import pytest
 
-from src.core.cli.main import build_parser
+from noise_pollution.cli.main import build_parser
 
 
 @pytest.mark.parametrize(

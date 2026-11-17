@@ -1,0 +1,3 @@
+# Copy to noise_pollution.local.yaml (git-ignored) and set this machine's values.
+# A relative path is taken from the repository root; the default is data/ in the repository.
+data_root: /path/to/noise-pollution/data

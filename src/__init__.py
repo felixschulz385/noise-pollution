@@ -1,1 +1,0 @@
-"""Noise pollution research project."""

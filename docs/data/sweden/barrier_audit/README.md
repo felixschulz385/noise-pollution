@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-10-20
+summary: "Sweden barrier_audit: the manual side audit of noise barriers over orthophotos, its app, batches and decisions"
+---
+
 # `barrier_audit`: manual side audit of noise barriers
 
 **Status (2026-10-20): `protected` and `national_1`–`_3` answered and
@@ -365,7 +372,7 @@ and never goes into the zip.
 
 ## Pipeline integration
 
-**Source** at `src/regions/sweden/sources/barrier_audit/`:
+**Source** at `src/noise_pollution/regions/sweden/sources/barrier_audit/`:
 - `export.py`: selection, task geometry, key
 - `package.py`: zips
 - `serve.py`
@@ -375,7 +382,7 @@ and never goes into the zip.
 - `app/`: the reviewer app, standard library only (enforced by a test),
   copied into the zip
 
-Commands (`P=python -m src.core.cli.main sweden data barrier-audit`):
+Commands (`P=python -m noise_pollution.cli.main sweden data barrier-audit`):
 
 ```
 $P device-check                                 # phase 0 zip
@@ -489,7 +496,7 @@ conformal, so screen-up is `n`.
    smoke-test zip that runs the self-test only. It confirms Python,
    localhost, WebGL and imagery on the actual laptop before the app is
    built.
-   - Build it: `python -m src.core.cli.main sweden data barrier-audit
+   - Build it: `python -m noise_pollution.cli.main sweden data barrier-audit
      device-check`, which writes
      `data/sweden/barrier_audit/packages/barrier_audit_device_check_<date>.zip`
      (about 300 kB).
@@ -503,7 +510,7 @@ conformal, so screen-up is `n`.
      line are visible.
    - The sample is a real `osm_offset` road barrier on the E4/E20 south of
      Stockholm.
-   - Code: `src/regions/sweden/sources/barrier_audit/`. The shipped app is
+   - Code: `src/noise_pollution/regions/sweden/sources/barrier_audit/`. The shipped app is
      `app/barrier_audit/` (standard library only, enforced by a test), with
      MapLibre 5.24.0 bundled (a single-file classic script that falls back
      to WebGL 1; 6.x is ES-modules-only).

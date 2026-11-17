@@ -10,8 +10,8 @@ import pytest
 from shapely.geometry import LineString, Point
 from shapely.ops import substring as substring_line
 
-from src.core.barrier_geometry import protection as pr
-from src.regions.sweden.sources import _barrier_reference as br
+from noise_pollution.core.barrier_geometry import protection as pr
+from noise_pollution.regions.sweden.sources import _barrier_reference as br
 
 CRS = "EPSG:3006"
 

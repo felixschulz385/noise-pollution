@@ -1,4 +1,4 @@
-"""Tests for `src/core/barrier_geometry/linear_ref.py` -- the line-network geometry primitives behind
+"""Tests for `src/noise_pollution/core/barrier_geometry/linear_ref.py` -- the line-network geometry primitives behind
 `_barrier_reference.py`. Synthetic geometry in EPSG:3006 with round-number
 coordinates so expected results are exact."""
 import geopandas as gpd
@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from shapely.geometry import LineString, Point
 
-from src.core.barrier_geometry import linear_ref as lr
+from noise_pollution.core.barrier_geometry import linear_ref as lr
 
 
 def test_position_and_side_projects_km_position_and_offset():

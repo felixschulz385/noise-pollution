@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-24
+summary: "Sweden road_network: NVDB Vägtrafiknät road segments (manual Lastkajen download)"
+---
+
 # `road_network`
 
 NVDB's (Nationell Vägdatabas) national road-traffic network (`Vägtrafiknät`)
@@ -69,7 +76,7 @@ load-bearing, even for rail.
 ## `preprocess` -- real run 2026-09-15
 
 ```bash
-python -m src.cli sweden data road-network preprocess   # defaults to --network-type bilnät
+noise_pollution sweden data road-network preprocess   # defaults to --network-type bilnät
 ```
 
 Reads only the requested `Nattyp` via GDAL's own SQL `where` filter

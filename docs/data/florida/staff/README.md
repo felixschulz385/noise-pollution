@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-24
+summary: "Florida staff (Cluster B): teacher salary, out-of-field teaching and per-pupil expenditure"
+---
+
 # Florida — `staff` source: implementation brief (Cluster B)
 
 **Status: all three stages (`fetch`, `preprocess`, `assemble`) implemented
@@ -48,11 +55,11 @@ why this module was built after the `baseline`-role Clusters C/D/G
 
 1. `docs/data/florida/covariates.md`, Cluster B section — the four planned
    variables and their `Role` tags.
-2. `src/regions/florida/sources/schools/preprocess.py`'s `compose_ncessch` —
+2. `src/noise_pollution/regions/florida/sources/schools/preprocess.py`'s `compose_ncessch` —
    `msid = district.zfill(2) + school.zfill(4)`; the two FLDOE workbooks use
    this exact numbering already (see below), so no crosswalk is needed for
    them.
-3. `src/regions/florida/sources/_http.py`'s `wayback_download` — the new,
+3. `src/noise_pollution/regions/florida/sources/_http.py`'s `wayback_download` — the new,
    reusable "download via the Internet Archive when the origin blocks
    scripted clients" helper this module introduced. `assessments/fetch.py`
    predates it and still uses a pure manual-download workflow; retrofitting
@@ -193,7 +200,7 @@ expenditure** (district, via CCD). Deferred, flagged rather than attempted:
 ## Suggested layout (mirror `shocks`)
 
 ```
-src/regions/florida/sources/staff/
+src/noise_pollution/regions/florida/sources/staff/
     __init__.py       # module docstring
     shared.py          # DOMAIN="staff", paths, the two FLDOE per-year URL
                         #   registries, the CCD finance URL builder + year range

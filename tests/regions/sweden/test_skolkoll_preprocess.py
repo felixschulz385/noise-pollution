@@ -5,7 +5,7 @@ points (not comma, unlike SIRIS)."""
 import pandas as pd
 import pytest
 
-from src.regions.sweden.sources.skolkoll import preprocess as skp
+from noise_pollution.regions.sweden.sources.skolkoll import preprocess as skp
 
 RAW_CSV = """# Dataset: School data — all school units
 # Version: 2026-09-21

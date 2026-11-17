@@ -1,3 +1,10 @@
+---
+type: note
+state: current
+updated: 2026-09-24
+summary: "Catalogue of Florida's control variables (clusters A-G) for the barrier event study and the sources that supply them"
+---
+
 # Florida — covariates for the barrier-construction event study
 
 Catalogue of control / covariate variables for the **main analysis**: a staggered
@@ -243,7 +250,7 @@ deferred and why.
 
 ## Proposed source-module clustering
 
-New modules under `src/regions/florida/sources/`, each a `DataSource` with
+New modules under `src/noise_pollution/regions/florida/sources/`, each a `DataSource` with
 `fetch` / `preprocess` (and `assemble` where a spatial join to schools is
 needed). Ordered roughly by priority for the main analysis.
 
@@ -269,6 +276,6 @@ ones), rather than each needing its own final-join logic.
 `staff` (via CCD), `shocks` (OpenFEMA), `air_quality`, and `neighbourhood` all
 pull *national* datasets and only the school/tract match is Florida-specific —
 when the per-region source registry lands (design `docs/02`), the fetch halves of
-these likely belong in a shared `src/core` sources area with a thin Florida
+these likely belong in a shared `src/noise_pollution/core` sources area with a thin Florida
 `assemble` on top. `traffic` and `road_projects` are genuinely FDOT-specific and
 stay under `florida/`.

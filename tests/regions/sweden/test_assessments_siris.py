@@ -6,8 +6,7 @@ repeated sub-columns) -- see docs/data/sweden/assessments/README.md §2."""
 import pandas as pd
 import pytest
 
-from src.regions.sweden.sources.assessments import siris
-
+from noise_pollution.regions.sweden.sources.assessments import siris
 
 SLUTBETYG_CSV = (
     "Statistik från Skolverket, http://www.skolverket.se\n"

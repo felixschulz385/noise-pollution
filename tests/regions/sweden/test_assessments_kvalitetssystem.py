@@ -5,11 +5,9 @@ fetched live 2026-09-15 (see docs/data/sweden/assessments/README.md §1), not
 invented."""
 import io
 
-import pandas as pd
 import pytest
 
-from src.regions.sweden.sources.assessments import kvalitetssystem as ks
-
+from noise_pollution.regions.sweden.sources.assessments import kvalitetssystem as ks
 
 METADATA = {
     "variables": [
