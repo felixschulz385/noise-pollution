@@ -13,8 +13,8 @@ end against the live FGDL archive and produce `road_network.parquet` (see
 `schools`-side algorithms 3–5 (`road_gated` / `same_segment` / `same_side`)
 are real pipeline code too: `road_network/linear_ref.py` (the nearest-road
 match, linear referencing, and a network-distance-bounded corridor test —
-validated first in `notebooks/florida-schools/06_schools.ipynb` §7, see [Open
-questions](#open-questions--resolved--remaining) item 7 for the design
+validated first in `notebooks/florida-schools/06_schools.ipynb` §7, see [Resolved
+questions](#resolved-questions) item 7 for the design
 writeup) and `schools/assemble.py`'s `match_barriers_road`, run as part of
 `florida data schools assemble`. Real run: **99.1%** of the point-only
 baseline gets a same-route match, **82.3%** a same-side match. This page is a
@@ -58,7 +58,7 @@ its schema to `schools` alone.
    — but **not** the same archive *contents*: `rciroads_<version>.zip` is a
    zipped **Shapefile**, not a zipped Geodatabase, so `fetch.py`'s extraction
    logic (`_find_shapefile_members`, `_extract_shapefile`) differs from
-   `noise_barriers`' `_find_gdb_prefix`/`_extract_gdb`, see [Open questions](#open-questions--resolved--remaining).
+   `noise_barriers`' `_find_gdb_prefix`/`_extract_gdb`, see [Resolved questions](#resolved-questions).
 4. `src/noise_pollution/regions/florida/sources/_layout.py`, `_http.py` — shared path/HTTP
    helpers every Florida source uses.
 
@@ -68,7 +68,7 @@ its schema to `schools` alone.
 `noise_barriers` (Florida Geographic Data Library, University of Florida
 GeoPlan Center), same archive index/naming/version-tag scheme, but the
 archive itself is a zipped **Shapefile**, not a zipped Geodatabase like
-`noise_barriers` (confirmed by fetching; see [Open questions](#open-questions--resolved--remaining)):
+`noise_barriers` (confirmed by fetching; see [Resolved questions](#resolved-questions)):
 
 - Archive index: `https://fgdl.org/zips/geospatial_data/archive/` — filenames
   `rciroads_<mon><yy>.zip` (e.g. `rciroads_jul26.zip`). Also `current/` for the
@@ -287,9 +287,19 @@ naming conventions already used (`noise_barriers`' `gcid`/`fed_route`/
 `built_year` lowercase-snake style, see `preprocess.py`'s
 `COLUMN_RENAMES`/`OUTPUT_COLUMNS` pattern).
 
-## Open questions — resolved / remaining
+## Open questions
 
-1. **RESOLVED — `rciroads_<version>.zip` is a Shapefile, not a Geodatabase.**
+- **4.** **Coverage for older barriers — still open, not blocking.** Some noise
+   walls have `built_year` in the 1990s; `rciroads`' archive starts `jun04`.
+   Decide (and document) whether the current/nearest-available vintage is an
+   acceptable proxy for a road's 1990s-era geometry, or whether this is a
+   robustness caveat to flag and move on — don't over-invest in solving it,
+   `noise_barriers` already made the analogous call ("one snapshot, not
+   diffed across releases").
+
+## Resolved questions
+
+- **1.** **RESOLVED — `rciroads_<version>.zip` is a Shapefile, not a Geodatabase.**
    Unlike `noise_barriers`, the archive is `<stem>.shp` + `.dbf`/`.shx`/`.prj`/
    `.sbn`/`.sbx`/`.cpg`/`.shp.xml` sidecars, confirmed flat at the zip root for
    both the current release (`jul26`) and the oldest archived one (`jun04`) —
@@ -298,32 +308,30 @@ naming conventions already used (`noise_barriers`' `gcid`/`fed_route`/
    `noise_barriers`' `_find_gdb_prefix` folder-prefix logic, so it is
    layout-agnostic if a future release nests the files one folder down (not
    observed in either release checked).
-2. **RESOLVED — CRS is EPSG:3087.** The extracted `.prj` reads
+
+- **2.** **RESOLVED — CRS is EPSG:3087.** The extracted `.prj` reads
    `NAD_1983_HARN_Florida_GDL_Albers`, i.e. EPSG:3087 — the same CRS
    `noise_barriers` uses. No reprojection needed; confirmed by loading the
    fetched `jul26` shapefile with geopandas (40,357 rows, `gdf.crs ==
    EPSG:3087`, columns match the table above exactly plus `AUTOID`/
    `SHAPE_LEN`).
-3. **RESOLVED — `DESCRIPT` duplicates `FUNCLASS` exactly**, on every row
+
+- **3.** **RESOLVED — `DESCRIPT` duplicates `FUNCLASS` exactly**, on every row
    (`road_network.ipynb` §2). Not a route name, carries no information
    `funclass` doesn't already have — dropped in `preprocess.py`. The spatial
    nearest-line join stays the only viable join method (no name crosswalk).
-4. **Coverage for older barriers — still open, not blocking.** Some noise
-   walls have `built_year` in the 1990s; `rciroads`' archive starts `jun04`.
-   Decide (and document) whether the current/nearest-available vintage is an
-   acceptable proxy for a road's 1990s-era geometry, or whether this is a
-   robustness caveat to flag and move on — don't over-invest in solving it,
-   `noise_barriers` already made the analogous call ("one snapshot, not
-   diffed across releases").
-5. **RESOLVED (mostly) — milepost discontinuities.** 99% of consecutive
+
+- **5.** **RESOLVED (mostly) — milepost discontinuities.** 99% of consecutive
    same-`ROADWAY` segment pairs have ~zero milepost gap (`road_network.ipynb`
    §4); one outlier (`ROADWAY 14121000`, a −4.36 mi overlap). A small `±D`
    tolerance is safe on its own terms — but see item 7, the bigger problem
    turned out to be `ROADWAY`-id granularity, not milepost continuity.
-6. **RESOLVED — validated against real data.** **95.6%** of the 1,245
+
+- **6.** **RESOLVED — validated against real data.** **95.6%** of the 1,245
    `fdot_barrier` rows in `barriers.parquet` get a `road_network` match
    within 50 m (`schools.ipynb` §7.1) — passes the ≥95% target.
-7. **RESOLVED — `same_segment` redesigned as a network-distance-bounded
+
+- **7.** **RESOLVED — `same_segment` redesigned as a network-distance-bounded
    corridor test, not `ROADWAY`-id equality.** (`schools.ipynb` §7.4,
    2026-09-11.) The original diagnosis held: matching wall and school
    independently to their nearest `road_network` segment and requiring
@@ -363,6 +371,7 @@ naming conventions already used (`noise_barriers`' `gcid`/`fed_route`/
    same-side recovery of the point-only baseline, `budget=800 m,
    buffer=600 m` defaults (both exposed as `--corridor-budget`/
    `--corridor-buffer` CLI flags).
+
 
 ## Definition of done
 

@@ -1,6 +1,7 @@
 # Lead-exposure designs as precedents for the noise-barrier cohort design
 
-2026-11-02. Purpose: method precedents for `output/documents/empirical-strategy/` (cohort dose
+2026-11-02. Purpose: method precedents for `output/documents/empirical-strategy/` (since 2026-11-18
+`docs/lines/sweden-residents/prespec-cohort-exposure.tex`; cohort dose
 D_i = years lived with the barrier before the test; assignment by the mother's cell before the
 project; protected vs. comparison cells; stacked event study; grade-9 scores). Not a novelty check.
 

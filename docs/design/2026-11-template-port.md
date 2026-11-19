@@ -1,11 +1,28 @@
 ---
 type: design
 state: implemented
-updated: 2026-11-17
+updated: 2026-11-18
+note: "open delta 1-3 done 2026-11-18"
 summary: "Port to the 2026-11 research-project-template: package, lines of work, docs tool, hooks, CI; regions and their CLI kept"
 ---
 
 # Port to research-project-template (2026-11)
+
+> **2026-11-18: open delta items 1–3 done.** Below is the record as of 2026-11-17; these items
+> have changed since:
+>
+> 1. Each school-level line has a `results.md`, written from its notebook's Summary and marked
+>    exploratory: [`sweden-schools`](../lines/sweden-schools/results.md),
+>    [`florida-schools`](../lines/florida-schools/results.md). `sweden-residents` has none, as
+>    no estimate exists. The table's last row no longer holds.
+> 2. Each line has a first pre-spec, as a **draft** awaiting the author's decisions (§0):
+>    [`construction-years`](../lines/sweden-schools/prespec-construction-years.md),
+>    [`per-wall-stack`](../lines/florida-schools/prespec-per-wall-stack.md),
+>    [`cohort-exposure`](../lines/sweden-residents/prespec-cohort-exposure.md).
+> 3. The specification is in `noise_pollution/analysis/`: `did.py` (shared),
+>    `sweden_schools.py`, `florida_schools.py`; the notebooks import them. Their frames were
+>    checked equal to the notebooks' own code on the real panels, and the changed cells
+>    re-executed. Items 4–5 stay open.
 
 ## Decision
 

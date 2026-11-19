@@ -28,18 +28,26 @@ data, outside this repository.
 
 **State.** Active, at the design stage. The protected-tier grid with the control band is built
 and exported to the shared folder (2026-10-22, [`grid`](../../data/sweden/grid/README.md),
-[`18_grid.ipynb`](../../../notebooks/sweden-residents/18_grid.ipynb)); the empirical strategy is
-written ([`empirical_strategy.pdf`](../../../output/documents/empirical-strategy/empirical_strategy.pdf),
-slides alongside). No estimate exists. Group sizes and a back-of-the-envelope MDE from open
-population data (2026-11-19, [`population`](../../data/sweden/population/README.md),
+[`18_grid.ipynb`](../../../notebooks/sweden-residents/18_grid.ipynb)). The design, its decisions
+and its rules are one LaTeX document, the line's record:
+[`prespec-cohort-exposure.tex`](prespec-cohort-exposure.tex) ([PDF](prespec-cohort-exposure.pdf);
+draft, its open decisions wait for Felix). The slides,
+[`cohort-exposure-slides.tex`](cohort-exposure-slides.tex), follow it. No estimate exists, so
+there is no `results.md`. Group sizes and a back-of-the-envelope MDE from open population data
+(2026-11-19, [`population`](../../data/sweden/population/README.md),
 [`21_population_power.ipynb`](../../../notebooks/sweden-residents/21_population_power.ipynb);
-planning numbers, no outcome; the design as drafted in the cohort-exposure pre-spec): few
-barriers have children on the opposite side, so the short-run step's MDE with that comparison
-alone is about 0.25 SD (rail) and 0.46 SD (road); with the 600–1,500 m band as well and road and
-rail pooled, about 0.13 SD. The full window works for rail only. **Next:** a pre-spec from the
-empirical strategy (reference dates, distance bands, the age profile; in light of the MDE, the
-weight of the band and pooling road and rail), and a source for road-project dates (none found;
-τ−3 is the fallback).
+planning numbers, no outcome; the design as drafted in the pre-spec): few barriers have children
+on the opposite side, so the short-run step's MDE with that comparison alone is about 0.25 SD
+(rail) and 0.46 SD (road); with the 600–1,500 m band as well and road and rail pooled, about
+0.13 SD. The full window works for rail only. **Next:** the decisions (in light of the MDE, the
+weight of the band and pooling road and rail), then the stack file the pre-spec specifies; and a
+source for road-project dates (none found; τ−3 is the fallback).
+
+**How this line differs.** Estimation runs with a coauthor on the register data (MONA), outside
+this repository, and coauthors edit the `.tex` on Overleaf, not Markdown. So the record is the
+`.tex` (outcomes go into its §10.3); [`prespec-cohort-exposure.md`](prespec-cohort-exposure.md)
+only carries its metadata for the docs index. Keep [`references.bib`](references.bib) in this
+folder self-contained, so the folder compiles on Overleaf.
 
 **Branch.** `line/sweden-residents`, from `master` (the work so far is on `master`).
 
@@ -48,6 +56,7 @@ weight of the band and pooling road and rail), and a source for road-project dat
 <!-- docs:begin docs dir=. recursive -->
 | Doc | Type | State | Updated | Summary |
 |---|---|---|---|---|
+| [prespec-cohort-exposure](prespec-cohort-exposure.md) | prespec | draft | 2026-11-18 | Step 1: the cohort-exposure design (stacked event study, dose, noise vs. project tests), with decisions and rules; the record is the .tex |
 <!-- docs:end -->
 
 ## Related
@@ -58,4 +67,5 @@ weight of the band and pooling road and rail), and a source for road-project dat
   [`population`](../../data/sweden/population/README.md)
 - Literature: method precedents from the lead-exposure literature,
   [`output/research/literature/lead-designs/ranked.md`](../../../output/research/literature/lead-designs/ranked.md)
-- Documents: [`output/documents/empirical-strategy/`](../../../output/documents/empirical-strategy/)
+- Documents: the pre-spec and the slides in this folder (moved 2026-11-18 from
+  `output/documents/empirical-strategy/`, which held `empirical_strategy.tex`)

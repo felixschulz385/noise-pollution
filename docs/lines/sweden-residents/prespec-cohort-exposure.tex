@@ -1,0 +1,966 @@
+\documentclass[11pt]{article}
+
+% ---------------------------------------------------------------------------
+% The record of the sweden-residents line: design, decisions, rules and
+% outcomes of the cohort-exposure design. Replaces
+% output/documents/empirical-strategy/empirical_strategy.tex (2026-11-18).
+% cohort-exposure-slides.tex summarises it and follows it.
+% Compiles on its own (Overleaf): references in references.bib.
+% Metadata for the repository's docs index: prespec-cohort-exposure.md.
+% ---------------------------------------------------------------------------
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\setlist{itemsep=0.15em, topsep=0.3em}
+\usepackage[colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue]{hyperref}
+\usepackage[style=authoryear, backend=biber, maxcitenames=2, uniquename=false, uniquelist=false]{biblatex}
+\addbibresource{references.bib}
+
+\setlength{\bibitemsep}{0.3em}
+\renewcommand*{\bibfont}{\small}
+\setcounter{secnumdepth}{2}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcommand{\prule}[1]{\item[\(\Diamond\) #1]}
+
+\title{Growing up behind a noise barrier:\\ the cohort-exposure design (pre-specification)}
+\author{}
+\date{Draft, 18 November 2026}
+
+\begin{document}
+\maketitle
+
+\noindent\textbf{Status.} Draft. Nothing has been estimated. Part~\ref{sec:prespec} lists the
+open decisions (\S\ref{sec:decisions}) and the rules (\S\ref{sec:rules}); no outcome is loaded
+before the decisions are taken.
+
+\noindent\textbf{How to use this document.}
+\begin{itemize}
+\item It is the line's record: the design, the decisions, the rules fixed before estimation,
+  and the outcomes once they come back.
+\item A rule changes only through the change log (\S\ref{sec:changelog}), with a date and a
+  reason, never after seeing a result the change could be fitted to.
+\item The slides follow this document; change the design here first.
+\item \textbf{Where it runs.} The 100\,m treatment grid and the stack file (\S\ref{sec:data})
+  are built in the project repository. The register linkage and all estimation run with the
+  register data (MONA), outside the repository.
+\end{itemize}
+
+\tableofcontents
+
+% ===========================================================================
+\section{Question and contribution}
+
+\begin{itemize}
+\item \textbf{Question.} Does living with road or rail noise during childhood lower grade-9
+  scores, and at which ages does it matter?
+\item \textbf{Why noise barriers.} Trafikverket has built hundreds of road and rail barriers
+  over three decades. Each cuts noise sharply on one side of the road, in a known year, and
+  leaves the other side as it was.
+\item \textbf{Why Swedish registers.} Every child has a grade-9 score and is linked to their
+  mother, whose residence is recorded each year on a 100\,m grid. We can place a family before
+  the barrier and follow the child after the family moves.
+\item \textbf{Contribution.} A cohort design for noise and school achievement: exposure
+  assigned before the barrier, compared within each corridor.
+\item \textbf{Relation to the school-level line.} That line measures exposure at school. This
+  one measures exposure at \emph{home}. Where a child's home and school are both near barriers,
+  the two exposures can enter together.
+\end{itemize}
+
+% ===========================================================================
+\section{Setting}
+
+\begin{itemize}
+\item The Swedish road administration (SRA) provides two kinds of noise mitigation: facade
+  insulation, the more common one, and noise barriers.
+\item Mitigation is rationed by noise level, using thresholds. It is also provided regardless
+  of noise level to groups of properties in one area, or together with road construction
+  projects.
+\item Residents can apply and can opt out. Some eligible dwellings stay untreated, and
+  dwellings worth less than the installation cost are not treated
+  \autocite{lindgrenSoundEnvironmentHealth2021}.
+\end{itemize}
+
+Two features shape the design:
+\begin{enumerate}
+\item \textbf{A barrier is a bundled treatment.} It usually arrives with a road project.
+\item \textbf{``Untreated'' is inferred from a missing record.} Untreated dwellings may have
+  private insulation or SRA insulation.
+\end{enumerate}
+
+% ===========================================================================
+\section{What we take from the literature}\label{sec:literature}
+
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}L{0.31\textwidth}L{0.3\textwidth}L{0.32\textwidth}@{}}
+\toprule
+\textbf{Study} & \textbf{We take} & \textbf{We do differently} \\
+\midrule
+\textcite{lindgrenSoundEnvironmentHealth2021}: Swedish noise mitigation and health & The setting & Keep movers; same-road controls, not never-treated \\
+\textcite{morettiTrafficNoiseExternality2025}: barriers and house prices & The 600--1,500\,m band & Follow people, not dwellings; no unbuilt barriers in Sweden \\
+\textcite{greenhillNoisePollutionInfant2026}: noise and infant health & Noise and air pollution move together & Rail as a near noise-only treatment \\
+\textcite{gronqvistUnderstandingHowLow2020}: lead, Swedish cohorts & Cohort \(\times\) exposure, threshold fixed in advance, percentile outcome & Place-specific timing; dose from years lived \\
+\textcite{hollingsworthThousandCutsCumulative2025}; \textcite{berkhoutLeadExposureCognitive2025} & Duration against intensity; age profile; distance cut-off from the data & Noise, not lead \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{\textcite{lindgrenSoundEnvironmentHealth2021}} work in almost our setting:
+treated and untreated residents of single-family homes along state highways the SRA
+considered for mitigation (apartments dropped). They keep individuals born before 1975 who
+moved into a not-yet-mitigated dwelling and stayed at the same address throughout 2003--2017
+(10,113 kept, 31,379 dropped for short residence). Controls are considered dwellings not
+mitigated by 2017. Three lessons:
+\begin{enumerate}
+\item \textbf{Do not condition on staying.} The stayers have a mean residence of 19.5 years
+  against 5.5 among those dropped. If mitigation affects moving, this conditions on an outcome
+  of treatment. We assign treatment by residence \emph{before} the barrier and keep everyone
+  who moves later (intention to treat).
+\item \textbf{Test for pre-trends.} Their main sample has flat pre-trends, but disease risk in
+  the barrier group already falls before treatment (their Figure 4b). Our design has a natural
+  placebo: cohorts tested before the barrier.
+\item \textbf{Do not rely on never-treated controls alone.} Eligible dwellings that are never
+  treated may have a persistently low priority correlated with their trends. We use the same
+  road at the same distance, and not-yet-treated corridors as a secondary comparison.
+\end{enumerate}
+
+\paragraph{Insulation in the comparison group.} Untreated cells may hold private or SRA
+insulation. Restricting treatment to barriers does not remove it.
+\begin{itemize}
+\item If private take-up is highest closest to the source, contamination grows with exposure:
+  bias toward zero.
+\item If private retrofits are mostly cosmetic or for energy in quieter dwellings, the sign is
+  unclear.
+\item Owner-occupiers retrofit more than renters (split incentives).
+\item We discuss the likely direction and use insulation records where they exist.
+\end{itemize}
+
+\paragraph{\textcite{morettiTrafficNoiseExternality2025}} study barriers alone. They compare
+dwellings 0--500\,m behind a barrier with dwellings 500--1,500\,m behind it, and add a third
+difference against barriers proposed but never built. Two features do not carry over:
+\begin{itemize}
+\item Repeated house sales: which houses sell may respond to treatment.
+\item Treatment and outcome are tied to dwellings, not to the people who may move, so the
+  estimate mixes the direct effect with sorting.
+\end{itemize}
+They test baseline differences between built and unbuilt projects but not why projects were
+dropped, so differential trends remain possible. Trafikverket records only built barriers, so
+the unbuilt comparison is not available in Sweden.
+
+\paragraph{\textcite{greenhillNoisePollutionInfant2026}} stress confounding with air pollution.
+Field studies find lower near-road pollution behind roadside barriers
+\autocite{baldaufImpactsNoiseBarriers2008}, so a road barrier does not change only noise. We
+(i) read the road-barrier estimate as the effect of the bundle and (ii) use rail barriers as a
+near noise-only treatment, since most Swedish rail traffic is electric.
+
+\paragraph{The lead literature} uses the same cohort-exposure logic.
+\textcite{gronqvistUnderstandingHowLow2020} interact birth cohort with the parish's air lead
+level before the 1980--81 cut in gasoline lead. \textcite{hollingsworthThousandCutsCumulative2025}
+measure lifetime lead from nearby racetracks, scaled by distance, around the 2007 switch to
+unleaded racing fuel. \textcite{berkhoutLeadExposureCognitive2025} combine age at first exposure
+to a contaminated site with distance to it. Four lessons:
+\begin{enumerate}
+\item \textbf{Exposure varies in intensity, not only in timing.} A dose-response also separates
+  how long from how much. We add each cell's predicted noise reduction (\S\ref{sec:intensity}).
+\item \textbf{A threshold fixed in advance turns the event study into a test.} Grönqvist et al.\
+  locate a threshold and predict effects only above it. We do the same with the noise level
+  before the barrier.
+\item \textbf{The event study traces an age profile.} Each later cohort adds one year of
+  exposure at a younger age. The earliest ages matter most in these studies, in utero most of
+  all \autocite{berkhoutLeadExposureCognitive2025}.
+\item \textbf{Distance cut-offs come from the data.} Hollingsworth et al.\ set their radius where
+  a distance spline fades; plant emissions affect air quality only within a mile
+  \autocite{currieEnvironmentalHealthRisks2015}. We estimate the profile behind the barrier
+  (\S\ref{sec:comparison}).
+\end{enumerate}
+
+% ===========================================================================
+\section{Design}\label{sec:design}
+
+A \textbf{cohort exposure design} \autocite{dufloSchoolingLaborMarket2001}, as a
+difference-in-differences within each barrier:
+\begin{itemize}
+\item \textbf{Across sides:} children from protected cells against children from comparison
+  cells along the same road (\S\ref{sec:comparison}).
+\item \textbf{Across cohorts:} cohorts tested before the barrier (zero exposure, the placebo)
+  against later cohorts. Exposure rises one year per cohort for cohorts born before the
+  barrier, and is complete, including the whole pregnancy, from the cohort born a year after
+  it.
+\item \textbf{Assignment before the project:} each child is placed where the family lived
+  before the barrier and its road project were planned, and followed afterwards.
+\end{itemize}
+
+\subsection{Notation}
+
+\begin{itemize}
+\item \(i\): child; \(f(i)\): the child's household (mother); \(a_i\): birth year.
+\item \(A = 16\): age at the grade-9 test for a child who started school on time and never
+  repeated or skipped a grade. \(t^*_i = a_i + A\): the intended test year.
+\item \(b\): a barrier, built in year \(\tau_b\). \(\rho_b\): its reference year.
+\item \(g_0(i)\): the reference cell, the 100\,m grid cell where the mother lived on
+  31~December of \(\rho_b\). \(P_i \in \{0,1\}\): 1 if that cell is protected by \(b\) (behind
+  the barrier, on the side it shields: the \texttt{protected} tier).
+\item \(e_i = t^*_i - \tau_b\): event time. \(D_i = \min\{\max(0, e_i),\, A\}\): the dose,
+  years lived with the barrier before the test.
+\item Reference cohort: \(e = -2\). Cohorts at \(e = -1\) and \(e = 0\) are transition cohorts
+  (\S\ref{sec:predictions}).
+\item \(r(i)\): the reference cell's distance band from the road.
+\item \(K\), \(L\): the window, test years \([\tau_b - K,\ \tau_b + A + L]\).
+\end{itemize}
+
+\subsection{Assignment}\label{sec:assignment}
+
+\paragraph{The problem.} Families may move in, move out or stay \emph{because of} the barrier.
+Projects are announced years ahead, so the current address would mix sorting into the ramp.
+
+\paragraph{The rule.}
+\begin{itemize}
+\item Each child gets the mother's cell at \(\rho_b\) and keeps it whatever the family does
+  later. Assignment is predetermined; later moves are part of the intention-to-treat effect,
+  not selection.
+\item Children born after \(\tau_b\) have no residence of their own before the barrier, yet
+  they identify full exposure. Assigning through the mother gives them a cell, like their
+  older siblings.
+\item \(\rho_b\) balances anticipation against dilution:
+  \begin{itemize}
+  \item too late (e.g.\ \(\tau_b - 1\)) admits families who already reacted to the
+    announcement or the noisy construction work;
+  \item too early (e.g.\ the child's birth) lets unrelated moves dilute assignment: more
+    assigned children never live behind the wall, a weaker first stage, an attenuated estimate.
+  \end{itemize}
+\item \(\rho_b\) is the year before the road project started or was announced, whichever is
+  earlier, from project documents; \(\tau_b - 3\) where no record exists. No historical source
+  has been found (Trafikverket's traffic-information service keeps finished roadworks for about
+  a year), so \(\tau_b - 3\) is the rule for every barrier until one is.
+\item \textbf{Robustness:} \(\rho_b = \tau_b - 1\) and \(\tau_b - 5\). They are compared per
+  year lived (2SLS, \S\ref{sec:mobility}), which dilution does not move. If anticipation
+  matters, later reference dates give smaller estimates.
+\item \textbf{Anticipation} is measured directly: moves out of and into the reference cell
+  between \(\rho_b\) and \(\tau_b\), by side.
+\end{itemize}
+
+\paragraph{Intended, not actual, test year.} Event time and dose use \(t^*_i\). A late school
+start or a repeated grade may itself respond to the barrier, so the actual test year would make
+them partly an outcome. Off-age children stay in their birth cohort and are scored when they
+take the test; the gap of about a year is part of the ITT. Grade 9 on time is a second outcome,
+and we re-estimate on children tested in their intended year.
+
+\subsection{Comparison groups}\label{sec:comparison}
+
+\begin{enumerate}
+\item \textbf{Opposite side, same distance (main).} Cells at the same distance from the same
+  road segment, on the side the barrier does not shield (sides from the barrier audit). They
+  share the baseline noise level, the road project, traffic changes and the local economy.
+  \begin{itemize}
+  \item The opposite side may lack a barrier \emph{because} it has few dwellings or was
+    insulated; we check this.
+  \item Of barriers built by 2007, the opposite side is more than half protected for 37\% of
+    road and 42\% of rail barriers, nearly always by the same project (within 2 years).
+    Barriers with a usable opposite side hold about 60\% of protected cells.
+  \end{itemize}
+\item \textbf{Farther behind the barrier (600--1,500\,m band)}, after
+  \textcite{morettiTrafficNoiseExternality2025}. Quieter at baseline and less affected by
+  traffic changes: secondary.
+\item \textbf{Not-yet-treated corridors}, with a later \(\tau\): robustness on group 1. We do
+  not rely on never-treated places alone: places that qualified but were never shielded may have
+  low priority for reasons that also shape their trends.
+\end{enumerate}
+
+\paragraph{Distance bands} \(r\): 0--100, 100--250 and 250--600\,m, fixed in advance.
+
+\paragraph{Distance profile.} In the parametric specification (\S\ref{sec:dose}), \(P_i\) is
+replaced with 50\,m bins of the reference cell's distance from the wall, up to 1,500\,m, each
+against the opposite side at the same distance.
+\begin{itemize}
+\item It shows how far protection reaches, and whether the 600--1,500\,m band is unaffected,
+  which group 2 requires (decision~\ref{dec:profile}).
+\item For cohorts tested before the barrier it is a balance check: scores should vary with
+  distance in the same way on both sides \autocite[as in][]{berkhoutLeadExposureCognitive2025}.
+\end{itemize}
+
+\subsection{Stacks}\label{sec:stacks}
+
+Staggered construction makes the comparison the central choice. A staggered estimator drawing
+on the national pool of never- or not-yet-treated units \autocite[as in the school-level
+analysis,][]{callawayDifferenceinDifferencesMultipleTime2021} would compare a barrier with cells
+near other roads, without netting out the corridor's own project, traffic and economy. We
+therefore estimate a \textbf{stacked event study} \autocite{cengizEffectMinimumWages2019}:
+\begin{itemize}
+\item \textbf{One stack per barrier}: children whose mother's reference cell lies in \(b\)'s
+  corridor (protected and comparison cells) and whose test year falls in the window. Children
+  stay in whether or not the family moves.
+\item \textbf{Clean controls}: comparison cells protected by another barrier inside the window
+  are dropped; no already-treated cell is a control.
+\item \textbf{Weights.} OLS on a stack weights barriers by size and balance, not by a chosen
+  estimand. We use the corrective weights of \textcite{wingStackedDifferenceinDifferences2024}:
+  protected children weight 1, comparison children in stack \(b\)
+  \[ Q_b = \frac{N^P_b / N^P}{N^C_b / N^C}, \]
+  with \(N^P_b, N^C_b\) the protected and comparison children in the stack and \(N^P, N^C\)
+  their sums over stacks. The estimate is an ATT per protected child: a barrier shielding a
+  dense neighbourhood counts more. Stacks are successive cohorts, not a balanced panel, so the
+  weights are computed within each barrier \(\times\) event-time cell (an adaptation of their
+  formula). Equal barrier weights: robustness.
+\item \textbf{Two balanced panels.} Each \(\beta_e\) averages the barriers observed at event
+  time \(e\). If barriers enter or leave across \(e\), the shape partly reflects which barriers
+  are in the sample, since old and recent walls differ in height, road type and region. Like
+  Wing et al., who trim to stacks observed over the whole window, we balance, twice:
+  \begin{itemize}
+  \item \textbf{Short window, \(e = -K, \dots, +3\)}, for the step (\S\ref{sec:predictions}),
+    the main estimate. Every dated barrier built at least three years before the last grade
+    year enters, including the many recent walls (71\% of dated road and 54\% of dated rail
+    records were built 2015 or later).
+  \item \textbf{Full window, \(e = -K, \dots, A + L\)}, for the ramp and the in-utero step. It
+    needs scores up to \(\tau_b + A + L\), at least 17 years after construction. With grade-9
+    data for 1996--2022 and the recommended \(K = 4\), \(L = 1\) (decision 1), that is
+    \textbf{barriers built 2000--2005}. A plateau (\(L \ge 2\)) is out of reach for almost all
+    walls.
+  \end{itemize}
+  The event study on all dated barriers, unbalanced, is a robustness check.
+\item \textbf{Clusters.} Corridors overlap, so a comparison child can enter several stacks.
+  Standard errors are clustered on groups of connected corridors (barriers whose corridors share
+  a cell); with a moderate number of groups we also report wild cluster bootstrap and
+  randomisation-inference p-values.
+\end{itemize}
+
+% ===========================================================================
+\section{Specification}\label{sec:spec}
+
+\subsection{Main: stacked cohort event study}
+
+\[
+S_i = \sum_{e \neq -2} \beta_e \,\mathbf{1}\{e_i = e\}\, P_i \;+\; \gamma_{b, P_i, r(i)} \;+\; \eta_{b, e_i} \;+\; X_{f(i)}'\phi \;+\; \varepsilon_i
+\]
+
+\begin{itemize}
+\item The reference cohort is \(e = -2\), not \(e = -1\): cohorts at \(e = -1\) and \(0\) may
+  already be affected by the construction works (\S\ref{sec:predictions}).
+\item \(S_i\): the child's \textbf{percentile rank on the grade-9 merit value} among all children
+  tested in the same year \autocite[as in][]{gronqvistUnderstandingHowLow2020}. Grading changed
+  in our period (goal-referenced grades from 1998, then the A--F scale and a higher maximum
+  merit value in the 2010s; exact years to be confirmed with SCB), and a window spans 20 or more
+  test years. Barrier \(\times\) year FE absorb a shift in level but not in spread; ranking
+  handles both. Secondary: the raw merit value and national test results, ranked the same way;
+  grade 9 on time.
+\item \(\gamma_{b,P,r}\): barrier \(\times\) side \(\times\) distance band FE. Permanent level
+  differences between sides and bands within a corridor.
+\item \(\eta_{b,e}\): barrier \(\times\) event time FE, the same as barrier \(\times\) test year
+  within a stack. They absorb every corridor-wide shock in a year: traffic, local shocks, and the
+  part of the project common to all distances. They pool bands, so a project effect that fades
+  with distance stays in \(\beta_e\) if the two sides spread differently across bands.
+  \textbf{Robustness:} barrier \(\times\) band \(\times\) event time FE \(\eta_{b,r,e}\), so
+  every comparison is across the road at the same distance in the same year; bands with
+  children on one side only drop out (we report the protected children lost), and the weights
+  are computed within barrier \(\times\) band \(\times\) event time.
+\item \(X_{f(i)}\): parental education, log family income and immigrant background at
+  \(\rho_b\).
+\end{itemize}
+
+\paragraph{No school fixed effects.}
+\begin{itemize}
+\item The grade-9 school is chosen after \(\tau_b\). Actual-school FE would remove changes of
+  school the barrier causes, and would bring back the sorting that assignment at \(\rho_b\)
+  keeps out.
+\item The cost: teachers set the merit value, leniency differs across schools and over time,
+  and roads often split catchments. A grading change at one side's school is not absorbed by
+  \(\eta_{b,e}\) and loads onto \(\beta_e\).
+\item \textbf{Robustness:} FE for the \emph{assigned} school \(\times\) test year, fixed before
+  treatment: the most common grade-9 school of children from the reference cell tested before
+  \(\rho_b\), or an older sibling's school.
+\item We report how many protected and comparison children in a corridor attended the same
+  grade-9 school before \(\tau_b\). Shared schools: the concern is small. Separate schools:
+  actual-school FE would leave only families who cross the road for school.
+\item \textbf{Decomposition, not robustness:} actual school \(\times\) test year FE. The gap to
+  the ITT shows how much runs through changes of school and peers, next to the event study with
+  a change of school as the outcome.
+\end{itemize}
+
+\subsection{What the event study should show}\label{sec:predictions}
+
+\textbf{Our prior: noise acts at once.} The wall lowers noise at home immediately, and with it
+sleep loss and disturbed concentration and homework. So we expect a \textbf{step}:
+\begin{itemize}
+\item \(\beta_e = 0\) for \(e \le -2\): tested before the barrier, the placebo (reference
+  \(e = -2\)).
+\item \textbf{Transition, \(e = -1\) and \(e = 0\).} Construction works are louder than the road
+  was. If noise acts fast, they may lower the scores of cohorts tested during the works (a dip).
+  The \(e = 0\) cohort is tested in the construction year, and the wall may be finished only
+  after the spring term, so it is partly treated at most. Both are estimated on their own, in
+  neither the placebo nor the step.
+\item \textbf{Step at \(e = 1\).} From \(e = 1\) on, every cohort spends the whole grade-9 year
+  in a quieter home, so an immediate effect raises all of them by the same \(\delta\). The
+  merit value reflects learning over the last school years, not only the test year, so the step
+  may build up over \(e = 1, \dots, 3\) rather than appear at once.
+\item \textbf{Ramp on top}, if exposure also accumulates: \(\beta_e\) rises for
+  \(1 \le e \le A\). Cohort \(e\) was exposed from age \(A - e\), so
+  \(\beta_e - \beta_{e-1}\) is one more year of exposure at age \(A - e\). The ramp is an age
+  profile: linear if every year matters equally, steepest at high \(e\) if early childhood
+  matters most.
+\item \(\beta_{A+1} - \beta_A\): exposure in utero. The cohort at \(e = A\) was born in the
+  construction year; from \(e = A + 1\) on, exposed throughout pregnancy.
+\item \(\beta_e\) flat for \(e \ge A + 1\): the same dose. Later, adaptation, traffic growth or a
+  wall on the other side may bend it. With grade data to 2022 few walls reach beyond
+  \(e = A + 1\) (decision 1), so the plateau is described, not tested.
+\end{itemize}
+
+Zero, step, then a ramp or a plateau is hard to produce through confounding. The shapes read as
+follows:
+
+\begin{center}
+\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Shape} & \textbf{Points to} \\
+\midrule
+Step at \(e = 1\), flat after & an immediate effect of noise (our prior) \\
+Ramp from \(e = 1\), no step & cumulative exposure only \\
+Pre-trend before \(e = -1\) & sorting, anticipation \\
+Dip at \(e = -1, 0\) only & construction noise \\
+Ramp, no plateau after \(e = A + 1\) & trends set off by the road project \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Effect per year of dose}\label{sec:dose}
+
+\paragraph{Short window: the main estimate.} On the short panel (\(e = -K, \dots, +3\)):
+\begin{align*}
+S_i ={}& \delta^{\text{SR}}\, \mathbf{1}\{1 \le e_i \le 3\}\, P_i + \sum_{e \in \{-1, 0\}} \beta_e\, \mathbf{1}\{e_i = e\}\, P_i + \beta^{\text{pre}}\, \mathbf{1}\{e_i \le -2\}\,(e_i + 2)\, P_i \\
+&+ \gamma_{b,P_i,r(i)} + \eta_{b,e_i} + X_{f(i)}'\phi + \varepsilon_i
+\end{align*}
+\(\delta^{\text{SR}}\) is the short-run effect: the step plus at most three years of any ramp.
+\(\beta_{-1}, \beta_0\) are the transition cohorts; \(\beta^{\text{pre}}\) tests for a pre-trend.
+
+\paragraph{Full window: step and ramp.} On the full panel, with flat pre-trends and a roughly
+linear ramp, the event study is summarised by
+\begin{align*}
+S_i ={}& \delta\, \mathbf{1}\{e_i \ge 1\}\, P_i + \beta\, D_i P_i + \sum_{e \in \{-1, 0\}} \beta_e\, \mathbf{1}\{e_i = e\}\, P_i + \beta^{\text{utero}}\, \mathbf{1}\{e_i > A\}\, P_i \\
+&+ \beta^{\text{pre}}\, \mathbf{1}\{e_i \le -2\}\,(e_i + 2)\, P_i + \gamma_{b,P_i,r(i)} + \eta_{b,e_i} + X_{f(i)}'\phi + \varepsilon_i
+\end{align*}
+\begin{itemize}
+\item \(\delta\): the step, the same for every cohort tested after the barrier;
+  \(\beta\): the effect of each further year of assigned dose; \(\beta^{\text{utero}}\): added
+  effect of exposure in pregnancy; \(\beta^{\text{pre}}\): pre-trend test.
+\item \(\delta\) and \(\beta\) are separately identified: \(\delta\) from the jump at \(e = 1\),
+  \(\beta\) from the slope across the many cohorts after it.
+\item \textbf{Age profile:} the slope may differ by the age of the added year, with kinks at 3,
+  7 and 13 (bins 0--2, 3--6 before school, 7--12, 13--15).
+\item \textbf{Why not regress on \(D_i\) alone?} Cohorts tested before would pool with
+  comparison cells at \(D_i = 0\), losing the placebo; and a continuous dose with staggered
+  timing mixes comparisons across dose levels and slopes, needing stronger parallel trends
+  \autocite{callawayDifferenceinDifferencesContinuousTreatment2024}.
+\item \(D_i\) is always the dose assigned from the reference cell. Years actually lived behind a
+  barrier reflect moves the barrier may cause; they enter only the estimate per realised year
+  (\S\ref{sec:mobility}).
+\end{itemize}
+
+\paragraph{Interpretation.} \(\beta_e\) is an intention-to-treat effect of living behind a
+barrier as of \(\rho_b\). It includes effects through the family's later decisions: moving,
+changing school, changing housing.
+
+\paragraph{Other estimators.} Callaway--Sant'Anna on the stacked data with corridor-specific
+controls (should reproduce the estimate); national Callaway--Sant'Anna with not-yet-treated
+cells (comparison group 3, comparable with the school-level line);
+\textcite{sunEstimatingDynamicTreatment2021}; \textcite{borusyakRevisitingEventStudyDesigns2024}.
+
+% ===========================================================================
+\section{Noise or the road project?}\label{sec:noise}
+
+Barriers come with a road project and may lower air pollution
+\autocite{baldaufImpactsNoiseBarriers2008,greenhillNoisePollutionInfant2026}.
+\begin{itemize}
+\item Construction and traffic changes hit both sides, so the opposite side nets them out.
+\item Air pollution partly passes over a wall, so the gap between sides is smaller than for
+  noise.
+\item What remains are the side-specific parts of the project and of air pollution. Three tests
+  address them:
+\end{itemize}
+
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}L{0.3\textwidth}L{0.13\textwidth}L{0.24\textwidth}L{0.24\textwidth}@{}}
+\toprule
+\textbf{Test} & \textbf{Rules out} & \textbf{If it is noise} & \textbf{If it is not} \\
+\midrule
+\textbf{Rail vs.\ road} & Air pollution & Similar ramps (trains mostly electric) & Ramp for road barriers only \\
+\textbf{Threshold}, fixed in advance: \(L^0\) above the WHO guideline (53\,dB road, 54\,dB rail) & Project & Ramp above, none below & Ramp also below, in quiet cells as close to the road \\
+\textbf{Intensity}: predicted dB removed at each cell & Project & Larger ramp where more dB are removed & Same ramp whatever the dB cut \\
+\bottomrule
+\end{tabular}
+\end{center}
+Comparing cells at the same distance holds the project fixed. Air pollution moves with distance
+and traffic like noise; only rail against road tests it.
+
+\subsection{Exposure intensity}\label{sec:intensity}
+
+\(P_i\) treats every protected cell alike, although a tall wall by a busy road cuts noise far
+more than a low wall 150\,m away. For each protected cell \(g\) we predict
+\begin{itemize}
+\item \(L^0_g\): the noise level before the barrier, and
+\item \(\Delta L_g\): the reduction the barrier causes, both in dB,
+\end{itemize}
+from inputs fixed before the barrier only: wall height and length, the cell's distance to the
+road and the wall, traffic before construction (ÅDT or train counts), with a standard method
+such as the Nordic prediction method. So \(\Delta L_g\) does not reflect where dwellings are or
+who lives there \autocite[the logic of the predicted lead change in][]{gronqvistUnderstandingHowLow2020}.
+Comparison cells get \(\Delta L = 0\). Four uses:
+\begin{enumerate}
+\item \textbf{Intensity event study.} \(P_i\) replaced by \(\Delta L_{g_0(i)}\): \(\beta_e\) per dB.
+  The project reaches every protected cell but is not scaled by \(\Delta L\), so a dose-response
+  is hard to produce through it, but only at equal distance, since project effects (construction,
+  traffic, air) fade with distance like \(\Delta L\). Hence \(\eta_{b,r,e}\). Variation within a
+  barrier: position along the wall (ends gain less), changes in height; across barriers: height
+  and traffic. Taller walls go with busier roads and bigger projects, so event time is also
+  interacted with pre-construction traffic.
+\item \textbf{Duration against intensity.} With dB-years \(Q_i = D_i\, \Delta L_{g_0(i)}\),
+  indicators for years of exposure controlling for \(Q_i\)
+  \autocite{hollingsworthThousandCutsCumulative2025}: do many years of a small cut matter as much
+  as a few of a large one? Identified because barriers at the same event time differ in
+  \(\Delta L\).
+\item \textbf{Threshold.} Protected cells split at the WHO guideline, 53\,dB \(L_{\text{den}}\)
+  road and 54\,dB rail, fixed in advance. A ramp above and none below; with \(\eta_{b,r,e}\),
+  cells below get as much of the project but were quiet, so a ramp there points to the project
+  or composition. Caveat: at a given distance \(L^0\) differs only with traffic, so the split is
+  mostly busier against quieter roads, and the event time \(\times\) traffic interaction would
+  absorb it; the threshold guards less well than intensity against project effects that grow
+  with traffic. Its value comes from fixing the split before looking.
+\item \textbf{Permutation.} \(\Delta L\) permuted across protected cells within each corridor:
+  if the effect comes from the dose, the permuted dose-response is flatter.
+\end{enumerate}
+
+\paragraph{Feasibility} (register checked 2026-11-02). The prediction is validated against EU
+strategic noise maps where they cover a corridor before and after construction. It needs wall
+height and distance from the road:
+\begin{itemize}
+\item \textbf{Rail:} height for 79\% of records (323 of the 414 built by 2007); distance from the
+  track centre for 44\%.
+\item \textbf{Road:} height missing for 62\% of records and for 138 of the 140 built by 2007;
+  walls are stored on the road centreline, so distance is unknown except for walls matched to
+  OpenStreetMap.
+\item So intensity tests are feasible for rail, not for road unless heights come from elsewhere.
+  Without heights \(\Delta L\) falls back to a function of distance; the threshold test needs
+  only \(L^0\) and stays available.
+\end{itemize}
+
+\subsection{Road against rail}
+
+The specification is estimated separately for road and rail barriers.
+\begin{itemize}
+\item \textbf{Road:} bundled with the project and lower near-road air pollution. ÅDT on the
+  shielded segment is an outcome (does traffic change at \(\tau_b\)?) and a control.
+\item \textbf{Rail:} close to noise only. Similar road and rail estimates argue against air
+  pollution as the channel.
+\item \textbf{Air pollution as an outcome:} if a modelled NO\textsubscript{2} or particulate grid
+  covers the period, its change at \(\tau_b\) by side measures what a road barrier did to
+  pollution \autocite[the analogues in the lead studies are traffic metals in moss and industrial
+  emissions:][]{gronqvistUnderstandingHowLow2020,hollingsworthThousandCutsCumulative2025}.
+\end{itemize}
+
+% ===========================================================================
+\section{Mechanisms and other estimands}\label{sec:mechanisms}
+
+\subsection{Mobility and the effect per year lived}\label{sec:mobility}
+
+With assignment fixed at \(\rho_b\), moving is a \textbf{mechanism}, not a threat. On
+household-years in the same stacks:
+\[
+M_{ft} = \sum_{k \neq -1} \mu_k\, \mathbf{1}\{t - \tau_b = k\}\, P_f + \gamma_{b,P_f,r(f)} + \eta_{b,t} + X_f'\phi + u_{ft},
+\]
+\(M_{ft} = 1\) if household \(f\) leaves its reference cell between \(t-1\) and \(t\), among
+households still there at \(t-1\).
+\begin{itemize}
+\item \(\mu_k < 0\) for \(k \ge 0\): the barrier reduces moving out.
+\item \(\mu_k \neq 0\) between \(\rho_b\) and \(\tau_b\): anticipation of the announcement or
+  the construction work, what the early reference date guards against.
+\end{itemize}
+
+\paragraph{Per year lived (2SLS).} \(D_i^{\text{act}}\): years before the test the child
+actually lived in a cell protected by any barrier, instrumented with \(D_i P_i\), with the main
+specification's FE and controls.
+\begin{itemize}
+\item The estimate is \(\beta / \pi\), \(\pi\) the effect of assigned on realised dose: an
+  average causal response among compliers \autocite{angristTwoStageLeastSquares1995}, children
+  who live behind a barrier longer because their reference cell is protected.
+\item Monotonicity is plausible: assignment should not reduce anyone's years behind a barrier;
+  comparison children who later move behind another barrier are always-takers.
+\item Exclusion binds: the reference cell must affect scores only through years behind a
+  barrier. It fails if the barrier changes moving and moving changes outcomes (school,
+  neighbourhood, peers). If \(\mu_k\) and the change-of-school event study are near zero after
+  \(\tau_b\), we report a \textbf{LATE}; otherwise a \textbf{rescaled ITT}. Both with bounds
+  allowing a direct effect of assignment \autocite{conleyPlausiblyExogenous2012}, calibrated
+  from the estimated change in moving and literature effects of moving.
+\item Compliers are described by household characteristics at \(\rho_b\)
+  \autocite{abadieSemiparametricInstrumentalVariable2003}, presumably settled families who stay.
+\item \(D_i^{\text{act}}\) comes from yearly addresses on the 100\,m grid, so it is misclassified
+  near zone edges, non-classically; dropping edge cells limits the bias in \(\pi\).
+\end{itemize}
+
+\subsection{Siblings}
+
+Household FE \(\gamma_{f(i)}\) identify the effect from siblings with different exposure, mainly
+families with children tested before and after \(\tau_b\). The younger sibling always has the
+higher dose, so dose is confounded with birth order \autocite{blackMoreMerrierEffect2005}:
+birth order \(\times\) sex FE, identified from comparison families. We report the number of
+families with siblings on both sides of \(\tau_b\). The sample leans toward large families that
+stay: robustness only.
+
+\subsection{Within child: grade 3 to grade 9}\label{sec:withinchild}
+
+Grade-3 and grade-6 results exist from 2012 and grade-9 grades to 2022. Children born
+2002--2006 have all three: grade 3 in 2012--2016, grade 6 in 2015--2019, grade 9 in 2018--2022.
+For a wall built between a child's tests, the same child is observed before and after it.
+
+\paragraph{Sample.} The stacks of walls built 2014--2021 (549 road and 364 rail records,
+provisional), children born 2002--2006, assigned at \(\rho_b\) as in the main design.
+
+\paragraph{Specification.} For child \(i\) and grade \(g \in \{3, 6, 9\}\), the intended test year
+is \(t^*_{ig} = a_i + \{10, 13, 16\}\) and event time \(e_{ig} = t^*_{ig} - \tau_b\):
+\[
+S_{ig} = \theta\, \mathbf{1}\{e_{ig} \ge 1\}\, P_i + \alpha_i + \eta_{b,g,t} + \varepsilon_{ig}
+\]
+\begin{itemize}
+\item \(S_{ig}\): the child's percentile among all children with the same measure in the same
+  grade and year.
+\item \(\alpha_i\): child FE. They absorb the side FE, the household controls and anything fixed
+  about the child, including sorting into cells on levels.
+\item \(\eta_{b,g,t}\): barrier \(\times\) grade \(\times\) test year FE, shared by both sides.
+\item Tests at \(e_{ig} \in \{-1, 0\}\) are transition tests and are dropped, as in the main
+  design. \(\theta\) is identified from children with a test before (\(e \le -2\)) and a test
+  after (\(e \ge 1\)).
+\item \(\theta\): the change in a child's rank after the wall, protected side against opposite
+  side. It measures the immediate effect at school ages; an event-time version replaces the
+  indicator with years since construction at the test.
+\item \textbf{Placebo:} children with grades 3 and 6 both before the wall; their change from
+  grade 3 to 6 should not differ by side.
+\end{itemize}
+
+\paragraph{What it adds and what it cannot do.}
+\begin{itemize}
+\item It compares each child with themselves, so it does not rely on cohorts being comparable
+  across \(\tau_b\), as the main design does. Agreement of \(\theta\) and \(\delta^{\text{SR}}\)
+  supports both.
+\item It uses recent walls, which the main design can use only in the short window.
+\item It covers school ages 10--16 only: nothing on early childhood or in utero.
+\item The three measures differ (grade-3 tests cover fewer subjects; grade 9 is a merit value).
+  Ranking within measure puts them on one scale, and the difference between sides nets out what
+  they share, but an effect that differs by measure is not separated from an effect that grows
+  with age.
+\item Five birth cohorts only.
+\end{itemize}
+
+\subsection{Residents at the time of the test}
+
+For comparison with dwelling-based studies, a repeated cross-section assigned by \textbf{where
+children live in the test year}:
+\[
+\bar S_{b r p t} = \sum_{j} \beta_j\, \mathbf{1}\{r = j\}\, \mathbf{1}\{p = 1\}\, \mathbf{1}\{t \ge \tau_b\} + \gamma_{b r p} + \eta_{b t} + \varepsilon_{b r p t},
+\]
+\(b\) barrier, \(r\) distance band, \(p\) side, \(t\) test year.
+\begin{itemize}
+\item It mixes the direct effect with sorting; its gap to the ITT measures sorting.
+\item A minimum number of test takers per cell; the test of
+  \textcite{santannaDifferenceinDifferencesCompositionalChanges2025} for compositional change.
+\item By side and band: the share of school-age children, enrolment and transfer rates after
+  \(\tau_b\).
+\end{itemize}
+
+% ===========================================================================
+\section{Threats and checks}\label{sec:threats}
+
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{@{}L{0.27\textwidth}L{0.35\textwidth}L{0.32\textwidth}@{}}
+\toprule
+\textbf{Threat} & \textbf{Design answer} & \textbf{Evidence we show} \\
+\midrule
+Families sort or anticipate & Reference cell at \(\rho_b\), via the mother; ITT & Mobility event study; births by side; predicted-score placebo \\
+Construction noise before \(\tau_b\) & \(e = -1, 0\) as transition; reference \(e = -2\) & \(\beta_{-1}\), \(\beta_0\) \\
+Road project comes with the barrier & Opposite side of the same road; barrier \(\times\) year FE & Threshold, intensity, plateau; barrier \(\times\) band \(\times\) year FE \\
+Air pollution moves with noise & Rail against road & NO\textsubscript{2} by side, if a grid exists \\
+Staggered timing, bad comparisons & Stacking, own cells only, corrective weights & Callaway--Sant'Anna, Sun--Abraham, Borusyak et al. \\
+Cells misclassified at the zone edge & Drop edge cells (100\,m grid) & Estimates with them included \\
+Comparison cells insulated & --- (bias toward zero) & Insulation records, if they exist \\
+Grading changes & Percentile within test year & Raw merit value, national tests \\
+Sides feed different schools; grading by school & Assigned school \(\times\) year FE (not actual school: post-treatment) & School overlap of the two sides; actual school \(\times\) year FE as decomposition \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Threats in more detail.}
+\begin{itemize}
+\item \textbf{Treatment measurement.} Treatment and residence are on 100\,m SCB cells, not
+  dwellings. Near a zone edge, 13--18\% of points have the opposite status from their cell. Main
+  estimates drop cells straddling the edge (a donut); we also report them included.
+\item \textbf{Missing construction years.} Missing for about 57\% of road and 31\% of rail walls,
+  not at random: most undated road records are the batch loaded when the register started in
+  2006 (built by 2006, year unknown). Dated walls are mostly recent (71\% of dated road and 54\%
+  of rail records built 2015 or later) and cannot enter the full window. The full-window event
+  study rests mainly on rail walls (313 of the 364 records built 2000--2005, provisional). Results are for the dated sample;
+  dated and undated barriers are compared on location, length, road type and neighbourhood.
+\item \textbf{Current walls only.} Demolished or replaced walls are missing; a rebuilt wall may
+  carry the rebuild year.
+\item \textbf{Insulation in the comparison group}: most likely a bias toward zero (\S\ref{sec:literature}).
+\item \textbf{No unbuilt barriers}: opposite-side and farther-behind cells take that role.
+\item \textbf{Outcome data.} The merit value is the main outcome, national tests secondary.
+  Grade-3 and grade-6 results exist from 2012, which allows child FE for five cohorts
+  (\S\ref{sec:withinchild}); what they measure is to be confirmed.
+\item \textbf{Grading by school.} Teachers set the merit value, and the national tests are also
+  marked at the school. Answered by assigned-school FE and the school overlap of the sides.
+\item \textbf{Wind.} Wind direction barely changes year to year and carries air pollution like
+  noise, so it cannot separate the two: heterogeneity by side (downwind/upwind) only, if at all.
+\end{itemize}
+
+\paragraph{Balance and composition checks.}
+\begin{itemize}
+\item \textbf{Predicted score:} regress scores on household characteristics at \(\rho_b\) in the
+  comparison group, predict for everyone, and use it as the outcome. Any \(\beta_e \neq 0\)
+  shows composition differing by side and cohort.
+\item \textbf{Fertility and household formation:} births after \(\rho_b\) may respond to the
+  barrier. Number of births per reference household and the mothers' characteristics, by
+  \(P_i\) after \(\tau_b\).
+\item \textbf{Placebo cohorts:} \(\beta_e\) for \(e < 0\); and \(\tau_b\) shifted back five years.
+\item \textbf{Off-age testing} by \(P_i\) after \(\tau_b\); children tested on time only.
+\item \textbf{Birth outcomes:} birthweight and gestational age (Medical Birth Register) for
+  cohorts born after \(\tau_b\), by \(P_i\), testing the in-utero channel directly, as both lead
+  studies do \emph{(access to be confirmed)}.
+\end{itemize}
+
+\paragraph{Heterogeneity, fixed in advance} so it does not read as a search: sex; parental
+education, family income and immigrant background at \(\rho_b\); housing type (apartment or
+house, since insulation and retrofits differ by it). In the lead literature effects concentrate
+among boys and low-income families \autocite{gronqvistUnderstandingHowLow2020} and in poorer
+counties \autocite{hollingsworthThousandCutsCumulative2025}.
+
+% ===========================================================================
+\section{Data and open questions}\label{sec:data}
+
+\paragraph{Data.}
+\begin{itemize}
+\item \textbf{Barrier counts are provisional.} Every count of barriers, records or cells in this
+  document comes from Trafikverket's register as fetched for the project (checked 2026-11-02).
+  New data are discussed with Trafikverket on 25 November 2026; construction years and
+  heights may change.
+\item \textbf{Treatment grid} (built in the repository): 100\,m SCB cells with the
+  \texttt{protected}-tier treatment, construction year, timing unknown, side unknown and the
+  control band; exported to the shared folder 2026-10-22.
+\item \textbf{Barriers:} Trafikverket's register; construction years for 49\% of road and 73\%
+  of rail records.
+\item \textbf{Registers (MONA)}, as stated 2026-11-18:
+  \begin{itemize}
+  \item grade-9 grades, 1996--2022;
+  \item residences of the entire population, from 1980;
+  \item grade-3 and grade-6 results, from 2012;
+  \item mother links and household characteristics at \(\rho_b\) (to be confirmed).
+  \end{itemize}
+  Residences from 1980 never bind: \(\rho_b = \tau_b - 3 \ge 1980\) for every dated wall. The
+  grade years bound the windows (decision 1).
+\item \textbf{To build in the repository for this design:}
+  \begin{itemize}
+  \item \textbf{the stack file}: one row per cell \(\times\) barrier with the barrier and its
+    kind, \(\tau_b\), \(\rho_b\), the cell's role (protected, opposite side, 600--1,500\,m band),
+    its distance from the road and band, the wall it belongs to, an edge flag for the donut, and
+    its group of connected corridors. The current export has one row per cell and no
+    opposite-side flag;
+  \item \textbf{pre-construction traffic} for \(L^0\): the traffic panel matches about 30--40\%
+    of road segments; historical train counts are not yet checked.
+  \end{itemize}
+\end{itemize}
+
+\paragraph{Questions for Trafikverket.} The list is kept with the barrier data, in the
+repository (\url{docs/data/sweden/noise_barriers/README.md}), since the school-level line
+needs the same answers. They are discussed at a call with Trafikverket on 25 November 2026
+(slides in \url{output/presentations/2026-11-trafikverket/}). In short:
+\begin{enumerate}
+\item construction years and heights for the road walls loaded in 2006, and what the year means;
+\item historical versions of the register, with removed walls;
+\item the exact position of each wall: its side and distance from the road;
+\item start or announcement dates of the road projects (for \(\rho_b\)), and walls planned but
+  never built;
+\item the register of properties considered for facade insulation: measure, type, year, cost,
+  and the 100\,m grid cell;
+\item noise levels calculated before and after a measure, train counts and road traffic beyond
+  NVDB's history, and the qualifying rules over time.
+\end{enumerate}
+
+\paragraph{Open questions for the register data (MONA).}
+\begin{enumerate}
+\item Which years of individual grade-9 results (merit value, national tests) exist, and are
+  children linked to their mothers? \emph{Partly answered 2026-11-18: grade-9 grades
+  1996--2022. Open: which measures cover those years, and the link to mothers.}
+\item From which year are residences on the 100\,m grid? \emph{Answered 2026-11-18: from 1980,
+  for the entire population.}
+\item Exact years of the grading reforms and the merit-value scale, for the percentile.
+\item Is the grade-9 school identified for each child, and are siblings linked (assigned-school
+  FE)?
+\item Access to the Medical Birth Register (a separate application to Socialstyrelsen).
+\item Are the grade-3 and grade-6 results from 2012 national tests or grades (grades start in
+  year 6)? Children born 2002--2006 have grade 3 (2012--2016) and grade 9 (2018--2022), which
+  would allow a within-child design for walls built 2012--2022.
+\end{enumerate}
+
+\paragraph{Open question for our own build.} Whether a modelled air-pollution grid covers our
+period.
+
+% ===========================================================================
+\section{Pre-specification}\label{sec:prespec}
+
+\subsection{Decisions}\label{sec:decisions}
+
+\paragraph{Fixed already} (by this design, not open): \(\rho_b = \tau_b - 3\) until project dates
+exist, robustness \(\tau_b - 1\) and \(\tau_b - 5\); WHO thresholds 53\,dB road, 54\,dB rail;
+distance bands 0--100 / 100--250 / 250--600\,m; grade 9 on time as a second outcome;
+anticipation measured by moves between \(\rho_b\) and \(\tau_b\); the heterogeneity set of
+\S\ref{sec:threats}; the full-window event study only on barriers with a full window. Added 2026-11-18: the step at
+\(e = 1\) as the prior and \(\delta^{\text{SR}}\) on the short window \(e = -K, \dots, +3\) as the
+main estimate; \(e = -1, 0\) as transition cohorts; \(e = -2\) as the reference.
+
+\paragraph{Open.} Each with a recommendation. Fill in ``Decided'' with the date.
+\begin{enumerate}
+\item \textbf{\(K\) and \(L\) (the windows).} Grade-9 grades cover 1996--2022, so a window
+  \([\tau_b - K,\ \tau_b + \text{top}]\) fits only walls built \(1996 + K\) to
+  \(2022 - \text{top}\). Records and dated protected cells per window (register as of
+  2026-11-02, provisional until Trafikverket's reply):
+
+  \smallskip
+  {\footnotesize
+  \begin{tabular}{@{}llrrrr@{}}
+  \toprule
+  window & walls built & road records & road cells & rail records & rail cells \\
+  \midrule
+  short, \(e = -5 \dots 3\) & 2001--2019 & 471 & 5,110 & 717 & 6,972 \\
+  short, \(e = -3 \dots 3\) & 1999--2019 & 490 & 5,401 & 829 & 8,043 \\
+  full, \(e = -3 \dots 17\) & 1999--2005 & 62 & 761 & 328 & 3,171 \\
+  full, \(e = -4 \dots 17\) & 2000--2005 & 51 & 607 & 313 & 3,066 \\
+  full, \(e = -5 \dots 17\) & 2001--2005 & 43 & 470 & 216 & 2,100 \\
+  full, \(e = -4 \dots 16\) (no in utero) & 2000--2006 & 61 & 755 & 338 & 3,693 \\
+  plateau, \(e = -4 \dots 20\) & 2000--2002 & 25 & 391 & 137 & 1,538 \\
+  \bottomrule
+  \end{tabular}}
+  \smallskip
+
+  Recommended:
+  \begin{itemize}
+  \item \textbf{short window \(K = 5\)} (\(e = -5, \dots, 3\)): three placebo cohorts beyond the
+    reference, for few walls lost;
+  \item \textbf{full window \(K = 4\), \(L = 1\)} (\(e = -4, \dots, 17\)): two placebo cohorts
+    and the in-utero step. \(K = 3\) leaves a single placebo cohort (\(e = -3\)), and \(K = 5\)
+    loses a third of the rail walls;
+  \item \textbf{no plateau as a target}: \(L = 4\) keeps 25 road records. The full window is
+    mostly a rail result unless Trafikverket recovers years for the road walls loaded in 2006.
+  \end{itemize}
+  \textbf{Decided:}
+\item \textbf{The percentile.} Recommended: merit value ranked among all children in Sweden
+  tested in the same year, 0--100, ties at the mid-rank. Alternative: rank within birth cohort
+  (mixes in off-age children).\\ \textbf{Decided:}
+\item \textbf{Donut width.} Recommended: drop every cell whose 100\,m square crosses the edge
+  of a protected or comparison area. Alternative: cells whose centroid is within 50\,m of an
+  edge. Report both.\\ \textbf{Decided:}
+\item \textbf{Clusters.} Recommended: groups of connected corridors, with WCR and RI.
+  Alternative: kommun.\\ \textbf{Decided:}
+\item \textbf{Barriers walled on both sides} (about 40\% of those built by 2007). Recommended:
+  they enter only through the 600--1,500\,m band; the opposite-side estimate uses one-sided
+  barriers. Report the share of protected children this moves.\\ \textbf{Decided:}
+\item\label{dec:profile} \textbf{If the distance profile has not faded by 600\,m.} The strategy
+  so far moves the band out, and lets the profile guide the protected zone. Both choose a sample
+  after seeing outcomes. Recommended: keep the protected zone as the \texttt{protected} tier
+  (600\,m); if the profile's 600--1,500\,m bins are jointly non-zero (\(p < 0.10\)), drop
+  comparison group 2 and report it, rather than moving the band.\\ \textbf{Decided:}
+\item \textbf{The mobility event study's reference period.} Households are defined by living in
+  the reference cell at \(\rho_b = \tau_b - 3\), so their move hazard starts at \(k = -2\): the
+  reference \(k = -1\) lies inside the anticipation window, and the side FE absorb any level
+  difference from \(\rho_b\) on. As written, the equation cannot show anticipation.
+  Recommended: add a pre-period from households living in the same cells at an earlier date
+  (\(\tau_b - 8\), followed to \(\tau_b - 3\)), so the hazard between \(\rho_b\) and \(\tau_b\)
+  is compared, by side, with the same cells' hazard before \(\rho_b\).\\ \textbf{Decided:}
+\item \textbf{The within-child design} (\S\ref{sec:withinchild}). Recommended: include it as a
+  secondary block (rule F1), run once MONA confirms what the grade-3 and grade-6 results are
+  (question 6 of \S\ref{sec:data}). Alternative: leave it for a later pre-specification.\\
+  \textbf{Decided:}
+\end{enumerate}
+
+\subsection{Rules}\label{sec:rules}
+
+Construction rules (G) load no outcome and run in the repository. The others run on MONA.
+\begin{itemize}[leftmargin=4.2em]
+\prule{G1} Only barriers with a construction year enter. Before estimation, dated and undated
+  barriers are compared on location, length, road type and neighbourhood; the table is
+  recorded in \S\ref{sec:outcomes}.
+\prule{G2} An opposite-side cell is in the same distance band from the same road segment, on the
+  side the barrier does not shield, and protected by no barrier within the stack's window. A
+  comparison cell protected by another barrier within the window is dropped from that stack.
+\prule{G3} Cells in the donut (decision 3) carry the edge flag and are left out of the main
+  estimate.
+\prule{G4} Before anything is sent to MONA, record: barriers per kind with a full window (given
+  decision 1), protected and comparison cells per role and band, corridor groups and their
+  sizes, and barriers walled on both sides.
+\prule{G5} \(L^0\) is computed only where pre-construction traffic exists; the threshold and
+  intensity tests run on those barriers, and their count is recorded.
+\prule{A1} \emph{Placebo.} If \(\beta_e\), \(e \le -3\), are jointly non-zero at \(p < 0.10\)
+  (WCR by corridor group), nothing after is interpreted; label: ``pre-trend''. \(\beta_{-1}\) and
+  \(\beta_0\) are reported, not tested as placebos; if negative at \(p < 0.10\), label:
+  ``construction dip''.
+\prule{A2} \emph{Main claim.} ``Living behind a barrier changes the grade-9 percentile at once''
+  is claimed only if \(\delta^{\text{SR}}\) (short window) has RI \(p < 0.05\) (permuting
+  \(\tau_b\) across corridor groups) and A1 passes. Otherwise: ``no short-run effect detected''.
+\prule{A3} \emph{Shape} (full window), only if A1 passes there. Each label stands on its own:
+  ``step'' if \(\delta\) has \(p < 0.05\); ``cumulative'' if \(\beta > 0\) at \(p < 0.05\);
+  the plateau is not tested with \(L = 1\) (decision 1); if \(L \ge 2\) is chosen, ``plateau''
+  if \(\beta_e\) is flat after \(e = A + 1\) (slope \(p \ge 0.10\)), otherwise ``no plateau''
+  (points to the project).
+\prule{B1} \emph{Noise, not the project.} Claimed only if \(\delta^{\text{SR}}\) above the
+  threshold has \(p < 0.05\), below it \(p \ge 0.10\), and their difference \(p < 0.05\).
+\prule{B2} Road and rail are estimated separately and both reported; a difference is a finding
+  only at \(p < 0.05\).
+\prule{C1} \emph{Anticipation} is found if moves out of protected reference cells between
+  \(\rho_b\) and \(\tau_b\) differ from the opposite side at \(p < 0.05\). Then the
+  \(\tau_b - 5\) estimate is reported next to the main one, labelled ``may include
+  anticipation''.
+\prule{D1} The five heterogeneity cuts are the only ones claimed, with Holm over the five. Wind
+  by side, if run, is labelled exploratory.
+\prule{E1} Grade 9 on time is a secondary outcome with its own rule A2, never combined with the
+  main outcome.
+\prule{F1} \emph{Within child} (if decision 8 includes it). ``A child's rank changes after the
+  wall'' is claimed only if \(\theta\) has RI \(p < 0.05\) (permuting \(\tau_b\) across corridor
+  groups) and the grade 3--6 placebo shows no difference by side (\(p \ge 0.10\)). Labelled
+  ``school ages, within child''; secondary, never combined with A2. If its sign differs from
+  \(\delta^{\text{SR}}\), both are reported as conflicting.
+\end{itemize}
+
+\subsection{Outcomes}\label{sec:outcomes}
+
+Nothing has run.
+
+\subsection{Change log}\label{sec:changelog}
+
+\begin{itemize}
+\item \textbf{2026-11-18, draft.} Merged from \texttt{empirical\_strategy.tex} (the design), the
+  slides revised 2026-11-04 (distance bands, grade 9 on time, anticipation by moves, barriers
+  walled on both sides) and the first Markdown draft of this pre-specification (decisions and
+  rules). Decision 6 is new: it replaces moving the band, and the profile guiding the protected
+  zone, with a rule fixed in advance.
+\item \textbf{2026-11-18, draft.} The prior is an immediate effect of noise. Added: the step at
+  \(e = 1\) (\(\delta\)) next to the ramp (\(\beta\)); \(e = -1, 0\) as transition cohorts
+  (construction works; the wall may finish after the test); the reference cohort moves from
+  \(e = -1\) to \(e = -2\); a short balanced window \(e = -K, \dots, +3\) with the short-run effect
+  \(\delta^{\text{SR}}\) as the main estimate (rules A1--A3 and B1 rewritten); decision 7 on the
+  mobility event study's reference period. No outcome has been loaded.
+\item \textbf{2026-11-18, data.} \S\ref{sec:data} records the register years (grade 9
+  1996--2022, residences from 1980, grades 3 and 6 from 2012), marks the barrier counts as
+  provisional until Trafikverket's reply, and moves the Trafikverket questions to the
+  repository's barrier data page (summarised here).
+\item \textbf{2026-11-18, windows and within-child design.} Decision 1 now carries the windows the
+  grade years allow, with counts, and recommends \(K = 5\) (short), \(K = 4\), \(L = 1\) (full)
+  and no plateau target; the full window is walls built 2000--2005, not ``by 2007''. Rule A3's
+  plateau label follows decision 1. New: the within-child design (\S\ref{sec:withinchild}),
+  decision 8 and rule F1. No outcome has been loaded.
+\end{itemize}
+
+\printbibliography[title={References}]
+
+\end{document}

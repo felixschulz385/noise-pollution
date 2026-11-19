@@ -117,13 +117,10 @@ nearer to instead of a sign. Real result: `ever_treated_same_side` for
 road rose from 4 (broken) to 869 schools. Full method + numbers in
 `schools/README.md`.
 
-## Open questions (not blocking)
+## Open questions
 
-1. ~~Fix `same_side` for road using the barrier's own recorded `side`/
-   `side_code` attribute~~ **refuted 2026-09-18** (no usable correlation
-   with true geometric side, validated via rail as an independent check --
-   see `schools/README.md`) **and superseded 2026-09-23** by the
-   carriageway-identity fix above, which needed no attribute at all.
+Not blocking.
+
 2. **Carriageway-sibling detection is imperfect, not exhaustive.** Only
    ~54% of one-directional nearest-parallel-similar-length matches among
    barrier-touched network rows are reciprocal (checked live); the
@@ -143,3 +140,12 @@ road rose from 4 (broken) to 869 schools. Full method + numbers in
    equivalent) was not investigated -- the six-package Sverigefiler list
    checked this session didn't include one, but a different NVDB export
    might.
+
+## Resolved questions
+
+1. ~~Fix `same_side` for road using the barrier's own recorded `side`/
+   `side_code` attribute~~ **refuted 2026-09-18** (no usable correlation
+   with true geometric side, validated via rail as an independent check --
+   see `schools/README.md`) **and superseded 2026-09-23** by the
+   carriageway-identity fix above, which needed no attribute at all.
+

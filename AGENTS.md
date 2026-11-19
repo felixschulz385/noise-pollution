@@ -13,16 +13,22 @@ index`; edit a charter, not this table. Each line's next step is in its charter.
 <!-- docs:begin lines -->
 | Line of work | State | Branch | Updated | Summary |
 |---|---|---|---|---|
-| [Florida: noise walls and school test scores](docs/lines/florida-schools/) | active | line/florida-schools | 2026-11-17 | Do FDOT noise walls raise test scores at the schools they protect? So far a clean null (CS ATT -0.051, RI p=0.456); post-wall cohorts at affluent-intake schools score lower |
+| [Florida: noise walls and school test scores](docs/lines/florida-schools/) | active | line/florida-schools | 2026-11-18 | Do FDOT noise walls raise test scores at the schools they protect? So far a clean null (CS ATT -0.051, RI p=0.456); post-wall cohorts at affluent-intake schools score lower |
 | [Sweden: growing up behind a noise barrier](docs/lines/sweden-residents/) | active | line/sweden-residents | 2026-11-19 | Does growing up behind a noise barrier change children's school achievement and later outcomes? A cohort-exposure design on the 100 m grid and Swedish registers; design written, no estimate yet |
-| [Sweden: noise barriers and school achievement](docs/lines/sweden-schools/) | active | line/sweden-schools | 2026-11-17 | Do Swedish road and rail noise barriers raise grade-9 achievement at the schools they protect? So far no effect beyond chance (RI p=0.186); a parental-education gradient survives |
+| [Sweden: noise barriers and school achievement](docs/lines/sweden-schools/) | active | line/sweden-schools | 2026-11-18 | Do Swedish road and rail noise barriers raise grade-9 achievement at the schools they protect? So far no effect beyond chance (RI p=0.186); a parental-education gradient survives |
 <!-- docs:end -->
 
-- **Start of a session:** read the charter of the line you work on, then its analysis notebook's
-  Summary (the record until the line has a `results.md`).
+- **Start of a session:** read the charter of the line you work on, then its `results.md` (the
+  record; `sweden-residents` has none yet, as no estimate exists).
 - **New work** starts as a new line: `python scripts/docs.py new line <slug>`, a branch
   `line/<slug>` from `master`, and a pre-spec (`new prespec <slug> <name>`) before anything
   runs.
+- **`sweden-residents` is the exception:** its record is the LaTeX pre-spec
+  `docs/lines/sweden-residents/prespec-cohort-exposure.tex` (coauthors edit it on Overleaf;
+  estimation runs on the register data outside this repository). Its `.md` is a metadata stub:
+  keep its `state`/`updated` in step with the `.tex`. The slides follow the `.tex`.
+- **Open questions:** under `## Open questions` in the doc they belong to (answered ones move to
+  `## Resolved questions`); [`docs/open-questions.md`](docs/open-questions.md) collects them.
 - **How this project departs from the template**, and the open delta:
   [`docs/design/2026-11-template-port.md`](docs/design/2026-11-template-port.md).
 
@@ -67,9 +73,11 @@ index`; edit a charter, not this table. Each line's next step is in its charter.
 
 ## Analysis
 
-- **Specification:** `src/noise_pollution/analysis/spec.py` (shared display options and palette
-  so far). One module per line of work, `src/noise_pollution/analysis/<slug>*.py`, once the
-  specification moves out of the notebooks.
+- **Specification:** one module per line of work, `src/noise_pollution/analysis/<slug>*.py`
+  (`sweden_schools.py`, `florida_schools.py`): outcome, tier, sample, covariates, baselines,
+  sites, clusters. Shared pieces: `did.py` (Python CS ATT and RI, Stata start and programs) and
+  `spec.py` (display options, palette). Notebooks import them and keep only the estimation
+  (`%%stata` cells), descriptives and prose; tests on synthetic panels in `tests/analysis/`.
 - **Notebooks:** `notebooks/<slug>/`, numbered across the project in run order; they find the
   project root by searching upward for `pyproject.toml` and keep their outputs (runs of record).
   Execute with `jupyter nbconvert --to notebook --execute --inplace <nb>`.

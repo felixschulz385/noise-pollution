@@ -19,8 +19,7 @@
 \usepackage{array}
 \usepackage{booktabs}
 \usepackage[style=authoryear, backend=biber, maxcitenames=2, uniquename=false, uniquelist=false]{biblatex}
-\addbibresource{../Noise Pollution.bib}
-\addbibresource{empirical_strategy_additions.bib}
+\addbibresource{references.bib}
 
 \setbeamerfont{itemize/enumerate subbody}{size=\small}
 \newcommand{\muted}[1]{{\color{black!55}#1}}
@@ -123,36 +122,40 @@
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}{What we expect to see: zero, ramp, plateau}
+\begin{frame}{What we expect to see: zero, step, then ramp or plateau}
 \footnotesize
 \begin{columns}[T]
 \begin{column}{0.58\textwidth}
 \centering
-\textbf{If home noise harms scores cumulatively}\\[0.5em]
+\textbf{If home noise acts at once, and may also accumulate}\\[0.5em]
 \begin{tikzpicture}[x=0.21cm, y=1.4cm, font=\scriptsize]
-  \fill[black!6] (-8,-0.15) rectangle (0,1.6);
+  \fill[black!6] (-8,-0.15) rectangle (-1.5,1.6);
+  \fill[mLightBrown!25] (-1.5,-0.15) rectangle (0.5,1.6);
+  \node[rotate=90, font=\tiny] at (-0.5,1.1) {works};
   \draw[->] (-8.5,0) -- (25,0) node[above left] {$e = t^* - \tau_b$};
   \draw[->] (-8,-0.15) -- (-8,1.7) node[above] {$\beta_e$};
   \node[below] at (8,-0.42) {years lived with the barrier before the test (at most 16)};
   \node[rotate=90, above, align=center] at (-8,0.8) {effect of protection\\on score percentile};
-  \draw[very thick, red!70!black] (-8,0) -- (0,0) -- (16,1.05) -- (17,1.3) -- (23.5,1.3);
+  \draw[very thick, red!70!black] (-8,0) -- (1,0) -- (1,0.45) -- (16,1.05) -- (17,1.3) -- (23.5,1.3);
+  \draw[densely dotted, red!70!black] (1,0.45) -- (23.5,0.45);
+  \node[font=\tiny, below right] at (1,0.45) {step $\delta$ at $e{=}1$};
   \draw[dashed, black!45] (0,-0.15) -- (0,1.6);
   \draw[dashed, black!45] (16,-0.15) -- (16,1.6);
   \node[below] at (0,-0.15) {$0$};
   \node[below] at (16,-0.15) {$A=16$};
-  \node[align=center] at (-4,0.75) {placebo:\\tested\\before};
-  \node[align=center, rotate=19] at (7.5,0.8) {ramp = age profile};
+  \node[align=center] at (-4.8,0.75) {placebo:\\tested\\before};
+  \node[align=center, rotate=12] at (8.5,0.9) {ramp = age profile};
   \node[font=\tiny] at (20.3,1.05) {$A{+}1$: in utero};
   \node at (20.3,1.5) {plateau};
 \end{tikzpicture}
 \end{column}
 \begin{column}{0.4\textwidth}
-\begin{itemize}\setlength{\itemsep}{2pt}
-  \item Tested before the barrier ($e<0$): $\beta_e = 0$
-  \item Each later cohort gets one more year, at a younger age, so the step $\beta_e - \beta_{e-1}$ is the effect of one year at age $A-e$
-  \item The step at $A+1$ is exposure in utero
-  \item Born after the barrier: same dose, so flat in the short run
-  \item Later, adaptation, traffic growth or a wall on the other side may bend it: window capped at $L$ years, slope tested
+\begin{itemize}\setlength{\itemsep}{1pt}
+  \item Tested before ($e \le -2$): $\beta_e = 0$; reference $e=-2$
+  \item $e=-1, 0$: construction works; the wall may finish after the test
+  \item Prior: noise acts at once, a step at $e=1$
+  \item If exposure accumulates, a ramp on top: $\beta_e - \beta_{e-1}$ is a year at age $A-e$
+  \item $A+1$: in utero; then flat (window capped at $L$, slope tested)
 \end{itemize}
 \end{column}
 \end{columns}
@@ -169,7 +172,7 @@
 \begin{tikzpicture}[x=0.11cm, y=0.55cm, font=\tiny]
   \draw[->, black!60] (-8,0) -- (24,0) node[right] {$e$}; \draw[dashed, black!40] (0,-0.1) -- (0,1.2);
   \node[left] at (-8,0.6) {$\beta_e$};
-  \draw[thick, red!70!black] (-8,0) -- (0,0) -- (0,0.8) -- (23,0.8);
+  \draw[thick, red!70!black] (-8,0) -- (-1,0) -- (-1,-0.5) -- (1,-0.5) -- (1,0) -- (23,0);
 \end{tikzpicture}
 &
 \begin{tikzpicture}[x=0.11cm, y=0.55cm, font=\tiny]
@@ -179,10 +182,10 @@
 \end{tikzpicture}
 \\[-0.2em]
 \scriptsize\textbf{Pre-trend} &
-\scriptsize\textbf{Step, no ramp} &
+\scriptsize\textbf{Dip at $e=-1, 0$ only} &
 \scriptsize\textbf{No plateau} \\[-0.3em]
 \scriptsize sorting, anticipation &
-\scriptsize noise around the test &
+\scriptsize construction noise &
 \scriptsize trends set off by the road project
 \end{tabular}
 \end{frame}
@@ -216,7 +219,7 @@
 \footnotesize
 \vspace{-0.4em}
 \[
-S_i = \sum_{e \neq -1} \beta_e\, \mathbf{1}\{e_i = e\}\, P_i + \gamma_{b,P_i,r(i)} + \eta_{b,e_i} + X_{f(i)}'\phi + \varepsilon_i
+S_i = \sum_{e \neq -2} \beta_e\, \mathbf{1}\{e_i = e\}\, P_i + \gamma_{b,P_i,r(i)} + \eta_{b,e_i} + X_{f(i)}'\phi + \varepsilon_i
 \]
 \vspace{-1.2em}
 \begin{columns}[T]
@@ -234,9 +237,9 @@ S_i = \sum_{e \neq -1} \beta_e\, \mathbf{1}\{e_i = e\}\, P_i + \gamma_{b,P_i,r(i
 \begin{itemize}\setlength{\itemsep}{0pt}
   \item Each stack uses only its own barrier's cells; comparison cells that another barrier protects within the window are dropped \parencite{cengizEffectMinimumWages2019}
   \item Weighted by protected children \parencite{wingStackedDifferenceinDifferences2024}
-  \item Event study: barriers built by 2007 (full window)
+  \item Balanced panels: $e = -K \dots {+3}$ for the step (recent walls too); full window for ramp and plateau (built by 2007)
   \item Clustered by connected corridors; wild cluster bootstrap, randomisation inference
-  \item Main estimate: effect per year of assigned dose, if pre-trends are flat and the ramp is roughly linear
+  \item Main estimate: short-run effect $\delta^{\text{SR}}$ ($e = 1 \dots 3$)
   \item Other estimators: \textcite{callawayDifferenceinDifferencesMultipleTime2021}, \textcite{sunEstimatingDynamicTreatment2021}, \textcite{borusyakRevisitingEventStudyDesigns2024}
 \end{itemize}
 \end{column}
@@ -297,12 +300,13 @@ Barriers come with a road project and may lower air pollution \parencite{baldauf
 % ---------------------------------------------------------------------------
 \begin{frame}[label=bk-threats]{Backup: threats and answers}
 \footnotesize
-\renewcommand{\arraystretch}{1.3}
+\renewcommand{\arraystretch}{1.15}
 \begin{tabular}{@{}L{0.27\textwidth}L{0.35\textwidth}L{0.32\textwidth}@{}}
 \toprule
 \textbf{Threat} & \textbf{Design answer} & \textbf{Evidence we show} \\
 \midrule
 Families sort or anticipate & Reference cell at $\rho_b$, via the mother; ITT & Mobility event study; births by side; predicted-score placebo \\
+Construction noise & $e=-1, 0$ as transition; reference $e=-2$ & $\beta_{-1}$, $\beta_0$ \\
 Road project comes with the barrier & Opposite side of the same road; barrier \texttimes{} year FE & Threshold, intensity, plateau; barrier \texttimes{} band \texttimes{} year FE \\
 Air pollution moves with noise & Rail against road & NO\textsubscript{2} by side, if a grid exists \\
 Staggered timing, bad comparisons & Stacking, own cells only, corrective weights & Callaway--Sant'Anna, Sun--Abraham, Borusyak et al. \\
@@ -356,14 +360,16 @@ M_{ft} = \sum_{k \neq -1} \mu_k\, \mathbf{1}\{t - \tau_b = k\}\, P_f + \gamma_{b
 \end{frame}
 
 % ---------------------------------------------------------------------------
-\begin{frame}[label=bk-dose]{Backup: effect per year of dose and age profile}
+\begin{frame}[label=bk-dose]{Backup: step, effect per year of dose and age profile}
 \footnotesize
-\[
-S_i = \beta\, D_i P_i + \beta^{\text{utero}}\, \mathbf{1}\{e_i > A\}\, P_i + \beta^{\text{pre}}\, \mathbf{1}\{e_i < 0\}\, e_i\, P_i + \gamma_{b,P_i,r(i)} + \eta_{b,e_i} + X_{f(i)}'\phi + \varepsilon_i
-\]
+\begin{align*}
+S_i ={}& \delta\, \mathbf{1}\{e_i \ge 1\} P_i + \beta\, D_i P_i + \textstyle\sum_{e \in \{-1,0\}} \beta_e \mathbf{1}\{e_i = e\} P_i \\
+&+ \beta^{\text{utero}}\, \mathbf{1}\{e_i > A\}\, P_i + \beta^{\text{pre}}\, \mathbf{1}\{e_i \le -2\}(e_i + 2)\, P_i + \gamma_{b,P_i,r(i)} + \eta_{b,e_i} + X_{f(i)}'\phi + \varepsilon_i
+\end{align*}
 \[ D_i = \min\{\max(0,\, e_i),\, A\} \]
 \begin{itemize}
-  \item $\beta$ is the effect per year of assigned dose, $\beta^{\text{utero}}$ the added effect of exposure in pregnancy, $\beta^{\text{pre}}$ a pre-trend test
+  \item $\delta$ is the step (the same for every cohort after the barrier), $\beta$ each further year of assigned dose, $\beta^{\text{utero}}$ the added effect of exposure in pregnancy, $\beta^{\text{pre}}$ a pre-trend test; $e=-1,0$ are transition cohorts
+  \item Short panel ($e \le 3$): $\delta^{\text{SR}}$ on $1\{1 \le e_i \le 3\} P_i$, the step plus at most three years of ramp
   \item Age profile: the slope may differ by the age of the added year, with kinks at 3, 7 and 13
   \item Why not regress on $D_i$ alone? Cohorts tested before would pool with comparison cells, and we would lose the placebo. A continuous dose with staggered timing also needs stronger parallel trends \parencite{callawayDifferenceinDifferencesContinuousTreatment2024}
   \item Duration vs.\ intensity: years of exposure, holding dB-years $D_i \Delta L$ fixed \parencite{hollingsworthThousandCutsCumulative2025}; $\Delta L$ permuted within corridors
