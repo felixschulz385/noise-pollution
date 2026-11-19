@@ -2,7 +2,7 @@
 
 For the call on **25 November 2026** (Trafikverket, noise and vibration; slides
 `output/presentations/2026-11-trafikverket/trafikverket-meeting.tex`). Written 2026-11-19 at the end of
-a working session; the next step (editing the slides) is yours. Nothing is committed.
+a working session; the next step (editing the slides) is yours. Committed on 2026-11-19 (section 5).
 
 ## 1. State at a glance
 
@@ -13,7 +13,7 @@ a working session; the next step (editing the slides) is yours. Nothing is commi
 | New data ordered and downloaded | Yes: 3 earlier-date road snapshots, Vägombyggnad and Vägnybyggnad, Inspire Noise (all raw, no pipeline) |
 | Docs | Updated; `python scripts/docs.py check`: 46 docs, 0 problems |
 | Slides | **Not edited.** Proposed wording is in report 02 §3.1 |
-| Git | Branch `master`; **nothing committed**; new files untracked (list in §5) |
+| Git | Branch `line/sweden-residents` (fast-forwarded to `master`), three commits, not pushed; working tree clean |
 
 ## 2. What was done, in order
 
@@ -79,31 +79,25 @@ neighbours are not only spatial neighbours and a pre-spec entry before any use.
    untested); the Inspire description page and earlier mapping rounds were not looked at.
 5. **Rename or annotate the raw files** whose names are swapped (`highway_` = rail, `railway_` = road); the scripts
    and the README name them as they are.
-6. **Tidy before committing** (section 5).
 
 ## 5. Repository state
 
-Branch `master`, no commits. `AGENTS.md` says to branch first for anything that is not documentation; the new
-`scripts/checks/` folder is code, so create a branch (for example `line/sweden-residents` or a new one) before
-committing. Changed and new files:
+Branch `line/sweden-residents` (it was already merged, so I fast-forwarded it to `master` at 247509c and
+committed on it, as `AGENTS.md` asks for non-documentation changes). **Not pushed.** Three commits, in an order
+that keeps each commit's links valid:
 
-| Path | What |
+| Commit | Content |
 |---|---|
-| `docs/data/sweden/lastkajen-unused-products.md` (new) | the products we had not used, with inspection results and order steps |
-| `docs/data/sweden/road_projects/README.md`, `inspire_noise/README.md` (new) | source pages, raw only |
-| `docs/data/sweden/noise_barriers/README.md` | raw file names, dating leads, open questions 3-5, 8-10, 13-15, 2006-batch wording |
-| `docs/data/sweden/covariates.md` | Cluster D update pointing to Vägombyggnad / Vägnybyggnad |
-| `docs/data/sweden/schools/README.md` | note on the 2026-10-20 school counts |
-| `docs/data/sweden/README.md` | two index rows, a `note` that `timetable` and `stations` have no page |
-| `docs/README.md`, `docs/open-questions.md` | regenerated (`python scripts/docs.py index`) |
-| `scripts/checks/2026-11-lastkajen/` (new) | 10 scripts and a README |
-| `output/presentations/2026-11-trafikverket/prep/01-…-report.md`, `02-…-report.md`, `03-handover.md` (new) | reports |
+| `32900ba` | `scripts/checks/2026-11-lastkajen/` (10 scripts and a README) |
+| `66d1b47` | the three prep reports (`01-…-report.md`, `02-…-report.md`, `03-handover.md`) |
+| `231e6b5` | docs: `lastkajen-unused-products.md`, the `road_projects` and `inspire_noise` source pages, the `noise_barriers`, `covariates`, `schools` and Sweden index updates, regenerated tables, and `AGENTS.md` (raw-only domains, `scripts/checks/`) |
 
-`AGENTS.md` is unchanged. It lists the data pipeline layout; consider a line for the two raw-only domains and for
-`scripts/checks/` when you commit (it asks to be updated with any layout change).
+A fourth small commit updates this file. Commit messages follow the repository's style (one long first line, then
+`- docs:` lines) and carry no co-author line, as in the existing history. `python scripts/docs.py check` passes
+(46 docs, 0 problems); no git hook is installed, so it is run by hand.
 
-Data (git-ignored, not in the commit): `data/sweden/noise_barriers/raw/road_ref_<date>/` (3 folders, about 4 MB),
-`data/sweden/road_projects/` (272 MB), `data/sweden/inspire_noise/` (645 MB). The two prep prompts
+Data stays out of git: `data/sweden/noise_barriers/raw/road_ref_<date>/` (3 folders, about 4 MB),
+`data/sweden/road_projects/` (272 MB) and `data/sweden/inspire_noise/` (645 MB) are ignored. The two prep prompts
 (`01-lastkajen-catalogue.md`, `02-local-data-check.md`) were already in the folder and are untouched.
 
 ## 6. Actions outside the repository
@@ -138,5 +132,5 @@ Data (git-ignored, not in the commit): `data/sweden/noise_barriers/raw/road_ref_
 
 1. Read this file, then report 02 §3.
 2. Edit the slides; rebuild the PDF.
-3. Run `python scripts/docs.py check`; branch; commit in clusters (docs, scripts, prep reports).
+3. Run `python scripts/docs.py check`, commit the slide edit on `line/sweden-residents`, and merge to `master` when you are happy (not pushed yet).
 4. Reproduce a number if in doubt: `scripts/checks/2026-11-lastkajen/README.md` says which script gives which result.
