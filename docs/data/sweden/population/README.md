@@ -74,6 +74,9 @@ structure: `noise_pollution.analysis.sweden_residents.children_per_cohort`.
 
   The two agree within 1% where both exist.
 
+Used by [`21_population_power.ipynb`](../../../../notebooks/sweden-residents/21_population_power.ipynb)
+(group sizes and MDE of the `sweden-residents` design).
+
 ## Open questions
 
 Not blocking.

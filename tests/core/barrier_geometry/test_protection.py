@@ -123,3 +123,33 @@ def test_zones_match_the_point_test_and_the_band_never_overlaps_the_protected_ar
         in_zone = np.array([zone.covers(p) for p in points])
         near_edge = np.array([zone.boundary.distance(p) <= ZONE_STEP_M for p in points])
         assert not ((in_zone != out[flag].to_numpy()) & ~near_edge).any()
+
+
+def test_the_opposite_side_mirrors_the_protected_area_across_the_road():
+    from noise_pollution.core.barrier_geometry.protection import opposite_side_references
+
+    refs = _straight()
+    mirror, one_sided = opposite_side_references(refs)
+    assert one_sided.tolist() == [True]
+    points = {
+        "protected": Point(2150, 300),
+        "opposite": Point(2150, -300),
+        "opposite_past_stretch": Point(2500, -300),
+        "opposite_beyond_reach": Point(2150, -700),
+    }
+    out = _classify(mirror, list(points.values())).set_index(pd.Index(points))
+    assert out["protected"].to_dict() == {
+        "protected": False, "opposite": True, "opposite_past_stretch": False, "opposite_beyond_reach": False,
+    }
+    # the original is untouched
+    assert _classify(refs, [Point(2150, 300)])["protected"].tolist() == [True]
+
+
+@pytest.mark.parametrize("method", ["unknown", "both_sides"])
+def test_two_sided_barriers_have_no_opposite_side(method):
+    from noise_pollution.core.barrier_geometry.protection import opposite_side_references
+
+    refs = _refs(LineString([(0, 0), (4000, 0)]), (2000.0, 2300.0), method=method)
+    mirror, one_sided = opposite_side_references(refs)
+    assert one_sided.tolist() == [False]
+    pd.testing.assert_frame_equal(mirror.table, refs.table)

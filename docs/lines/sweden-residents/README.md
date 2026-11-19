@@ -1,7 +1,7 @@
 ---
 type: charter
 state: active
-updated: 2026-11-17
+updated: 2026-11-19
 line: sweden-residents
 branch: line/sweden-residents
 summary: "Does growing up behind a noise barrier change children's school achievement and later outcomes? A cohort-exposure design on the 100 m grid and Swedish registers; design written, no estimate yet"
@@ -30,9 +30,16 @@ data, outside this repository.
 and exported to the shared folder (2026-10-22, [`grid`](../../data/sweden/grid/README.md),
 [`18_grid.ipynb`](../../../notebooks/sweden-residents/18_grid.ipynb)); the empirical strategy is
 written ([`empirical_strategy.pdf`](../../../output/documents/empirical-strategy/empirical_strategy.pdf),
-slides alongside). No estimate exists. **Next:** a pre-spec from the empirical strategy
-(reference dates, distance bands, the age profile), and a source for road-project dates (none
-found; τ−3 is the fallback).
+slides alongside). No estimate exists. Group sizes and a back-of-the-envelope MDE from open
+population data (2026-11-19, [`population`](../../data/sweden/population/README.md),
+[`21_population_power.ipynb`](../../../notebooks/sweden-residents/21_population_power.ipynb);
+planning numbers, no outcome; the design as drafted in the cohort-exposure pre-spec): few
+barriers have children on the opposite side, so the short-run step's MDE with that comparison
+alone is about 0.25 SD (rail) and 0.46 SD (road); with the 600–1,500 m band as well and road and
+rail pooled, about 0.13 SD. The full window works for rail only. **Next:** a pre-spec from the
+empirical strategy (reference dates, distance bands, the age profile; in light of the MDE, the
+weight of the band and pooling road and rail), and a source for road-project dates (none found;
+τ−3 is the fallback).
 
 **Branch.** `line/sweden-residents`, from `master` (the work so far is on `master`).
 
@@ -47,7 +54,8 @@ found; τ−3 is the fallback).
 
 - Notebooks: [`notebooks/sweden-residents/`](../../../notebooks/sweden-residents/)
 - Data: [`grid`](../../data/sweden/grid/README.md),
-  [`barrier_protection`](../../data/sweden/barrier_protection/README.md)
+  [`barrier_protection`](../../data/sweden/barrier_protection/README.md),
+  [`population`](../../data/sweden/population/README.md)
 - Literature: method precedents from the lead-exposure literature,
   [`output/research/literature/lead-designs/ranked.md`](../../../output/research/literature/lead-designs/ranked.md)
 - Documents: [`output/documents/empirical-strategy/`](../../../output/documents/empirical-strategy/)
