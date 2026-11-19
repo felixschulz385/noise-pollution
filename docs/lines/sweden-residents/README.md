@@ -1,7 +1,7 @@
 ---
 type: charter
 state: active
-updated: 2026-11-17
+updated: 2026-11-18
 line: sweden-residents
 branch: line/sweden-residents
 summary: "Does growing up behind a noise barrier change children's school achievement and later outcomes? A cohort-exposure design on the 100 m grid and Swedish registers; design written, no estimate yet"
@@ -28,11 +28,19 @@ data, outside this repository.
 
 **State.** Active, at the design stage. The protected-tier grid with the control band is built
 and exported to the shared folder (2026-10-22, [`grid`](../../data/sweden/grid/README.md),
-[`18_grid.ipynb`](../../../notebooks/sweden-residents/18_grid.ipynb)); the empirical strategy is
-written ([`empirical_strategy.pdf`](../../../output/documents/empirical-strategy/empirical_strategy.pdf),
-slides alongside). No estimate exists. **Next:** a pre-spec from the empirical strategy
-(reference dates, distance bands, the age profile), and a source for road-project dates (none
-found; τ−3 is the fallback).
+[`18_grid.ipynb`](../../../notebooks/sweden-residents/18_grid.ipynb)). The design, its decisions
+and its rules are one LaTeX document, the line's record:
+[`prespec-cohort-exposure.tex`](prespec-cohort-exposure.tex) ([PDF](prespec-cohort-exposure.pdf);
+draft, its open decisions wait for Felix). The slides,
+[`cohort-exposure-slides.tex`](cohort-exposure-slides.tex), follow it. No estimate exists, so
+there is no `results.md`. **Next:** the decisions, then the stack file the pre-spec specifies;
+and a source for road-project dates (none found; τ−3 is the fallback).
+
+**How this line differs.** Estimation runs with a coauthor on the register data (MONA), outside
+this repository, and coauthors edit the `.tex` on Overleaf, not Markdown. So the record is the
+`.tex` (outcomes go into its §10.3); [`prespec-cohort-exposure.md`](prespec-cohort-exposure.md)
+only carries its metadata for the docs index. Keep [`references.bib`](references.bib) in this
+folder self-contained, so the folder compiles on Overleaf.
 
 **Branch.** `line/sweden-residents`, from `master` (the work so far is on `master`).
 
@@ -41,6 +49,7 @@ found; τ−3 is the fallback).
 <!-- docs:begin docs dir=. recursive -->
 | Doc | Type | State | Updated | Summary |
 |---|---|---|---|---|
+| [prespec-cohort-exposure](prespec-cohort-exposure.md) | prespec | draft | 2026-11-18 | Step 1: the cohort-exposure design (stacked event study, dose, noise vs. project tests), with decisions and rules; the record is the .tex |
 <!-- docs:end -->
 
 ## Related
@@ -50,4 +59,5 @@ found; τ−3 is the fallback).
   [`barrier_protection`](../../data/sweden/barrier_protection/README.md)
 - Literature: method precedents from the lead-exposure literature,
   [`output/research/literature/lead-designs/ranked.md`](../../../output/research/literature/lead-designs/ranked.md)
-- Documents: [`output/documents/empirical-strategy/`](../../../output/documents/empirical-strategy/)
+- Documents: the pre-spec and the slides in this folder (moved 2026-11-18 from
+  `output/documents/empirical-strategy/`, which held `empirical_strategy.tex`)

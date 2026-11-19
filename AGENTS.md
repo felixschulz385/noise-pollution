@@ -23,6 +23,10 @@ index`; edit a charter, not this table. Each line's next step is in its charter.
 - **New work** starts as a new line: `python scripts/docs.py new line <slug>`, a branch
   `line/<slug>` from `master`, and a pre-spec (`new prespec <slug> <name>`) before anything
   runs.
+- **`sweden-residents` is the exception:** its record is the LaTeX pre-spec
+  `docs/lines/sweden-residents/prespec-cohort-exposure.tex` (coauthors edit it on Overleaf;
+  estimation runs on the register data outside this repository). Its `.md` is a metadata stub:
+  keep its `state`/`updated` in step with the `.tex`. The slides follow the `.tex`.
 - **How this project departs from the template**, and the open delta:
   [`docs/design/2026-11-template-port.md`](docs/design/2026-11-template-port.md).
 
