@@ -67,9 +67,11 @@ index`; edit a charter, not this table. Each line's next step is in its charter.
 
 ## Analysis
 
-- **Specification:** `src/noise_pollution/analysis/spec.py` (shared display options and palette
-  so far). One module per line of work, `src/noise_pollution/analysis/<slug>*.py`, once the
-  specification moves out of the notebooks.
+- **Specification:** one module per line of work, `src/noise_pollution/analysis/<slug>*.py`
+  (`sweden_schools.py`, `florida_schools.py`): outcome, tier, sample, covariates, baselines,
+  sites, clusters. Shared pieces: `did.py` (Python CS ATT and RI, Stata start and programs) and
+  `spec.py` (display options, palette). Notebooks import them and keep only the estimation
+  (`%%stata` cells), descriptives and prose; tests on synthetic panels in `tests/analysis/`.
 - **Notebooks:** `notebooks/<slug>/`, numbered across the project in run order; they find the
   project root by searching upward for `pyproject.toml` and keep their outputs (runs of record).
   Execute with `jupyter nbconvert --to notebook --execute --inplace <nb>`.

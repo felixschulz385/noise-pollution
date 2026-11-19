@@ -4,11 +4,18 @@ Put here, once: the outcome, the fixed effects, the clusters, the sample, the fu
 builds and caches the analysis panel, and the figure style. Lines of work import it instead of
 restating the specification (template rule: docs/analysis/code-and-notebooks.md).
 
-So far it holds what every notebook shared: the project root, display options and the colour
-palette (formerly ``src/experiments/_setup.py``). The estimation itself (Callaway-Sant'Anna via
-Stata ``csdid`` through ``pystata``) still runs in the analysis notebooks,
-``notebooks/{sweden,florida}-schools/``; moving their specification here is an open step
-(docs/design/2026-11-template-port.md).
+It holds what every notebook shares: the project root, display options and the colour palette
+(formerly ``src/experiments/_setup.py``). The specification of each line of work is in its own
+module (since 2026-11-18):
+
+- ``did.py``: shared by the school-level lines: the Python CS ATT and its randomization
+  inference, starting Stata, and the Stata programs both notebooks use.
+- ``sweden_schools.py``, ``florida_schools.py``: outcome, treatment tier, sample and drops,
+  covariates and control sets, baselines, within-barrier sites, clusters.
+
+The estimation itself (Callaway-Sant'Anna via Stata ``csdid``, TWFE via ``reghdfe``, through
+``pystata``) runs in the analysis notebooks, ``notebooks/{sweden,florida}-schools/``, which
+import these modules.
 
 Notebooks bootstrap with a few lines of their own (find the root by ``pyproject.toml``, put
 ``src/`` on ``sys.path`` when the package is not installed), then::
