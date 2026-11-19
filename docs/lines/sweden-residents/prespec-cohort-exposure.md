@@ -1,7 +1,7 @@
 ---
 type: prespec
 state: draft
-updated: 2026-11-18
+updated: 2026-11-19
 line: sweden-residents
 step: 1
 summary: "Step 1: the cohort-exposure design (stacked event study, dose, noise vs. project tests), with decisions and rules; the record is the .tex"
@@ -20,7 +20,7 @@ and the change log. Coauthors edit the `.tex` (on Overleaf, with
 
 Kept in the `.tex`, where coauthors see them: §9 (questions for the register data, including
 whether the grade-3 and grade-6 results are tests or grades, and for our own data build) and
-§10.1 (open decisions 1–8). Questions for Trafikverket, shared with `sweden-schools`:
+§10.1 (open decisions 1–10). Questions for Trafikverket, shared with `sweden-schools`:
 [`noise_barriers`](../../data/sweden/noise_barriers/README.md#open-questions).
 
 ## Maintenance

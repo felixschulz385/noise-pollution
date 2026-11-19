@@ -16,6 +16,9 @@ and `CONTROL_MAX_LATERAL_M` from the road. That is the comparison area of a
 within-barrier design (Moretti & Wheeler 2025 compare homes 0-500m behind a
 wall with homes 500-1500m behind the same wall).
 
+The **opposite side** (:func:`opposite_side_references`) is the protected area's rule with a
+one-sided barrier moved across its road: same stretch, same distance, the side not shielded.
+
 Which road a barrier belongs to and which side it stands on is region data:
 Sweden infers the side (`src/noise_pollution/regions/sweden/sources/_barrier_reference.py`),
 Florida reads it off the wall's own geometry
@@ -88,6 +91,20 @@ class BarrierReferences:
     lines: dict[int, LineString]
     buffer_m: float = DEFAULT_CORRIDOR_BUFFER_M
     crs: object = None
+
+
+def opposite_side_references(refs: BarrierReferences) -> tuple[BarrierReferences, np.ndarray]:
+    """`(mirror, one_sided)`: the references with every one-sided barrier moved to the other side
+    of its road, and a mask of those barriers. :func:`classify_points` on `mirror` gives the
+    **opposite side**: the area the barrier would protect on the side it does not shield (same
+    road, same stretch, same distance), the main comparison of a within-barrier design. A
+    barrier with walls on both sides, or of unknown side, has no opposite side; its rows are
+    left as they are, so callers should keep only `one_sided` barriers' results."""
+    table = refs.table.copy()
+    one_sided = (~table["side_method"].isin(TWO_SIDED_METHODS)).to_numpy()
+    table.loc[one_sided, "barrier_sign"] = -table.loc[one_sided, "barrier_sign"]
+    mirror = BarrierReferences(table=table, corridors=refs.corridors, lines=refs.lines, buffer_m=refs.buffer_m, crs=refs.crs)
+    return mirror, one_sided
 
 
 def side_reference_line(row: int, anchor, geoms: np.ndarray, endpoints, sindex, *, budget_m: float):

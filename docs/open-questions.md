@@ -21,7 +21,7 @@ its entry below links there.
 
 Kept in the `.tex`, where coauthors see them: §9 (questions for the register data, including
 whether the grade-3 and grade-6 results are tests or grades, and for our own data build) and
-§10.1 (open decisions 1–8). Questions for Trafikverket, shared with `sweden-schools`:
+§10.1 (open decisions 1–10). Questions for Trafikverket, shared with `sweden-schools`:
 [`noise_barriers`](data/sweden/noise_barriers/README.md#open-questions).
 
 **[Florida — `road_network` source: requirements for implementation](data/florida/road_network/README.md)**
@@ -127,8 +127,13 @@ this page, and the barrier counts in the line documents, are provisional until t
 
 Barriers and construction:
 
-1. Do older registers or project archives hold heights and construction
-   years for the road walls loaded in 2006?
+1. Do older registers or project archives hold construction years for the
+   undated walls: the road walls loaded in 2006 (978 of 1,114 undated; also
+   their heights) and the rail walls whose `connection_date` reads only
+   "<20190405" (451 of 487 undated)? For `sweden-residents` the rail years
+   add most to the short window, the road years to the full window
+   ([`prespec-cohort-exposure.tex`](lines/sweden-residents/prespec-cohort-exposure.tex),
+   power section).
 2. Is `built_year` the year a wall was completed, and does rebuilding a
    wall overwrite it with the new year?
 3. Are removed walls recorded anywhere? Both exports list only current
@@ -163,6 +168,15 @@ Facade measures and context:
     for a measure, and since when?
 12. Access: the format, the terms, and whether each source needs a data use
     agreement.
+
+**[`population`](data/sweden/population/README.md)**
+
+Not blocking.
+
+1. GHS-POP before 2015 rests on SCB's 2010 parish counts and growth rates. SCB's open 1 km
+   grid starts in 2015, and SCB's own 100 m grid is MONA-only. Is there an open source of
+   earlier small-area counts (e.g. older SCB grid products, or DeSO back to 2010) to check the
+   1995–2010 epochs?
 
 **[`road_network`](data/sweden/road_network/README.md)**
 

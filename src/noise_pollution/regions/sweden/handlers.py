@@ -663,3 +663,39 @@ def command_grid_export(args: argparse.Namespace) -> int:
     result = run_grid_export(out_dir=Path(args.out_dir) if args.out_dir else SHARED_EXPORT_DIR)
     print_json({"domain": "grid", "stage": "export", **result})
     return 0
+
+
+def command_population_fetch(args: argparse.Namespace) -> int:
+    from noise_pollution.regions.sweden.sources.population.fetch import run_population_fetch
+    from noise_pollution.regions.sweden.sources.population.shared import (
+        DEFAULT_GHS_EPOCHS,
+        SCB_YEARS,
+    )
+
+    result = run_population_fetch(
+        epochs=tuple(args.epochs or DEFAULT_GHS_EPOCHS), years=tuple(args.years or SCB_YEARS), overwrite=args.overwrite
+    )
+    print_json({"domain": "population", "stage": "fetch", **result})
+    return 0
+
+
+def command_population_preprocess(args: argparse.Namespace) -> int:
+    from noise_pollution.regions.sweden.sources.population.preprocess import (
+        run_population_preprocess,
+    )
+    from noise_pollution.regions.sweden.sources.population.shared import (
+        DEFAULT_GHS_EPOCHS,
+        SCB_YEARS,
+    )
+
+    result = run_population_preprocess(epochs=tuple(args.epochs or DEFAULT_GHS_EPOCHS), years=tuple(args.years or SCB_YEARS))
+    print_json({"domain": "population", "stage": "preprocess", **result})
+    return 0
+
+
+def command_population_assemble(args: argparse.Namespace) -> int:
+    from noise_pollution.regions.sweden.sources.population.assemble import run_population_assemble
+
+    result = run_population_assemble()
+    print_json({"domain": "population", "stage": "assemble", **result})
+    return 0

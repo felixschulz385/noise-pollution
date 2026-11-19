@@ -50,6 +50,7 @@ def register(regions: argparse._SubParsersAction) -> None:
     _register_traffic(data_domains)
     _register_neighbourhood(data_domains)
     _register_grid(data_domains)
+    _register_population(data_domains)
 
 
 def _register_timetable(domains: argparse._SubParsersAction) -> None:
@@ -466,3 +467,26 @@ def _register_grid(domains: argparse._SubParsersAction) -> None:
     )
     g_exp.add_argument("--out-dir", help="Default: ~/Dropbox/Noise Pollution/data/grid")
     g_exp.set_defaults(func=h.command_grid_export)
+
+
+def _register_population(domains: argparse._SubParsersAction) -> None:
+    population = domains.add_parser(
+        "population",
+        help="Residents per 100m grid cell: GHS-POP (modelled, 1975-2025) and SCB's open 1km counts. "
+        "See docs/data/sweden/population/README.md",
+    )
+    cmd = population.add_subparsers(dest="stage", required=True)
+
+    p_fetch = cmd.add_parser("fetch", help="Download GHS-POP tiles and SCB 1km geopackages")
+    p_fetch.add_argument("--epochs", type=int, nargs="+", help="GHS-POP epochs (default 1975-2025)")
+    p_fetch.add_argument("--years", type=int, nargs="+", help="SCB years (default 2015-2025)")
+    p_fetch.add_argument("--overwrite", action="store_true")
+    p_fetch.set_defaults(func=h.command_population_fetch)
+
+    p_pre = cmd.add_parser("preprocess", help="Warp GHS-POP to SWEREF99 TM 100m rasters; SCB grids to one table")
+    p_pre.add_argument("--epochs", type=int, nargs="+", help="GHS-POP epochs (default 1975-2025)")
+    p_pre.add_argument("--years", type=int, nargs="+", help="SCB years (default 2015-2025)")
+    p_pre.set_defaults(func=h.command_population_preprocess)
+
+    p_asm = cmd.add_parser("assemble", help="Population of every grid cell (requires grid preprocess)")
+    p_asm.set_defaults(func=h.command_population_assemble)

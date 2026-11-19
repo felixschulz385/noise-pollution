@@ -28,7 +28,7 @@
 
 \title{Growing up behind a noise barrier:\\ the cohort-exposure design (pre-specification)}
 \author{}
-\date{Draft, 18 November 2026}
+\date{Draft, 19 November 2026}
 
 \begin{document}
 \maketitle
@@ -261,11 +261,14 @@ and we re-estimate on children tested in their intended year.
     insulated; we check this.
   \item Of barriers built by 2007, the opposite side is more than half protected for 37\% of
     road and 42\% of rail barriers, nearly always by the same project (within 2 years).
-    Barriers with a usable opposite side hold about 60\% of protected cells.
+  \item Weighted by children it is thinner: stacks with at least one
+    expected child per cohort across the road hold 27\% (road) and 45\% (rail) of protected
+    children (\S\ref{sec:power}).
   \end{itemize}
 \item \textbf{Farther behind the barrier (600--1,500\,m band)}, after
   \textcite{morettiTrafficNoiseExternality2025}. Quieter at baseline and less affected by
-  traffic changes: secondary.
+  traffic changes. It keeps two thirds of protected children. Pooled with group~1 in the main
+  estimate if decision~\ref{dec:comparison} is taken as recommended; otherwise secondary.
 \item \textbf{Not-yet-treated corridors}, with a later \(\tau\): robustness on group 1. We do
   not rely on never-treated places alone: places that qualified but were never shielded may have
   low priority for reasons that also shape their trends.
@@ -327,6 +330,78 @@ therefore estimate a \textbf{stacked event study} \autocite{cengizEffectMinimumW
   randomisation-inference p-values.
 \end{itemize}
 
+\subsection{Sample size and power}\label{sec:power}
+
+Planning numbers from open data, computed in the repository on 19 November 2026 (notebook
+\texttt{21\_population\_power}). No outcome is loaded. The register counts of rule G4 replace
+them.
+\begin{itemize}
+\item \textbf{Children per cohort} in a cell at \(\rho_b\): GHS-POP residents on the 100\,m grid
+  (modelled, interpolated between epochs) times the cell's share aged 0--19 in SCB's 1\,km grid,
+  divided by 20. Children assigned through the mother's cell are approximated by the children
+  living there.
+\item \textbf{Usable stack}: at least one expected child per cohort on each side.
+\item \textbf{MDE}: 5\% two-sided, 80\% power, outcome in SD, no covariates, \(K = 4\), the
+  weights of \S\ref{sec:stacks}. Comparison cells shared by several stacks are treated as
+  independent, so the numbers are optimistic. A within-cell correlation of 0.02 raises them by
+  about 5\%; covariates explaining a quarter of the variance lower them by about 13\%.
+\end{itemize}
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}llrccc@{}}
+\toprule
+& & protected children & \multicolumn{3}{c}{share kept / MDE (SD)} \\
+\cmidrule(l){4-6}
+window & kind & per cohort & opposite side & band & both \\
+\midrule
+short, built 2000--2019 & road & 523 & 27\% / 0.46 & 67\% / 0.28 & 78\% / 0.22 \\
+                        & rail & 1,186 & 45\% / 0.25 & 66\% / 0.18 & 78\% / 0.15 \\
+full, built 2000--2005  & road & 16 & \multicolumn{3}{c}{4 usable stacks: not estimable} \\
+                        & rail & 410 & 42\% / 0.38 & 59\% / 0.33 & 75\% / 0.26 \\
+\bottomrule
+\end{tabular}
+
+\smallskip
+\emph{Short window: \(\delta^{\text{SR}}\); full window: the step \(\delta\). The rail full window
+detects \(\beta\) per year of dose of 0.019 / 0.017 / 0.013 SD.}
+\end{center}
+
+\paragraph{If every barrier had a construction year.} Half the road and a quarter of the rail
+records are undated (\S\ref{sec:data}), and an undated barrier has no stack. The registers bound
+the missing years: 978 of the 1,114 undated road records were in NVDB's first load in 2006, and
+451 of the 487 undated rail records carry BIS's first-load connection date (before April 2019).
+\emph{Expected}: each missing year drawn from dated barriers of the same register vintage, within
+the bound. \emph{Ceiling}: every undated barrier inside the window, within the bound. MDE in SD,
+opposite side / band / both:
+
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& today & expected & ceiling \\
+\midrule
+road, short-run \(\delta^{\text{SR}}\) & 0.46 / 0.28 / 0.22 & 0.33 / 0.22 / 0.17 & 0.25 / 0.17 / 0.14 \\
+rail, short-run \(\delta^{\text{SR}}\) & 0.25 / 0.18 / 0.15 & 0.17 / 0.12 / 0.10 & 0.16 / 0.12 / 0.10 \\
+road, full-window \(\delta\) & not estimable & 0.53 / 0.36 / 0.31 & 0.29 / 0.20 / 0.17 \\
+rail, full-window \(\delta\) & 0.38 / 0.33 / 0.26 & 0.28 / 0.20 / 0.16 & 0.21 / 0.14 / 0.12 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{What follows.}
+\begin{itemize}
+\item As drafted (opposite side, road and rail apart), the design detects only large effects:
+  about 0.25 SD for rail and 0.46 SD for road in the short run.
+\item Pooling the band with the opposite side brings this to 0.15 and 0.22 SD
+  (decision~\ref{dec:comparison}). Pooling road and rail as well gives 0.13 SD, little beyond
+  rail alone, and mixes two treatments (decision~\ref{dec:primary}).
+\item The missing construction years are the largest gain. The rail years add most to the short
+  window: with them, rail's protected children in usable stacks roughly double. The road years
+  of the 2006 load add most to the full window, which they open to road walls; 57\% of that
+  load's dated walls were built before 2000, outside every window.
+\end{itemize}
+
 % ===========================================================================
 \section{Specification}\label{sec:spec}
 
@@ -355,7 +430,9 @@ S_i = \sum_{e \neq -2} \beta_e \,\mathbf{1}\{e_i = e\}\, P_i \;+\; \gamma_{b, P_
   \textbf{Robustness:} barrier \(\times\) band \(\times\) event time FE \(\eta_{b,r,e}\), so
   every comparison is across the road at the same distance in the same year; bands with
   children on one side only drop out (we report the protected children lost), and the weights
-  are computed within barrier \(\times\) band \(\times\) event time.
+  are computed within barrier \(\times\) band \(\times\) event time. The 600--1,500\,m band has
+  no protected children, so this is the opposite-side-only estimate; with the band pooled in
+  the main estimate (decision~\ref{dec:comparison}), rule B3 compares the two.
 \item \(X_{f(i)}\): parental education, log family income and immigrant background at
   \(\rho_b\).
 \end{itemize}
@@ -750,7 +827,8 @@ counties \autocite{hollingsworthThousandCutsCumulative2025}.
   \texttt{protected}-tier treatment, construction year, timing unknown, side unknown and the
   control band; exported to the shared folder 2026-10-22.
 \item \textbf{Barriers:} Trafikverket's register; construction years for 49\% of road and 73\%
-  of rail records.
+  of rail records. Of the undated, 978 road records entered NVDB's first load in 2006 (built by
+  then) and 451 rail records carry BIS's first-load connection date (before April 2019).
 \item \textbf{Registers (MONA)}, as stated 2026-11-18:
   \begin{itemize}
   \item grade-9 grades, 1996--2022;
@@ -777,7 +855,9 @@ repository (\url{docs/data/sweden/noise_barriers/README.md}), since the school-l
 needs the same answers. They are discussed at a call with Trafikverket on 25 November 2026
 (slides in \url{output/presentations/2026-11-trafikverket/}). In short:
 \begin{enumerate}
-\item construction years and heights for the road walls loaded in 2006, and what the year means;
+\item construction years for the undated walls, both the rail walls connected before April 2019
+  (most of the short window's gain, \S\ref{sec:power}) and the road walls loaded in 2006 (the
+  full window); heights for the road walls; and what the year means;
 \item historical versions of the register, with removed walls;
 \item the exact position of each wall: its side and distance from the road;
 \item start or announcement dates of the road projects (for \(\rho_b\)), and walls planned but
@@ -852,7 +932,9 @@ main estimate; \(e = -1, 0\) as transition cohorts; \(e = -2\) as the reference.
     and the in-utero step. \(K = 3\) leaves a single placebo cohort (\(e = -3\)), and \(K = 5\)
     loses a third of the rail walls;
   \item \textbf{no plateau as a target}: \(L = 4\) keeps 25 road records. The full window is
-    mostly a rail result unless Trafikverket recovers years for the road walls loaded in 2006.
+    mostly a rail result unless Trafikverket recovers years for the road walls loaded in 2006:
+    4 usable road stacks today, about 46 with the missing years, at most 164
+    (\S\ref{sec:power}).
   \end{itemize}
   \textbf{Decided:}
 \item \textbf{The percentile.} Recommended: merit value ranked among all children in Sweden
@@ -865,12 +947,15 @@ main estimate; \(e = -1, 0\) as transition cohorts; \(e = -2\) as the reference.
   Alternative: kommun.\\ \textbf{Decided:}
 \item \textbf{Barriers walled on both sides} (about 40\% of those built by 2007). Recommended:
   they enter only through the 600--1,500\,m band; the opposite-side estimate uses one-sided
-  barriers. Report the share of protected children this moves.\\ \textbf{Decided:}
+  barriers. Report the share of protected children this moves. If decision~\ref{dec:comparison}
+  pools the band, these barriers enter the main estimate through it.\\ \textbf{Decided:}
 \item\label{dec:profile} \textbf{If the distance profile has not faded by 600\,m.} The strategy
   so far moves the band out, and lets the profile guide the protected zone. Both choose a sample
   after seeing outcomes. Recommended: keep the protected zone as the \texttt{protected} tier
   (600\,m); if the profile's 600--1,500\,m bins are jointly non-zero (\(p < 0.10\)), drop
-  comparison group 2 and report it, rather than moving the band.\\ \textbf{Decided:}
+  comparison group 2 and report it, rather than moving the band. If
+  decision~\ref{dec:comparison} pooled it, the main estimate falls back to the opposite side
+  alone.\\ \textbf{Decided:}
 \item \textbf{The mobility event study's reference period.} Households are defined by living in
   the reference cell at \(\rho_b = \tau_b - 3\), so their move hazard starts at \(k = -2\): the
   reference \(k = -1\) lies inside the anticipation window, and the side FE absorb any level
@@ -882,6 +967,20 @@ main estimate; \(e = -1, 0\) as transition cohorts; \(e = -2\) as the reference.
   secondary block (rule F1), run once MONA confirms what the grade-3 and grade-6 results are
   (question 6 of \S\ref{sec:data}). Alternative: leave it for a later pre-specification.\\
   \textbf{Decided:}
+\item\label{dec:comparison} \textbf{The comparison in the main estimate.} The opposite side alone
+  holds few children (\S\ref{sec:power}). Recommended: the opposite side and the
+  600--1,500\,m band pooled in each stack (comparison groups 1 and 2), with the FE of
+  \S\ref{sec:spec}; the opposite side alone (barrier \(\times\) band \(\times\) event time FE)
+  as the robustness check, and rule B3 comparing the two. Short-run MDE, opposite side against
+  both: road 0.46 against 0.22 SD, rail 0.25 against 0.15 SD. The cost: the band shares the
+  works and the traffic changes less closely, so a project effect that fades with distance can
+  load onto \(\beta_e\); B3 measures it. Alternative: the opposite side alone, as drafted.\\
+  \textbf{Decided:}
+\item\label{dec:primary} \textbf{One primary estimate.} Rules A2 and B2 estimate road and rail
+  separately but do not say which carries the main claim. Recommended: rail is primary (rule A2
+  at \(p < 0.05\), no correction) and road secondary, labelled as such. Rail is close to noise
+  only and more precise (short-run MDE 0.15 against 0.22 SD with both comparisons). Alternative:
+  both primary, Holm over the two.\\ \textbf{Decided:}
 \end{enumerate}
 
 \subsection{Rules}\label{sec:rules}
@@ -906,7 +1005,8 @@ Construction rules (G) load no outcome and run in the repository. The others run
   \(\beta_0\) are reported, not tested as placebos; if negative at \(p < 0.10\), label:
   ``construction dip''.
 \prule{A2} \emph{Main claim.} ``Living behind a barrier changes the grade-9 percentile at once''
-  is claimed only if \(\delta^{\text{SR}}\) (short window) has RI \(p < 0.05\) (permuting
+  is claimed only if \(\delta^{\text{SR}}\) (short window; for the primary kind of
+  decision~\ref{dec:primary}) has RI \(p < 0.05\) (permuting
   \(\tau_b\) across corridor groups) and A1 passes. Otherwise: ``no short-run effect detected''.
 \prule{A3} \emph{Shape} (full window), only if A1 passes there. Each label stands on its own:
   ``step'' if \(\delta\) has \(p < 0.05\); ``cumulative'' if \(\beta > 0\) at \(p < 0.05\);
@@ -917,6 +1017,11 @@ Construction rules (G) load no outcome and run in the repository. The others run
   threshold has \(p < 0.05\), below it \(p \ge 0.10\), and their difference \(p < 0.05\).
 \prule{B2} Road and rail are estimated separately and both reported; a difference is a finding
   only at \(p < 0.05\).
+\prule{B3} \emph{Comparison gap} (if decision~\ref{dec:comparison} pools the band).
+  \(\delta^{\text{SR}}\) is also estimated against the opposite side alone and against the band
+  alone. If they differ at \(p < 0.05\), the main estimate is labelled ``depends on the
+  comparison'', and the opposite-side estimate, which nets out the project, is reported next to
+  it.
 \prule{C1} \emph{Anticipation} is found if moves out of protected reference cells between
   \(\rho_b\) and \(\tau_b\) differ from the opposite side at \(p < 0.05\). Then the
   \(\tau_b - 5\) estimate is reported next to the main one, labelled ``may include
@@ -959,6 +1064,13 @@ Nothing has run.
   and no plateau target; the full window is walls built 2000--2005, not ``by 2007''. Rule A3's
   plateau label follows decision 1. New: the within-child design (\S\ref{sec:withinchild}),
   decision 8 and rule F1. No outcome has been loaded.
+\item \textbf{2026-11-19, power.} New \S\ref{sec:power}: group sizes and MDEs from open
+  population data, today and with every construction year. From it: the opposite side's share
+  is stated in children (27\% road, 45\% rail), not cells (``about 60\%''); new decisions 9
+  (the band pooled with the opposite side in the main estimate) and 10 (rail as the primary
+  estimate), with rule B3 and rule A2 pointing to decision 10; decisions 1, 5 and 6 note what
+  follows; the Trafikverket questions ask for the rail years as well as the road years. No
+  outcome has been loaded.
 \end{itemize}
 
 \printbibliography[title={References}]

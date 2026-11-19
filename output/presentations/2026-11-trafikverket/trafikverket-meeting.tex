@@ -152,7 +152,18 @@
 \textbf{Records by construction year}\\[0.3em]
 \begin{tikzpicture}[y=0.0021cm, x=1cm, font=\scriptsize]
   % road / rail counts per period: unknown, <1996, 1996-2005, 2006-14, 2015-22, 2023+
-  \foreach \i/\lab/\road/\rail in {0/unknown/1114/487, 1/{before\\1996}/47/15, 2/{1996--\\2005}/81/349,
+  % unknown, split: entered at the register's start (built by then) / entered later
+  \fill[mDarkTeal] (-0.42,0) rectangle (-0.02,978);
+  \fill[mDarkTeal!40] (-0.42,978) rectangle (-0.02,1114);
+  \fill[mLightBrown] (0.02,0) rectangle (0.42,451);
+  \fill[mLightBrown!40] (0.02,451) rectangle (0.42,487);
+  \node[above, font=\tiny] at (-0.22,1114) {1114};
+  \node[above, font=\tiny] at (0.22,487) {487};
+  \node[font=\tiny, white, rotate=90] at (-0.22,489) {by 2006};
+  \node[font=\tiny, white, rotate=90] at (0.22,225) {by 2019};
+  \node[below, align=center, font=\tiny] at (0,0) {unknown};
+  % road / rail counts per period: <1996, 1996-2005, 2006-14, 2015-22, 2023+
+  \foreach \i/\lab/\road/\rail in {1/{before\\1996}/47/15, 2/{1996--\\2005}/81/349,
                                    3/{2006--\\2014}/174/249, 4/{2015--\\2022}/510/527, 5/{2023--}/246/202} {
     \fill[mDarkTeal] (\i*1.05-0.42,0) rectangle (\i*1.05-0.02,\road);
     \fill[mLightBrown] (\i*1.05+0.02,0) rectangle (\i*1.05+0.42,\rail);
@@ -165,8 +176,8 @@
   \fill[mDarkTeal] (2.4,1150) rectangle (2.6,1210); \node[right] at (2.6,1180) {road};
   \fill[mLightBrown] (3.6,1150) rectangle (3.8,1210); \node[right] at (3.8,1180) {rail};
 \end{tikzpicture}\\[0.2em]
-\muted{\scriptsize Most undated road records were loaded when the register started in 2006: built
-by then, year unknown.}
+\muted{\scriptsize Most undated records entered when the registers started (dark): road in 2006,
+rail before April 2019. Built by then, year unknown.}
 \end{column}
 \end{columns}
 \end{frame}
@@ -179,7 +190,7 @@ by then, year unknown.}
 \textbf{\color{mDarkTeal}1. Noise barriers}\\[0.2em]
 \muted{extending the Lastkajen data}
 \begin{itemize}\setlength{\itemsep}{1pt}
-  \item Construction years where missing, above all the road barriers loaded in 2006
+  \item Construction years where missing: the road barriers loaded in 2006 and the rail barriers registered before April 2019
   \item Exact position: which side, how far from the road
   \item Height
   \item What the year means (completed? rebuilt?)
@@ -274,6 +285,8 @@ by then, year unknown.}
     years where road records are missing
   \item A first school-level analysis kept 55 schools behind dated barriers and had to drop 58
     behind undated ones
+  \item With every year, open population data suggest about twice as many children behind usable
+    rail barriers, and road barriers would enter the birth-to-grade-9 comparison
 \end{itemize}
 \end{frame}
 
@@ -326,8 +339,9 @@ by then, year unknown.}
 \begin{frame}{Our questions in detail (1/2): barriers and construction}
 \footnotesize
 \begin{enumerate}
-  \item Do older registers or project archives hold construction years and heights for the road
-    barriers loaded in 2006?
+  \item Do older registers or project archives hold construction years for the undated
+    barriers: the road barriers loaded in 2006 (and their heights), and the 451 rail barriers
+    whose register date reads only ``before 2019-04-05''?
   \item Is the construction year the year a barrier was completed? Does a rebuild overwrite it?
   \item Are removed barriers recorded anywhere? Our export lists only current ones. Can older
     versions of the register be ordered, e.g.\ with an earlier reference date on Lastkajen?
