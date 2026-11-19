@@ -1,7 +1,7 @@
 ---
 type: source
 state: current
-updated: 2026-11-03
+updated: 2026-11-19
 summary: "Sweden noise_barriers: what Trafikverket's road and rail registers record, and their attribute coverage"
 ---
 
@@ -92,8 +92,13 @@ this page, and the barrier counts in the line documents, are provisional until t
 
 Barriers and construction:
 
-1. Do older registers or project archives hold heights and construction
-   years for the road walls loaded in 2006?
+1. Do older registers or project archives hold construction years for the
+   undated walls: the road walls loaded in 2006 (978 of 1,114 undated; also
+   their heights) and the rail walls whose `connection_date` reads only
+   "<20190405" (451 of 487 undated)? For `sweden-residents` the rail years
+   add most to the short window, the road years to the full window
+   ([`prespec-cohort-exposure.tex`](../../../lines/sweden-residents/prespec-cohort-exposure.tex),
+   power section).
 2. Is `built_year` the year a wall was completed, and does rebuilding a
    wall overwrite it with the new year?
 3. Are removed walls recorded anywhere? Both exports list only current
