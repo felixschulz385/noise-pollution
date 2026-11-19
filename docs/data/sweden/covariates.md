@@ -1,7 +1,7 @@
 ---
 type: note
 state: current
-updated: 2026-09-24
+updated: 2026-11-19
 summary: "Catalogue of Sweden's control variables (clusters A-G) for the barrier event study and the sources that supply them"
 ---
 
@@ -175,6 +175,13 @@ signal, not for the historical co-timing analysis `covariates.md`'s
 Cluster D framing describes. Still the lowest-friction cluster to query
 (reuses `_trafikverket.py` verbatim), but low friction doesn't help if the
 data it returns can't answer the actual question.
+
+**Update 2026-11-19 — a historical source exists on Lastkajen, not yet ordered.** The NVDB
+products **Vägombyggnad** (ID 96: rebuild year, a "substantial rebuild" noise flag, project
+number and name) and **Vägnybyggnad** (ID 97: new-road year, project number and name) both keep
+history and cover the state road network, so they can supply completion years and project
+identities for the road works that came with walls. They give years only, not start dates. See
+[`lastkajen-unused-products.md`](lastkajen-unused-products.md).
 
 ---
 

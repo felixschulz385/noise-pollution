@@ -70,6 +70,12 @@ index`; edit a charter, not this table. Each line's next step is in its charter.
 - A new source: a package under `regions/<region>/sources/`, its commands in the region's
   `cli.py` and `handlers.py`, tests under `tests/regions/<region>/`, and a page
   `docs/data/<region>/<source>/README.md` with front matter.
+- **Raw-only domains** (data downloaded and inspected, no module yet): `sweden/road_projects`
+  and `sweden/inspire_noise`. Each has a source page and no code reads it; a step that uses
+  one needs a package as above and a pre-spec step first.
+- **Data checks** live in `scripts/checks/<yyyy-mm>-<topic>/` (a README says what each script
+  checks): read-only, standard library or the project environment, aggregates only. They are
+  not pre-specified analysis steps and feed no estimate.
 
 ## Analysis
 

@@ -1,7 +1,7 @@
 ---
 type: source
 state: current
-updated: 2026-10-20
+updated: 2026-11-19
 summary: "Sweden schools: Skolenhetsregistret (API v2), the reorganisation lineage and the school-barrier tiers"
 ---
 
@@ -132,6 +132,11 @@ end). `preprocess`: **10,648 rows, 9,520 geocoded** (1,128 schools with no
 usable coordinates — administrative pooling units, dormant/planned units
 with no address yet, etc.). Output:
 `data/sweden/schools/processed/schools.{csv,geojson}`.
+
+**Superseded 2026-10-20 (noted 2026-11-19):** the register now comes from API v2, which also lists
+closed units: **12,037 units, 10,531 with coordinates** (table under "API v2" above). The 10,648 and
+9,520 in this section and in the real-run tables below are the 2026-09-15 figures; the barrier
+matching in `data/sweden/schools/assembled/` covers the 10,531 schools with coordinates.
 
 **One real thing found while running it, not a bug**: the register mixes
 genuine teaching units with **administrative pooling entities** —

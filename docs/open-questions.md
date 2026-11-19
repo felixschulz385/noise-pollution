@@ -24,6 +24,16 @@ whether the grade-3 and grade-6 results are tests or grades, and for our own dat
 §10.1 (open decisions 1–10). Questions for Trafikverket, shared with `sweden-schools`:
 [`noise_barriers`](data/sweden/noise_barriers/README.md#open-questions).
 
+**[Lastkajen products we have not used](data/sweden/lastkajen-unused-products.md)**
+
+1. Is Vägombyggnad's `Objekt nr` (filled for 19% of rebuilds, 22% of new builds) the key to a
+   project register with start or decision dates, and is there a rail equivalent?
+2. The Inspire Noise maps are for 2016 and cover about half the barriers: do maps for other
+   years (earlier mapping rounds) exist, and how was the 2016 model built (are existing barriers
+   in it)?
+3. Does the barrier snapshot's temporal coverage start in 2015 or 2006, and are barriers removed
+   before 2015 kept?
+
 **[Florida — `road_network` source: requirements for implementation](data/florida/road_network/README.md)**
 
 - **4.** **Coverage for older barriers — still open, not blocking.** Some noise
@@ -136,15 +146,28 @@ Barriers and construction:
    power section).
 2. Is `built_year` the year a wall was completed, and does rebuilding a
    wall overwrite it with the new year?
-3. Are removed walls recorded anywhere? Both exports list only current
-   records (every `VALID_TO` is 9999-12-31, checked 2026-11-18). Can older
-   versions be ordered, e.g. with an earlier `Betraktelsedatum` on Lastkajen?
+3. Are removed walls recorded anywhere? Our July exports list only current
+   records (every `VALID_TO` is 9999-12-31, checked 2026-11-18), **but an
+   earlier `Betraktelsedatum` on Lastkajen returns older road versions**
+   (2015: 1,277 records, 124 closed later; 36 of 1,118 `ELEMENT_ID` seen in
+   any snapshot are absent from July; found 2026-11-19, see
+   [`../lastkajen-unused-products.md`](data/sweden/lastkajen-unused-products.md) §4).
+   Still open: are removals before 2015 kept (the specification's coverage
+   starts 2015-01-01), what happened to the 36 dropped `ELEMENT_ID` (a
+   removed wall or a retired road element), and is the same available for
+   rail (flagged "no history", not tested)?
 4. Is the exact position of each wall available (the side of the road, the
-   distance from it), beyond the centreline geometry?
+   distance from it), beyond the centreline geometry? For road, is the "real
+   geometry" that the discontinued `Verklig geometri` attributes pointed to
+   still held (in STVDB)? For rail, `Avstånd_fr_spårmitt` is recorded for 44%
+   of records; is it available for the rest?
 5. Is there any source of start or announcement dates for the road projects
    that came with the walls? The traffic-information API keeps finished
    roadworks for only about a year ([`../covariates.md`](data/sweden/covariates.md),
-   Cluster D).
+   Cluster D). Lastkajen's Vägombyggnad and Vägnybyggnad give completion
+   years and an `Objekt nr` (filled for about 20% of records; 810 of our
+   2,172 road barriers lie on a record with one): is there a project register
+   with start or decision dates behind that number, and one for rail?
 6. Construction years for specific walls: road row 1166 (kommun 1880,
    Örebro) and rail row 551 (kommun 1293, Hässleholm), the two 2001 walls
    that carry the school-level headline, and the undated walls beside the
@@ -157,17 +180,37 @@ Facade measures and context:
 8. Is the register of properties considered for noise mitigation (façade
    insulation; the data of Lindgren 2021, "A sound investment?") available to
    researchers: measure carried out, type, year, cost, and the SCB 100 m cell
-   (enough; exact positions are not needed)? Who holds it today?
+   (enough; exact positions are not needed)? Who holds it today? Lastkajen's
+   road barrier description says window measures (*fönsteråtgärder*) are held
+   in the national noise database (*nationella bullerdatabasen*): is that the
+   register, and can it be shared?
 9. Are noise levels calculated for a property or a wall, before and after the
    measure, kept (in the measure's documentation or the strategic noise maps)?
+   Lastkajen has the strategic noise maps for **2016 only** (Inspire Noise,
+   road and rail, Lden and Lnight, covering about half of our barriers; see
+   [`../lastkajen-unused-products.md`](data/sweden/lastkajen-unused-products.md) §3):
+   do maps for other years exist, and are existing walls in the 2016 model?
 10. Train counts before the walls were built, and road ÅDT for years or
     segments NVDB's history does not cover (our traffic panel matches about
-    30–40% of segments, 1998–2019; [`traffic`](data/sweden/traffic/README.md)): which
-    years exist?
+    30–40% of school-years, 1998–2019; [`traffic`](data/sweden/traffic/README.md)):
+    which years exist? We hold no train counts: `timetable` is a one-night
+    sample (2026-06-25 to 26) of train announcements.
 11. The rules over time: which noise levels qualified a property or a stretch
     for a measure, and since when?
 12. Access: the format, the terms, and whether each source needs a data use
     agreement.
+
+Added 2026-11-19 (not yet on the slides):
+
+13. Rail: is the BIS object number (`Bisobjektnr`) assigned in order of
+    registration, and is registration close to construction? Among dated rail
+    walls it follows the build year closely (rank correlation 0.85; see "Dating
+    the undated walls").
+14. Rail `Inkopplingsdatum`: does it mean the date the object was connected in
+    BIS? It trails the build year by 0 to 1 years for most records, and
+    `<20190405` is BIS's first load.
+15. Is 2006-01-01 the conversion date of the first road load, and why does the
+    specification give coverage "from 2015-01-01"?
 
 **[`population`](data/sweden/population/README.md)**
 
