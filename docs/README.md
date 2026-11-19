@@ -70,7 +70,7 @@ The docs are organised by line of work ([`lines/`](lines/)), plus the data-sourc
 | [covariates](data/sweden/covariates.md) | note | current | 2026-09-24 | Catalogue of Sweden's control variables (clusters A-G) for the barrier event study and the sources that supply them |
 | [grid](data/sweden/grid/README.md) | source | current | 2026-11-03 | Sweden grid: 100 m cells near barriers with protected-tier treatment, the control band and the export for the register merge |
 | [neighbourhood](data/sweden/neighbourhood/README.md) | source | current | 2026-09-24 | Sweden neighbourhood (Cluster F): SCB DeSO income, education and employment matched to schools |
-| [noise_barriers](data/sweden/noise_barriers/README.md) | source | current | 2026-11-03 | Sweden noise_barriers: what Trafikverket's road and rail registers record, and their attribute coverage |
+| [noise_barriers](data/sweden/noise_barriers/README.md) | source | current | 2026-11-19 | Sweden noise_barriers: what Trafikverket's road and rail registers record, and their attribute coverage |
 | [population](data/sweden/population/README.md) | source | current | 2026-11-19 | Sweden population: open 100 m residents per grid cell, GHS-POP 1975-2025 (modelled) and SCB's 1 km register counts with ages (2015-2025) |
 | [road_network](data/sweden/road_network/README.md) | source | current | 2026-09-24 | Sweden road_network: NVDB Vägtrafiknät road segments (manual Lastkajen download) |
 | [schools](data/sweden/schools/README.md) | source | current | 2026-10-20 | Sweden schools: Skolenhetsregistret (API v2), the reorganisation lineage and the school-barrier tiers |

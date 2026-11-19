@@ -155,7 +155,7 @@
   \item $e=-1, 0$: construction works; the wall may finish after the test
   \item Prior: noise acts at once, a step at $e=1$
   \item If exposure accumulates, a ramp on top: $\beta_e - \beta_{e-1}$ is a year at age $A-e$
-  \item $A+1$: in utero; then flat (window capped at $L$, slope tested)
+  \item $A+1$: in utero. The window ends there ($L = 1$): a plateau is out of reach for almost all walls
 \end{itemize}
 \end{column}
 \end{columns}
@@ -237,7 +237,7 @@ S_i = \sum_{e \neq -2} \beta_e\, \mathbf{1}\{e_i = e\}\, P_i + \gamma_{b,P_i,r(i
 \begin{itemize}\setlength{\itemsep}{0pt}
   \item Each stack uses only its own barrier's cells; comparison cells that another barrier protects within the window are dropped \parencite{cengizEffectMinimumWages2019}
   \item Weighted by protected children \parencite{wingStackedDifferenceinDifferences2024}
-  \item Balanced panels: $e = -K \dots {+3}$ for the step (recent walls too); full window for ramp and plateau (built by 2007)
+  \item Balanced panels: $e = -K \dots {+3}$ for the step (walls built 2000--2019); $e = -K \dots A{+}1$ for step, ramp and in utero (walls built 2000--2005, mostly rail)
   \item Clustered by connected corridors; wild cluster bootstrap, randomisation inference
   \item Main estimate: short-run effect $\delta^{\text{SR}}$ ($e = 1 \dots 3$)
   \item Other estimators: \textcite{callawayDifferenceinDifferencesMultipleTime2021}, \textcite{sunEstimatingDynamicTreatment2021}, \textcite{borusyakRevisitingEventStudyDesigns2024}
@@ -288,6 +288,7 @@ Barriers come with a road project and may lower air pollution \parencite{baldauf
 \midrule
 \bklink{bk-threats}{Threats and answers} & Each threat, the design answer and the evidence we show & All \\
 \bklink{bk-distance}{Distance and comparison groups} & The three comparison groups; effect by 50\,m bin; balance before the barrier & Design \\
+\bklink{bk-power}{Sample size and power} & Children per cohort and MDEs from open data, today and with every construction year & Design, estimation \\
 \bklink{bk-mobility}{Mobility and per year lived} & Moving as a mechanism; 2SLS on years actually lived & Assignment \\
 \bklink{bk-dose}{Dose and age profile} & Parametric effect per year of dose; kinks by age; duration against intensity & Prediction, estimation \\
 \bklink{bk-checks}{Other estimands and checks} & Siblings, residents at the test, heterogeneity, placebo checks & Threats \\
@@ -325,21 +326,49 @@ Sides feed different schools; grading by school & Assigned school \texttimes{} y
 \textbf{Three comparison groups}
 \begin{enumerate}\setlength{\itemsep}{1pt}
   \item Opposite side, same distance (main)
-  \item 600--1,500\,m behind the barrier
+  \item 600--1,500\,m behind the barrier (proposed: pooled with 1 in the main estimate, 1 alone as robustness)
   \item Not-yet-treated corridors (robustness)
 \end{enumerate}
 \begin{itemize}\setlength{\itemsep}{1pt}
   \item We do not rely on never-treated places alone: places that qualified but were never shielded may have low priority for reasons that also shape their trends
   \item The opposite side may have no barrier because it has few dwellings or was insulated; we check this
-  \item Barriers built by 2007: the opposite side is more than half protected for 37\% of road and 42\% of rail barriers, nearly always by the same project (within 2 years); barriers with a usable opposite side hold about 60\% of protected cells
+  \item Barriers built by 2007: the opposite side is more than half protected for 37\% of road and 42\% of rail barriers, nearly always by the same project (within 2 years); stacks with children on the opposite side hold 27\% (road) and 45\% (rail) of protected children
 \end{itemize}
 
 \medskip
 \textbf{Distance profile}
 \begin{itemize}\setlength{\itemsep}{1pt}
   \item Effect in 50\,m bins up to 1,500\,m from the barrier, each against the opposite side at the same distance
-  \item Shows how far protection reaches and whether the 600--1,500\,m band is unaffected; if it is not, the band moves out
+  \item Shows how far protection reaches and whether the 600--1,500\,m band is unaffected; if it is not, the band is dropped as a comparison, not moved
   \item Balance: before the barrier, scores should vary with distance in the same way on both sides \parencite{berkhoutLeadExposureCognitive2025}
+\end{itemize}
+\backtooverview
+\end{frame}
+
+% ---------------------------------------------------------------------------
+\begin{frame}[label=bk-power]{Backup: sample size and power}
+\footnotesize
+\textbf{Minimum detectable effect, in SD} (opposite side / 600--1,500\,m band / both)
+\smallskip
+
+\begin{tabular}{@{}lccc@{}}
+\toprule
+ & today & every year, expected & every year, ceiling \\
+\midrule
+Road, first years after & 0.46 / 0.28 / 0.22 & 0.33 / 0.22 / 0.17 & 0.25 / 0.17 / 0.14 \\
+Rail, first years after & 0.25 / 0.18 / 0.15 & 0.17 / 0.12 / 0.10 & 0.16 / 0.12 / 0.10 \\
+Road, birth to grade 9 & not estimable & 0.53 / 0.36 / 0.31 & 0.29 / 0.20 / 0.17 \\
+Rail, birth to grade 9 & 0.38 / 0.33 / 0.26 & 0.28 / 0.20 / 0.16 & 0.21 / 0.14 / 0.12 \\
+\bottomrule
+\end{tabular}
+
+\medskip
+\begin{itemize}\setlength{\itemsep}{1pt}
+  \item Planning numbers from open population data (GHS-POP, SCB's 1\,km grid); no outcome loaded; register counts replace them
+  \item Few barriers have children across the road: the opposite side alone detects only large effects
+  \item Proposed: band and opposite side pooled; rail as the primary estimate
+  \item Every construction year: rail's usable children about double; road walls enter the birth-to-grade-9 window
+  \item Expected: missing years drawn from dated walls registered at the same time; ceiling: every undated wall inside the window
 \end{itemize}
 \backtooverview
 \end{frame}

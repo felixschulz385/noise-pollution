@@ -41,9 +41,12 @@ on the opposite side, so the short-run step's MDE with that comparison alone is 
 (rail) and 0.46 SD (road); with the 600–1,500 m band as well and road and rail pooled, about
 0.13 SD. The full window works for rail only. With a construction year for every barrier (the
 notebook's §6), the short-run MDE with both comparisons would fall to about 0.17 SD (road) and
-0.10 SD (rail), and the full window would open to road walls. **Next:** the decisions (in light of the MDE, the
-weight of the band and pooling road and rail), then the stack file the pre-spec specifies; and a
-source for road-project dates (none found; τ−3 is the fallback).
+0.10 SD (rail), and the full window would open to road walls. **Next:** the decisions, among them the two the MDE
+raised (the pre-spec's power section, 2026-11-19): pooling the 600–1,500 m band with the
+opposite side in the main estimate (decision 9) and rail as the primary estimate (decision 10);
+then the stack file the pre-spec specifies; construction years from Trafikverket (call on
+2026-11-25; the rail years first); and a source for road-project dates (none found; τ−3 is the
+fallback).
 
 **How this line differs.** Estimation runs with a coauthor on the register data (MONA), outside
 this repository, and coauthors edit the `.tex` on Overleaf, not Markdown. So the record is the
@@ -58,7 +61,7 @@ folder self-contained, so the folder compiles on Overleaf.
 <!-- docs:begin docs dir=. recursive -->
 | Doc | Type | State | Updated | Summary |
 |---|---|---|---|---|
-| [prespec-cohort-exposure](prespec-cohort-exposure.md) | prespec | draft | 2026-11-18 | Step 1: the cohort-exposure design (stacked event study, dose, noise vs. project tests), with decisions and rules; the record is the .tex |
+| [prespec-cohort-exposure](prespec-cohort-exposure.md) | prespec | draft | 2026-11-19 | Step 1: the cohort-exposure design (stacked event study, dose, noise vs. project tests), with decisions and rules; the record is the .tex |
 <!-- docs:end -->
 
 ## Related
