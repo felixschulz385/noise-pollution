@@ -46,7 +46,7 @@ error; the next highest is 11.6 m.
 ## Coverage of the attributes the design needs (checked 2026-11-02)
 
 Records, not walls. The empirical strategy
-(`output/documents/empirical-strategy/empirical_strategy.tex`) needs, per
+(now [`prespec-cohort-exposure.tex`](../../../lines/sweden-residents/prespec-cohort-exposure.tex)) needs, per
 wall, a construction year (for the event time) and, for its intensity
 tests, the wall's height and its distance from the road.
 
@@ -82,16 +82,49 @@ register is thinnest:
 Rail heights are measured above the top of the rail; road heights are
 presumably above the ground or the carriageway (not documented).
 
-## Open questions for Trafikverket
+## Open questions
+
+For Trafikverket, discussed at a call on 2026-11-25 with their noise and vibration
+coordination (slides:
+[`2026-11-trafikverket/`](../../../../output/presentations/2026-11-trafikverket/trafikverket-meeting.pdf)).
+The register's construction years and heights may change with their reply, so every count on
+this page, and the barrier counts in the line documents, are provisional until then.
+
+Barriers and construction:
 
 1. Do older registers or project archives hold heights and construction
    years for the road walls loaded in 2006?
 2. Is `built_year` the year a wall was completed, and does rebuilding a
    wall overwrite it with the new year?
-3. Can we get historical versions of the register, including removed walls?
-4. Are there records of the façade insulation programme, by dwelling and
-   year?
+3. Are removed walls recorded anywhere? Both exports list only current
+   records (every `VALID_TO` is 9999-12-31, checked 2026-11-18). Can older
+   versions be ordered, e.g. with an earlier `Betraktelsedatum` on Lastkajen?
+4. Is the exact position of each wall available (the side of the road, the
+   distance from it), beyond the centreline geometry?
 5. Is there any source of start or announcement dates for the road projects
    that came with the walls? The traffic-information API keeps finished
    roadworks for only about a year ([`../covariates.md`](../covariates.md),
    Cluster D).
+6. Construction years for specific walls: road row 1166 (kommun 1880,
+   Örebro) and rail row 551 (kommun 1293, Hässleholm), the two 2001 walls
+   that carry the school-level headline, and the undated walls beside the
+   58 treated schools dropped for lack of a year
+   ([`prespec-construction-years.md`](../../../lines/sweden-schools/prespec-construction-years.md)).
+7. Are walls that were planned or proposed but never built recorded anywhere?
+
+Facade measures and context:
+
+8. Is the register of properties considered for noise mitigation (façade
+   insulation; the data of Lindgren 2021, "A sound investment?") available to
+   researchers: measure carried out, type, year, cost, and the SCB 100 m cell
+   (enough; exact positions are not needed)? Who holds it today?
+9. Are noise levels calculated for a property or a wall, before and after the
+   measure, kept (in the measure's documentation or the strategic noise maps)?
+10. Train counts before the walls were built, and road ÅDT for years or
+    segments NVDB's history does not cover (our traffic panel matches about
+    30–40% of segments, 1998–2019; [`traffic`](../traffic/README.md)): which
+    years exist?
+11. The rules over time: which noise levels qualified a property or a stretch
+    for a measure, and since when?
+12. Access: the format, the terms, and whether each source needs a data use
+    agreement.

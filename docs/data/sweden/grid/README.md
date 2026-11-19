@@ -487,7 +487,9 @@ fixes above exist only in `grid`; `schools` does not have them yet.
   The paper's triple-difference design, which depends on matching built to
   proposed-but-unbuilt barriers, has no data to run on here.
 
-## Open questions (not blocking)
+## Open questions
+
+Not blocking.
 
 1. No panel/timing join yet (Florida/Sweden's `panel/assemble.py`
    equivalent) -- this output spec currently stops at the static

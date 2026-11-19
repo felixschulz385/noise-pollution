@@ -19,6 +19,8 @@ The docs are organised by line of work ([`lines/`](lines/)), plus the data-sourc
 - **How the system is built:** [`design/overview.md`](design/overview.md).
 - **How this project departs from the template, and what is still open:**
   [`design/2026-11-template-port.md`](design/2026-11-template-port.md).
+- **Open questions** across the project, and the pre-specs' open decisions:
+  [`open-questions.md`](open-questions.md) (generated).
 - **Starting something new:** a line (`python scripts/docs.py new line <slug>`), a pre-spec
   (`new prespec <slug> <name>`), a data page (`new source <key>`), a design record
   (`new design <topic>`). Ideas not yet started: [`ideas.md`](ideas.md).
@@ -28,9 +30,9 @@ The docs are organised by line of work ([`lines/`](lines/)), plus the data-sourc
 <!-- docs:begin lines -->
 | Line of work | State | Branch | Updated | Summary |
 |---|---|---|---|---|
-| [Florida: noise walls and school test scores](lines/florida-schools/) | active | line/florida-schools | 2026-11-17 | Do FDOT noise walls raise test scores at the schools they protect? So far a clean null (CS ATT -0.051, RI p=0.456); post-wall cohorts at affluent-intake schools score lower |
-| [Sweden: growing up behind a noise barrier](lines/sweden-residents/) | active | line/sweden-residents | 2026-11-17 | Does growing up behind a noise barrier change children's school achievement and later outcomes? A cohort-exposure design on the 100 m grid and Swedish registers; design written, no estimate yet |
-| [Sweden: noise barriers and school achievement](lines/sweden-schools/) | active | line/sweden-schools | 2026-11-17 | Do Swedish road and rail noise barriers raise grade-9 achievement at the schools they protect? So far no effect beyond chance (RI p=0.186); a parental-education gradient survives |
+| [Florida: noise walls and school test scores](lines/florida-schools/) | active | line/florida-schools | 2026-11-18 | Do FDOT noise walls raise test scores at the schools they protect? So far a clean null (CS ATT -0.051, RI p=0.456); post-wall cohorts at affluent-intake schools score lower |
+| [Sweden: growing up behind a noise barrier](lines/sweden-residents/) | active | line/sweden-residents | 2026-11-18 | Does growing up behind a noise barrier change children's school achievement and later outcomes? A cohort-exposure design on the 100 m grid and Swedish registers; design written, no estimate yet |
+| [Sweden: noise barriers and school achievement](lines/sweden-schools/) | active | line/sweden-schools | 2026-11-18 | Do Swedish road and rail noise barriers raise grade-9 achievement at the schools they protect? So far no effect beyond chance (RI p=0.186); a parental-education gradient survives |
 <!-- docs:end -->
 
 ## Design records
@@ -40,7 +42,7 @@ The docs are organised by line of work ([`lines/`](lines/)), plus the data-sourc
 |---|---|---|---|---|
 | [00-overview](design/00-overview.md) | design | superseded (superseded by 2026-11-template-port.md) | 2026-09-10 | The first application of the template (2026-09): scaffolding, the CLI package and the remaining delta |
 | [01-multi-region-layout](design/01-multi-region-layout.md) | design | implemented (paths now under src/noise_pollution/; the per-region registry is still open) | 2026-11-17 | One repository, a region layer above the sources: core/ vs regions/<region>/, CLI shape <region> data ... |
-| [2026-11-template-port](design/2026-11-template-port.md) | design | implemented | 2026-11-17 | Port to the 2026-11 research-project-template: package, lines of work, docs tool, hooks, CI; regions and their CLI kept |
+| [2026-11-template-port](design/2026-11-template-port.md) | design | implemented (open delta 1-3 done 2026-11-18) | 2026-11-18 | Port to the 2026-11 research-project-template: package, lines of work, docs tool, hooks, CI; regions and their CLI kept |
 | [overview](design/overview.md) | design | current | 2026-11-17 | The system at a glance: two region pipelines, a shared core, three lines of work; later records are dated YYYY-MM-<topic>.md |
 <!-- docs:end -->
 

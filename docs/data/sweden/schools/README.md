@@ -750,7 +750,7 @@ previously had every treatment column hard-coded `False` for lack of any
 coordinates — recovered ones now get a genuine `True`/`False` from real
 distance, the rest genuinely (not by default) still `False`.
 
-## Open questions (not blocking, flag for whoever builds this)
+## Resolved questions
 
 1. ~~Confirm whether `Skolenhetsregistret` v2 differs materially from v1~~
    — resolved 2026-10-20, it does: v2 lists closed units, see "API v2"

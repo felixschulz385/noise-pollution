@@ -227,7 +227,9 @@ longer horizon tested. `vtf.trafikverket.se`'s own historical-traffic
 lookup (the one that led to the correction above) must be reading from the
 NVDB `Trafik`/`TRAFIK_DK_O` product's versioned history, not this API.
 
-## Open questions (not blocking)
+## Open questions
+
+Not blocking.
 
 1. **Coverage is now roughly uniform (~30-40%) across 1998-2019 but still
    caps around 50%** even for the best-covered recent years -- 8 orders

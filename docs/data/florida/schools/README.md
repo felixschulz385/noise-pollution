@@ -21,8 +21,7 @@ The FLDOE MSID code tables (`schools/msid_codes.py`, from
 `0101172-msid.pdf`, Appendix A/B) replaced every provisional decode. Build
 order: fetch → notebook (prototype) → preprocess/assemble (**done**).
 
-Still open, non-blocking (see [Open questions / TODO](#open-questions--todo)):
-the `road_network` source for matching algorithms 3–6.
+Still open, non-blocking: see [Open questions](#open-questions).
 
 ## Purpose
 
@@ -616,7 +615,16 @@ geospatial stage 2.
 
 ---
 
-## Open questions / TODO
+## Open questions
+
+Not blocking `preprocess.py`.
+
+- NCESSCH stability across years → static vs per-year crosswalk (only matters if
+  multi-year EDGE is added).
+- `DataSource` base class — deferred; `preprocess` is hand-wired like the others. Open delta item 4 of
+  [`2026-11-template-port.md`](../../../design/2026-11-template-port.md).
+
+## Resolved questions
 
 **Resolved** (see [Decisions locked](#decisions-locked-2026-09-10)): grade span →
 CCD; MSID type codes → raw + provisional flags; `ncessch` collision dedup; CCD
@@ -625,18 +633,12 @@ coordinate disagreement → EDGE; geocoding deferred; RCI → own `road_network`
 source; stage-2 rollup + algorithm placeholders. Urban routes confirmed against a
 healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`.
 
-**Still open — not blocking `preprocess.py`:**
-
 - **FLDOE MSID code appendix** (`GRADE_CODE` Appendix B, `TYPE`,
   `SCHL_FUNC_SETTING`, `PRIMARY_SERV_TYPE`, `CHARTER_SCHL_STAT`) — `www.fldoe.org`
   blocks scripted fetches; ask `MSID@fldoe.org`. Until then flags are provisional
   and grade span comes from CCD.
-- ~~`crdc_lep` subsource for `pct_ell`~~ **resolved** (2026-09-11): wired in
-  (endpoint 67, `/lep/sex/`), fetched 2011–2021, `tidy_crdc_lep` mirrors
-  `tidy_crdc_swd`'s dedup treatment.
-- ~~CRDC `year` → spring-year offset~~ **resolved**: `+1` confirmed against the Urban CRDC codebook. ~~`crdc_2021` raw-pull duplication~~ **resolved**: deduplicated in `_load_year_parquets`.
-- NCESSCH stability across years → static vs per-year crosswalk (only matters if
-  multi-year EDGE is added).
+  **Resolved** (checked 2026-11-18): the code tables from `0101172-msid.pdf`
+  are in `schools/msid_codes.py` (see the top of this page).
 - ~~`noise_barriers` raw roadbed/side/`RID` field for algorithm 5~~ **found**
   (2026-09-11, `notebooks/florida-schools/06_schools.ipynb` §7.7): the raw GDB
   *does* carry one — `BLOC_SIDE` (compass `EAST`/`WEST`/`NORTH`/`SOUTH`,
@@ -655,6 +657,13 @@ healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`
   [`docs/data/florida/road_network/README.md`](../road_network/README.md)**
   (confirmed FGDL `rciroads_<version>.zip` source, schema; `rciroads` itself
   still has no side/carriageway field, only `noise_barriers` does).
+  **Resolved** (checked 2026-11-18): the three columns are in
+  `noise_barriers/preprocess.py`'s `COLUMN_RENAMES`, and `barrier_protection` uses
+  `BLOC_SIDE` (`reference.py`).
+- ~~`crdc_lep` subsource for `pct_ell`~~ **resolved** (2026-09-11): wired in
+  (endpoint 67, `/lep/sex/`), fetched 2011–2021, `tidy_crdc_lep` mirrors
+  `tidy_crdc_swd`'s dedup treatment.
+- ~~CRDC `year` → spring-year offset~~ **resolved**: `+1` confirmed against the Urban CRDC codebook. ~~`crdc_2021` raw-pull duplication~~ **resolved**: deduplicated in `_load_year_parquets`.
 - ~~`FED_YRCON` semantics for `REPLACED` rows~~ **resolved** (2026-09-11,
   `schools.ipynb` §7.6): FGDL's own field definition is unambiguous —
   *"Year of Original Noise Barrier Construction."* The 10 `REPLACED BARRIERS`
@@ -694,7 +703,7 @@ healthy API (`api-downloads`): `ccd_directory` via CSV, the rest via REST+`fips`
   99.1% same-route / 82.3% same-side recovery, `road_id`/`same_route`/
   `school_side`/`wall_side` populated for all 2,173 pairs (including
   `other_wall` rows, not just `fdot_barrier`).
-- `DataSource` base class — deferred; `preprocess` is hand-wired like the others.
+
 
 ---
 

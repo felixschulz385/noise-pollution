@@ -105,6 +105,14 @@ Generated blocks look like this; `index` rewrites what is between the markers:
 <!-- docs:end -->
 ```
 
+## Open questions
+
+A doc's open questions go under one heading, `## Open questions`. When one is answered, it
+moves to `## Resolved questions` in the same doc, with the date. A pre-spec's open choices stay
+in its `## 0. Decisions for the author`. [`open-questions.md`](open-questions.md) collects both
+(generated), so nothing has to be copied there by hand. The heading is matched exactly, and a
+section ends at the next heading, so keep its items as a list without subheadings.
+
 ## Pre-specification discipline
 
 Every analysis block has rules (◇) written down before it runs. Change a rule only through the
