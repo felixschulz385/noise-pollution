@@ -18,6 +18,10 @@ not from the register, which only the coauthors with MONA access can count.
   residents interpolated between epochs, times the cell's share aged 0-19 in SCB's 1 km grid
   (nearest SCB year, 2015-2025), divided by 20. Assigned through the mother's cell at
   ``rho_b``, a stack holds roughly this many children per cohort on each side.
+- **Undated barriers** have no stack, and their cells are neither protected nor clean
+  comparisons. `impute_built_years` gives them a year (drawn from dated barriers of the same
+  register vintage, or anywhere in the window for a ceiling), bounded by the register's entry
+  date (`date_bounds`); `protected_status` recomputes the cells' timing from it.
 - **MDE**: the per-stack estimate is a contrast of protected and comparison means across event
   times, with the pre-spec's regressors on that contrast; its variance is
   ``sigma^2 * [(X'X)^-1]_kk * sum_g (icc + (1 - icc) / n_g)`` over the two sides g. Stacks are
@@ -156,6 +160,85 @@ def stack_sizes(cells: pd.DataFrame, children: pd.DataFrame) -> pd.DataFrame:
             sizes[g] = 0.0
     sizes["tau"] = cells.groupby("barrier_row")["tau"].first()
     return sizes[[*GROUPS, "tau"]]
+
+
+# --- if every barrier had a construction year ------------------------------------------------
+DATE_SCENARIOS = ("current", "expected", "ceiling")
+
+
+def date_bounds(barriers: pd.DataFrame, kind: str) -> tuple[np.ndarray, np.ndarray]:
+    """Per barrier (rows of `barriers`): the latest year it can have been built, from the
+    register, and its register vintage, the group an undated barrier's year is drawn from.
+
+    - road: NVDB's `valid_from` year. 2006 is NVDB's first load (vintage "nvdb-2006"): the wall
+      stood by then. Later entries: "later".
+    - rail: the year of `connection_date`. `connection_date_is_before_flag` marks the
+      "<20190405" entries of BIS's first load (vintage "before-2019"); the rest "later"."""
+    if kind == "road":
+        year = pd.to_datetime(barriers["valid_from"], errors="coerce").dt.year
+        vintage = np.where(year == 2006, "nvdb-2006", "later")
+    else:
+        year = pd.to_datetime(barriers["connection_date"], errors="coerce").dt.year
+        before = barriers["connection_date_is_before_flag"].fillna(False).astype(bool).to_numpy()
+        vintage = np.where(before, "before-2019", "later")
+    return year.to_numpy(dtype=float, na_value=np.nan), vintage
+
+
+def impute_built_years(
+    built: np.ndarray,
+    upper: np.ndarray,
+    vintage: np.ndarray,
+    scenario: str,
+    rng: np.random.Generator,
+    window: str | None = None,
+) -> np.ndarray:
+    """`built` with a year for every undated barrier (dated ones unchanged).
+
+    - "current": unchanged (undated stay NaN).
+    - "expected": drawn from the dated barriers of the same `vintage` built by the barrier's
+      `upper` bound (from the whole vintage if none is).
+    - "ceiling": uniform over the years of `window` up to `upper`; a bound before the window
+      puts the barrier in its first year. The most an undated barrier can add."""
+    out = np.asarray(built, dtype=float).copy()
+    if scenario == "current":
+        return out
+    undated = np.flatnonzero(np.isnan(out))
+    dated = ~np.isnan(out)
+    if scenario == "expected":
+        for i in undated:
+            pool = out[dated & (vintage == vintage[i])]
+            capped = pool[pool <= upper[i]] if np.isfinite(upper[i]) else pool
+            out[i] = rng.choice(capped if len(capped) else pool)
+        return out
+    if scenario == "ceiling":
+        lo, hi = WINDOWS[window]
+        cap = np.where(np.isfinite(upper[undated]), np.minimum(upper[undated], hi), hi)
+        cap = np.maximum(cap, lo)
+        out[undated] = np.floor(rng.uniform(lo, cap + 1))
+        return out
+    raise ValueError(f"scenario {scenario!r} not in {DATE_SCENARIOS}")
+
+
+def protected_status(pairs: pd.DataFrame, treated: np.ndarray, side_unknown: np.ndarray, built: np.ndarray) -> pd.DataFrame:
+    """`stack_cells`' `status` with construction years `built`: per cell (position), `treated`
+    and `side_unknown` as given (the grid's), `treat_year` the earliest protecting barrier's
+    year, `timing_unknown` when a protecting barrier is undated (`treat_year` is then NA, as in
+    the grid's `grid_treatment_protected`)."""
+    p = pairs[pairs["group"] == "protected"]
+    years = pd.Series(built[p["barrier_row"].to_numpy()], index=p["cell"].to_numpy())
+    by_cell = years.groupby(level=0)
+    n = len(treated)
+    first = np.full(n, np.nan)
+    undated = np.zeros(n, dtype=bool)
+    first[by_cell.min().index] = by_cell.min().to_numpy()
+    undated[by_cell.size().index] = years.isna().groupby(level=0).any().to_numpy()
+    treated = np.asarray(treated, dtype=bool)
+    return pd.DataFrame({
+        "treated": treated,
+        "treat_year": np.where(undated, np.nan, first),
+        "timing_unknown": treated & undated,
+        "side_unknown": np.asarray(side_unknown, dtype=bool),
+    })
 
 
 # --- MDE -------------------------------------------------------------------------------------

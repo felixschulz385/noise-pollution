@@ -109,3 +109,47 @@ def test_mde_without_usable_stacks_is_missing():
     sizes = pd.DataFrame({"protected": [5.0], "opposite": [0.2], "band": [0.0], "tau": [2010]})
     out = sr.mde(sizes, "opposite", sr.DESIGNS["short"], "delta_SR")
     assert out["stacks"] == 0 and np.isnan(out["mde_sd"])
+
+
+def test_date_bounds_read_the_register_entry():
+    road = pd.DataFrame({"valid_from": ["2006-02-01", "2018-05-01", None]})
+    upper, vintage = sr.date_bounds(road, "road")
+    assert np.isnan(upper[2]) and list(upper[:2]) == [2006, 2018]
+    assert list(vintage) == ["nvdb-2006", "later", "later"]
+    rail = pd.DataFrame({"connection_date": ["2019-04-05", "2022-09-29"], "connection_date_is_before_flag": [True, False]})
+    upper, vintage = sr.date_bounds(rail, "rail")
+    assert list(upper) == [2019, 2022] and list(vintage) == ["before-2019", "later"]
+
+
+def test_impute_keeps_dated_years_and_respects_the_bound():
+    built = np.array([1995.0, 2003.0, 2015.0, np.nan, np.nan])
+    upper = np.array([2006, 2006, 2018, 2006, 2018], dtype=float)
+    vintage = np.array(["a", "a", "b", "a", "b"])
+    rng = np.random.default_rng(0)
+    assert np.array_equal(sr.impute_built_years(built, upper, vintage, "current", rng), built, equal_nan=True)
+    for _ in range(50):
+        exp = sr.impute_built_years(built, upper, vintage, "expected", rng)
+        assert list(exp[:3]) == [1995, 2003, 2015]
+        assert exp[3] in (1995, 2003) and exp[4] == 2015
+        ceil = sr.impute_built_years(built, upper, vintage, "ceiling", rng, window="short")
+        assert 2000 <= ceil[3] <= 2006 and 2000 <= ceil[4] <= 2018
+
+
+def test_impute_ceiling_puts_an_early_bound_in_the_first_window_year():
+    out = sr.impute_built_years(np.array([np.nan]), np.array([1998.0]), np.array(["a"]), "ceiling",
+                                np.random.default_rng(0), window="full")
+    assert out[0] == 2000
+
+
+def test_protected_status_takes_the_earliest_protecting_barrier():
+    pairs = pd.DataFrame({
+        "cell": [0, 0, 1, 2, 3],
+        "barrier_row": [0, 1, 1, 2, 0],
+        "group": ["protected", "protected", "protected", "protected", "band"],
+    })
+    built = np.array([2010.0, 2004.0, np.nan])
+    st = sr.protected_status(pairs, np.array([True, True, True, False]), np.zeros(4, bool), built)
+    assert st.loc[0, "treat_year"] == 2004 and not st.loc[0, "timing_unknown"]
+    assert st.loc[1, "treat_year"] == 2004
+    assert np.isnan(st.loc[2, "treat_year"]) and st.loc[2, "timing_unknown"]
+    assert np.isnan(st.loc[3, "treat_year"]) and not st.loc[3, "timing_unknown"]

@@ -39,7 +39,9 @@ there is no `results.md`. Group sizes and a back-of-the-envelope MDE from open p
 planning numbers, no outcome; the design as drafted in the pre-spec): few barriers have children
 on the opposite side, so the short-run step's MDE with that comparison alone is about 0.25 SD
 (rail) and 0.46 SD (road); with the 600–1,500 m band as well and road and rail pooled, about
-0.13 SD. The full window works for rail only. **Next:** the decisions (in light of the MDE, the
+0.13 SD. The full window works for rail only. With a construction year for every barrier (the
+notebook's §6), the short-run MDE with both comparisons would fall to about 0.17 SD (road) and
+0.10 SD (rail), and the full window would open to road walls. **Next:** the decisions (in light of the MDE, the
 weight of the band and pooling road and rail), then the stack file the pre-spec specifies; and a
 source for road-project dates (none found; τ−3 is the fallback).
 
