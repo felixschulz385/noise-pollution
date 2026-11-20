@@ -1,7 +1,7 @@
 ---
 type: source
 state: current
-updated: 2026-11-19
+updated: 2026-11-20
 summary: "Sweden noise_barriers: what Trafikverket's road and rail registers record, and their attribute coverage"
 ---
 
@@ -131,7 +131,10 @@ Row 1 and the 2015 to 2022 snapshots are also the basis for the answers in
 
 For Trafikverket, discussed at a call on 2026-11-25 with their noise and vibration
 coordination (slides:
-[`2026-11-trafikverket/`](../../../../output/presentations/2026-11-trafikverket/trafikverket-meeting.pdf)).
+[`2026-11-trafikverket/`](../../../../output/presentations/2026-11-trafikverket/trafikverket-meeting.pdf);
+the slides carry short asks, and the speaker notes
+[`trafikverket-meeting-notes.md`](../../../../output/presentations/2026-11-trafikverket/trafikverket-meeting-notes.md)
+the full list below, grouped A to D).
 The register's construction years and heights may change with their reply, so every count on
 this page, and the barrier counts in the line documents, are provisional until then.
 
@@ -200,7 +203,7 @@ Facade measures and context:
 12. Access: the format, the terms, and whether each source needs a data use
     agreement.
 
-Added 2026-11-19 (not yet on the slides):
+Added 2026-11-19:
 
 13. Rail: is the BIS object number (`Bisobjektnr`) assigned in order of
     registration, and is registration close to construction? Among dated rail

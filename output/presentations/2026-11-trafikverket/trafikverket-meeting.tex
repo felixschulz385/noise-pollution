@@ -1,37 +1,31 @@
 \documentclass[aspectratio=169, 10pt]{beamer}
 
 % ---------------------------------------------------------------------------
-% Slides for the call with Trafikverket (noise and vibration), 25 November 2026,
-% 15:00-16:00, in English. Core: about 5 minutes (4 slides after the title);
-% appendix: about 5 minutes, or for questions.
-% Numbers: Lastkajen register as fetched 2026-07 (docs/data/sweden/noise_barriers/),
-% the barrier audit (docs/data/sweden/barrier_audit/) and the school-level run of
-% 2026-10-22 (docs/lines/sweden-schools/results.md).
-% Self-contained for Overleaf: references in references.bib.
+% Call with Trafikverket (noise and vibration), 25 November 2026, 15:00-16:00, in English.
+% Core: 4 slides after the title, about 5 minutes. Appendix: for questions.
+% Speaker notes, sources and the full question list: trafikverket-meeting-notes.md
+% (in the repository, next to this file). Compile with pdfLaTeX and biber.
 % ---------------------------------------------------------------------------
 
 \usetheme{metropolis}
 \metroset{progressbar=frametitle, numbering=fraction}
 \setbeamertemplate{navigation symbols}{}
 \usepackage{appendixnumberbeamer}
-\usepackage{amsmath}
 \usepackage{tikz}
-\usetikzlibrary{decorations.pathmorphing, arrows.meta}
-\usepackage{array}
-\usepackage{booktabs}
+\usetikzlibrary{arrows.meta}
 \usepackage[style=authoryear, backend=biber, maxcitenames=2, uniquename=false, uniquelist=false]{biblatex}
 \addbibresource{references.bib}
 
 \newcommand{\muted}[1]{{\color{black!55}#1}}
 \newcommand{\sv}[1]{{\color{black!55}\textit{(#1)}}}
-\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\AtBeginDocument{\setlength{\leftmargini}{1.3em}}
 
 % a small house at (x,y)
 \newcommand{\house}[3][black!45]{%
   \fill[#1] (#2-0.17,#3) rectangle (#2+0.17,#3+0.25);
   \fill[#1] (#2-0.22,#3+0.25) -- (#2,#3+0.43) -- (#2+0.22,#3+0.25) -- cycle;}
 
-\title{Noise, noise protection and children's school outcomes in Sweden}
+\title{Traffic noise, noise protection and long-run human capital in Sweden}
 \subtitle{Research plans and data questions}
 \author{Petter Lundborg \and Adrian Nieto Castro \and Armando Meier \and Felix Schulz}
 \institute{Lund University \quad University of Basel}
@@ -44,11 +38,11 @@
 % ===========================================================================
 \begin{frame}{What we want to learn}
 \begin{columns}[T]
-\begin{column}{0.56\textwidth}
+\begin{column}{0.6\textwidth}
 \small
 \textbf{Question}
 \begin{itemize}\setlength{\itemsep}{0pt}
-  \item Does road and rail noise at home and at school affect how children learn?
+  \item Does road and rail noise in childhood affect learning and later life?
   \item At which ages, and how quickly?
 \end{itemize}
 
@@ -56,18 +50,18 @@
 \textbf{Why Trafikverket's measures}
 \begin{itemize}\setlength{\itemsep}{0pt}
   \item A barrier or a facade measure cuts noise sharply, at a known place and time
-  \item So noise can be separated from everything else near busy roads
+  \item This separates noise from everything else near busy roads
 \end{itemize}
 
 \smallskip
-\textbf{What it can feed into}
+\textbf{What it gives Trafikverket}
 \begin{itemize}\setlength{\itemsep}{0pt}
-  \item The benefits of noise protection in cost--benefit assessments, next to Swedish evidence
-    on property values and health
+  \item An estimate of the long-term impact of Trafikverket's noise protection on the children
+    who grow up behind it, next to the Swedish evidence on property values and health
     \parencite{lindgrenSoundInvestmentTraffic2021,lindgrenSoundEnvironmentHealth2021}
 \end{itemize}
 \end{column}
-\begin{column}{0.42\textwidth}
+\begin{column}{0.38\textwidth}
 \centering
 \vspace{1.2em}
 \begin{tikzpicture}[scale=1.05]
@@ -119,40 +113,36 @@
 
 \medskip
 \begin{itemize}
-  \item Same road, same traffic, same road works: only one side gets quieter
+  \item Same road, traffic and road works on both sides, but only one side gets quieter
   \item We compare children who grew up on each side, before and after the barrier
-  \item Families are placed where they lived \emph{before} the project, and followed if they move
-  \item The same comparison works for facade measures: insulated against similar dwellings not
-    yet insulated
 \end{itemize}
 \end{frame}
 
 % ===========================================================================
 \begin{frame}{What we have: the Lastkajen barrier registers}
 \begin{columns}[c]
-\begin{column}{0.47\textwidth}
+\begin{column}{0.5\textwidth}
 \small
 \begin{itemize}\setlength{\itemsep}{0pt}
-  \item Bullerskydd from Lastkajen (posts 630 and 991): 2,172 road and 1,829 rail records
-  \item Matched to every school and the 100\,m grid
-  \item Side checked by hand on aerial imagery for about 2,600 barriers
+  \item Bullerskydd, Lastkajen products 63 (road, 2,172 records) and 10006 (rail, 1,829)
+  \item Linked to every school with coordinates and to 100\,m cells near each barrier
+  \item Side checked by hand on aerial imagery
 \end{itemize}
 
 \smallskip
-\textbf{The gaps}
+\textbf{What is missing}
 \begin{itemize}\setlength{\itemsep}{0pt}
-  \item \textbf{When:} no construction year for half of the road and a quarter of the rail
-    records
-  \item \textbf{Where:} drawn on the centreline, so side and distance are missing
-  \item \textbf{How tall:} no height for 62\% of road records
+  \item No construction year for half of the road and a quarter of the rail records
+  \item Road barriers sit on the centreline, with no distance and an unreliable side
+  \item Distance from the track for 44\% of rail records
+  \item No height for 62\% of road records
 \end{itemize}
 \end{column}
-\begin{column}{0.51\textwidth}
+\begin{column}{0.48\textwidth}
 \centering
 \textbf{Records by construction year}\\[0.3em]
 \begin{tikzpicture}[y=0.0021cm, x=1cm, font=\scriptsize]
-  % road / rail counts per period: unknown, <1996, 1996-2005, 2006-14, 2015-22, 2023+
-  % unknown, split: entered at the register's start (built by then) / entered later
+  % unknown, split: in the first load (built by then) / registered later
   \fill[mDarkTeal] (-0.42,0) rectangle (-0.02,978);
   \fill[mDarkTeal!40] (-0.42,978) rectangle (-0.02,1114);
   \fill[mLightBrown] (0.02,0) rectangle (0.42,451);
@@ -176,8 +166,8 @@
   \fill[mDarkTeal] (2.4,1150) rectangle (2.6,1210); \node[right] at (2.6,1180) {road};
   \fill[mLightBrown] (3.6,1150) rectangle (3.8,1210); \node[right] at (3.8,1180) {rail};
 \end{tikzpicture}\\[0.2em]
-\muted{\scriptsize Most undated records entered when the registers started (dark): road in 2006,
-rail before April 2019. Built by then, year unknown.}
+\muted{\scriptsize Dark: road records loaded in 2006 and rail records entered before April 2019.
+These barriers existed by then, but the year they were built is not recorded.}
 \end{column}
 \end{columns}
 \end{frame}
@@ -186,41 +176,43 @@ rail before April 2019. Built by then, year unknown.}
 \begin{frame}{What we would like to ask}
 \footnotesize
 \begin{columns}[T]
-\begin{column}{0.32\textwidth}
+\begin{column}{0.36\textwidth}
 \textbf{\color{mDarkTeal}1. Noise barriers}\\[0.2em]
-\muted{extending the Lastkajen data}
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item Construction years where missing: the road barriers loaded in 2006 and the rail barriers registered before April 2019
-  \item Exact position: which side, how far from the road
-  \item Height
-  \item What the year means (completed? rebuilt?)
-  \item Older versions of the register, including removed barriers
+\muted{beyond the Lastkajen registers}
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Years for the road barriers loaded in 2006 and the rail barriers entered before 2019
+  \item Heights of the older road barriers
+  \item Side and distance from the road or track
+  \item Does \textit{Byggår} mark completion? Does a rebuild overwrite it?
+  \item Older versions of the rail register
+  \item Are rail BIS numbers assigned in registration order?
 \end{itemize}
 \end{column}
-\begin{column}{0.32\textwidth}
+\begin{column}{0.28\textwidth}
 \textbf{\color{mDarkTeal}2. Facade measures}\\[0.2em]
-\muted{the insulation register \sv{bullerisolering}}
-\begin{itemize}\setlength{\itemsep}{1pt}
+\muted{the national noise database?}
+\begin{itemize}\setlength{\itemsep}{0pt}
   \item Properties considered for mitigation, and whether a measure was carried out
   \item Type of measure, year and cost
-  \item Position: the SCB 100\,m grid cell is enough
+  \item Position (the SCB 100\,m grid cell is enough)
 \end{itemize}
 \end{column}
-\begin{column}{0.32\textwidth}
+\begin{column}{0.33\textwidth}
 \textbf{\color{mDarkTeal}3. Construction and context}\\[0.2em]
 \muted{when, and how loud}
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item Start or announcement dates of the road and rail projects that came with the barriers
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item Start or decision dates for road projects with a project number, and for rail projects
   \item Noise levels calculated before and after a measure
+  \item Strategic noise maps from before 2016
   \item Train counts, and road traffic counts before NVDB's history
   \item Barriers planned or proposed but never built
 \end{itemize}
 \end{column}
 \end{columns}
 
-\bigskip
+\medskip
 \centering
-\small And: who holds each of these, and how we can apply for access.
+\small Who holds these data, and how could researchers apply for access?
 \end{frame}
 
 % ===========================================================================
@@ -235,12 +227,12 @@ rail before April 2019. Built by then, year unknown.}
 \begin{column}{0.5\textwidth}
 \small
 \begin{itemize}
-  \item Each child gets the address of their family three years before the barrier, before the
+  \item Each child is assigned the family's address three years before the barrier, before the
     project could make families move
   \item We follow the child wherever the family moves
-  \item Compare cohorts tested before and after the barrier, on the protected side against the
+  \item We compare cohorts tested before and after the barrier, on the protected side and on the
     opposite side
-  \item We expect a step: from the first cohort that spends its last school year behind the
+  \item We expect a step from the first cohort that spends its last school year behind the
     barrier
   \item Longer exposure may add to it
 \end{itemize}
@@ -255,7 +247,7 @@ rail before April 2019. Built by then, year unknown.}
   \draw[very thick, red!70!black] (-6,0) -- (1,0) -- (1,0.6) -- (11.5,1.0);
   \node[align=center] at (-3.7,0.85) {tested\\before};
   \node[rotate=90, font=\tiny] at (-0.5,0.85) {works};
-  \node[align=left, right] at (1.2,0.45) {step: quieter\\at once};
+  \node[align=left, right] at (1.2,0.45) {step, quieter\\at once};
   \node[align=center, font=\tiny] at (8.5,1.15) {longer exposure};
   \node[below] at (0,-0.2) {built};
 \end{tikzpicture}
@@ -273,20 +265,20 @@ rail before April 2019. Built by then, year unknown.}
   \fill[black!25] (1980,0.5) rectangle (2025,0.9);  \node[right] at (2025.3,0.7) {home addresses};
   \fill[black!45] (1996,1.2) rectangle (2022,1.6);  \node[right] at (2025.3,1.4) {grade-9 results};
   \fill[black!45] (2012,1.9) rectangle (2022,2.3);  \node[right] at (2025.3,2.1) {grades 3 and 6};
-  \fill[mDarkTeal] (2000,2.8) rectangle (2005,3.2); \node[right] at (2025.3,3.0) {barriers built: birth to grade 9};
-  \fill[mDarkTeal!60] (2001,3.5) rectangle (2019,3.9); \node[right] at (2025.3,3.7) {barriers built: first years after};
-  \fill[mDarkTeal!35] (2014,4.2) rectangle (2021,4.6); \node[right] at (2025.3,4.4) {barriers built: same child before and after};
+  \fill[mDarkTeal] (2000,2.8) rectangle (2005,3.2); \node[right] at (2025.3,3.0) {barriers built, birth to grade 9};
+  \fill[mDarkTeal!60] (2000,3.5) rectangle (2019,3.9); \node[right] at (2025.3,3.7) {barriers built, four cohorts before and after};
+  \fill[mDarkTeal!35] (2014,4.2) rectangle (2021,4.6); \node[right] at (2025.3,4.4) {barriers built, same child before and after};
 \end{tikzpicture}
 
 \bigskip
 \begin{itemize}
-  \item Every comparison is timed from the construction year: an undated barrier cannot be used
-  \item Following children from birth to grade 9 needs barriers built 2000--2005, exactly the
-    years where road records are missing
+  \item Every comparison is timed from the construction year, so an undated barrier cannot be used
+  \item Following children from birth to grade 9 needs barriers built 2000--2005, the years where
+    most road records have no year
   \item A first school-level analysis kept 55 schools behind dated barriers and had to drop 58
     behind undated ones
-  \item With every year, open population data suggest about twice as many children behind usable
-    rail barriers, and road barriers would enter the birth-to-grade-9 comparison
+  \item With all years known, open population data suggest about twice as many children behind
+    usable rail barriers, and road barriers could enter the birth-to-grade-9 comparison
 \end{itemize}
 \end{frame}
 
@@ -312,9 +304,11 @@ rail before April 2019. Built by then, year unknown.}
 \begin{itemize}
   \item Who is protected depends on the side of the road the barrier stands on
   \item Our predicted noise reduction needs the distance from the road and the height
-  \item We placed about 2,600 barriers by hand on aerial imagery; automatic methods agree with
-    that in 95--98\% of cases
-  \item Exact positions would replace this, and cover the barriers we could not place
+  \item The road register has no distance, and its side field did not hold up in our tests; the
+    rail register gives a distance for 44\% of barriers
+  \item We placed about 2,600 barriers by hand on aerial imagery, and automatic methods agree
+    with that in 95--98\% of cases
+  \item Exact positions would replace this and cover the barriers we could not place
 \end{itemize}
 \end{column}
 \end{columns}
@@ -323,54 +317,14 @@ rail before April 2019. Built by then, year unknown.}
 % ---------------------------------------------------------------------------
 \begin{frame}{Why facade measures matter}
 \begin{itemize}
-  \item \textbf{A second treatment.} Insulation lowers noise indoors for one dwelling at a
-    time; it can be compared with similar dwellings treated later
+  \item Insulation is a second treatment. It lowers noise indoors one dwelling at a time and can
+    be compared with similar dwellings treated later
     \parencite[as in][]{lindgrenSoundInvestmentTraffic2021}
-  \item \textbf{A cleaner comparison for barriers.} Insulated homes on the opposite side are not
-    really unexposed. Without records, our barrier estimates are likely biased toward zero
-  \item \textbf{Position.} We link households on the SCB 100\,m grid, so a grid cell per property
-    is enough
-  \item \textbf{Considered but not treated.} Properties that were assessed but not insulated are a
-    natural comparison group
+  \item Insulated homes on the opposite side of a barrier are not really unexposed. Without
+    records, our barrier estimates are likely biased toward zero
+  \item We link households on the SCB 100\,m grid, so a grid cell per property is enough
+  \item Properties that were assessed but not insulated are a natural comparison group
 \end{itemize}
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{Our questions in detail (1/2): barriers and construction}
-\footnotesize
-\begin{enumerate}
-  \item Do older registers or project archives hold construction years for the undated
-    barriers: the road barriers loaded in 2006 (and their heights), and the 451 rail barriers
-    whose register date reads only ``before 2019-04-05''?
-  \item Is the construction year the year a barrier was completed? Does a rebuild overwrite it?
-  \item Are removed barriers recorded anywhere? Our export lists only current ones. Can older
-    versions of the register be ordered, e.g.\ with an earlier reference date on Lastkajen?
-  \item Is the exact position of each barrier available (the side of the road, the distance from
-    it), beyond the centreline geometry?
-  \item Are there start or announcement dates for the road and rail projects that came with the
-    barriers? We use them to place families before the project.
-  \item Construction years for specific barriers: two built in 2001 that our school-level
-    estimate depends on (road record 1166, Örebro; rail record 551, Hässleholm), and the undated
-    barriers beside 58 schools.
-  \item Are barriers that were planned or proposed but never built recorded anywhere?
-\end{enumerate}
-\end{frame}
-
-% ---------------------------------------------------------------------------
-\begin{frame}{Our questions in detail (2/2): facade measures and context}
-\footnotesize
-\begin{enumerate}\setcounter{enumi}{7}
-  \item Is the register of properties considered for noise mitigation available to researchers
-    (the data used by \textcite{lindgrenSoundInvestmentTraffic2021}): measure carried out, type,
-    year, cost, and the SCB 100\,m cell? Who holds it today?
-  \item Are noise levels calculated for a property or a barrier, before and after the measure,
-    kept (in the measure's documentation or in the strategic noise maps)?
-  \item Train counts before the barriers were built, and road traffic counts (ÅDT) for years
-    or segments NVDB's history does not cover: which years exist?
-  \item The rules over time: which noise levels qualified a property or a stretch for a measure,
-    and since when?
-  \item Access: the format, the terms, and whether a data use agreement is needed for each source.
-\end{enumerate}
 \end{frame}
 
 % ---------------------------------------------------------------------------
