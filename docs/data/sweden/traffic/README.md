@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-25
+summary: "Sweden traffic (Cluster C): NVDB ÅDT as a multi-vintage historical panel, matched to schools"
+---
+
 # `traffic`
 
 NVDB's `Trafik` data product -- ÅDT (årsdygnstrafik, annual daily traffic)
@@ -134,7 +141,7 @@ three `Osakerhet_*` (uncertainty) fields.
 ## `preprocess` -- real run 2026-09-16 (unions all 8 real orders)
 
 ```bash
-python -m src.cli sweden data traffic preprocess
+noise_pollution sweden data traffic preprocess
 ```
 
 Unions every `.gpkg` order found under `raw/`, snake_case-renames columns,
@@ -147,7 +154,7 @@ with 2+ recovered windows -> `data/sweden/traffic/processed/traffic.parquet`.
 ## `assemble` -- real run 2026-09-16 (interval history, not a snapshot)
 
 ```bash
-python -m src.cli sweden data traffic assemble   # defaults to --max-dist 1000
+noise_pollution sweden data traffic assemble   # defaults to --max-dist 1000
 ```
 
 Two-step design: (1) `match_schools_to_element` -- a spatial nearest-segment

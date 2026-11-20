@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-# Point this repo's git at the tracked hooks in .githooks/.
-# Opt-in: a fresh clone does not run this automatically.
+# Point this clone at the repo-managed hooks in .githooks/.
 set -euo pipefail
-repo_root="$(git rev-parse --show-toplevel)"
-git -C "$repo_root" config core.hooksPath .githooks
-chmod +x "$repo_root/.githooks/pre-commit" "$repo_root/.githooks/check-notebook-outputs.py"
-echo "core.hooksPath set to .githooks"
+cd "$(git rev-parse --show-toplevel)"
+git config core.hooksPath .githooks
+echo "core.hooksPath -> .githooks (notebook outputs, restricted data, docs check)"

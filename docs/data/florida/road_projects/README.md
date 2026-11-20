@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-14
+summary: "Florida road_projects (Cluster D): FDOT Work Program and active construction projects matched to schools by milepost"
+---
+
 # Florida — `road_projects` source: requirements for implementation
 
 **Status: all three stages (`fetch`, `preprocess`, `assemble`) implemented
@@ -67,9 +74,9 @@ threshold, and that almost always happens inside a capital project.
    how a design brief turns into working `fetch`/`preprocess`/`assemble`
    stages, and because this source's join strategy (below) is unusually
    clean specifically *because* `road_network` already exists.
-3. `src/regions/florida/sources/road_network/shared.py` — `ROADWAY` id
+3. `src/noise_pollution/regions/florida/sources/road_network/shared.py` — `ROADWAY` id
    conventions this source's `RDWYID`/`RoadwayId` fields share.
-4. `src/regions/florida/sources/_layout.py`, `_http.py` — shared path/HTTP
+4. `src/noise_pollution/regions/florida/sources/_layout.py`, `_http.py` — shared path/HTTP
    helpers every Florida source uses.
 
 ## The data sources (researched and verified live 2026-09-14, not guessed)
@@ -258,7 +265,7 @@ probably shouldn't be forced into one row type.
 ## Suggested layout (mirror `road_network`/`traffic`)
 
 ```
-src/regions/florida/sources/road_projects/
+src/noise_pollution/regions/florida/sources/road_projects/
     __init__.py       # module docstring
     shared.py          # DOMAIN="road_projects", paths, layer-id constants
     fetch.py           # fetch_work_program_phase(layer_id), fetch_active_construction_projects()
@@ -284,7 +291,7 @@ registered the same way `_register_road_network`/`_register_traffic` are in
   pre-2009 coverage remains unresolved).
 - ~~`fetch.py` pulls `Work_Program_Current` layers 2 + 13 and
   `Active_Construction_Projects`.~~ **done** (2026-09-14) —
-  `src/regions/florida/sources/road_projects/{shared,fetch}.py`, real run:
+  `src/noise_pollution/regions/florida/sources/road_projects/{shared,fetch}.py`, real run:
   96,494 + 19,092 + 2,428 rows, attributes only (`returnGeometry=false`),
   ArcGIS `resultOffset` pagination. CLI: `florida data road-projects fetch`.
 - ~~`preprocess.py` produces a tidy table keyed by `roadway_id` + milepost

@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-25
+summary: "Florida traffic (Cluster C): an AADT panel from FGDL rciroads releases, matched to schools"
+---
+
 # Florida — `traffic` source: an AADT panel from FGDL `rciroads`
 
 **Status: `fetch`, `preprocess`, `assemble` (incl. the current-snapshot
@@ -24,7 +31,7 @@ neighbourhood covariates).
 
 ## The data, and why it didn't need a new fetch pipeline
 
-`road_network` (`src/regions/florida/sources/road_network/`, fully
+`road_network` (`src/noise_pollution/regions/florida/sources/road_network/`, fully
 implemented — see [`../road_network/README.md`](../road_network/README.md))
 already fetches FGDL's `rciroads_<version>.zip` releases, and that layer
 carries an **`AADT`** field per roadway segment straight from FDOT's RCI
@@ -57,13 +64,13 @@ has a use for (and it already keeps its own single default-version copy
 separately).
 
 ```bash
-python -m src.cli florida data traffic list-versions
-python -m src.cli florida data traffic fetch                       # every archived release
-python -m src.cli florida data traffic fetch --version jul26 --version jan19
-python -m src.cli florida data traffic fetch --limit 5             # 5 most recent only (smoke test)
-python -m src.cli florida data traffic fetch --force               # re-fetch even if cached
-python -m src.cli florida data traffic fetch --keep-road-network-raw
-python -m src.cli florida data traffic preprocess                  # -> data/florida/traffic/processed/aadt_panel.parquet (+ traffic.json)
+noise_pollution florida data traffic list-versions
+noise_pollution florida data traffic fetch                       # every archived release
+noise_pollution florida data traffic fetch --version jul26 --version jan19
+noise_pollution florida data traffic fetch --limit 5             # 5 most recent only (smoke test)
+noise_pollution florida data traffic fetch --force               # re-fetch even if cached
+noise_pollution florida data traffic fetch --keep-road-network-raw
+noise_pollution florida data traffic preprocess                  # -> data/florida/traffic/processed/aadt_panel.parquet (+ traffic.json)
 ```
 
 `fetch_traffic_version` is idempotent: re-running `fetch` skips a version
@@ -198,8 +205,8 @@ rather than exploded together:
   row with `NA` traffic columns rather than being dropped.
 
 ```bash
-python -m src.cli florida data traffic assemble               # REQUIRES schools + road-network preprocess, and this source's own fetch+preprocess
-python -m src.cli florida data traffic assemble --max-dist 500
+noise_pollution florida data traffic assemble               # REQUIRES schools + road-network preprocess, and this source's own fetch+preprocess
+noise_pollution florida data traffic assemble --max-dist 500
 ```
 
 **Real run**: 5,984 placed schools → **5,366 matched** (89.7%) to an
@@ -218,7 +225,7 @@ analysis-layer judgment call, not a matching one.
 
 ## `panel` join — implemented and run (2026-09-14)
 
-`src/regions/florida/sources/panel/assemble.py`'s `attach_traffic` left-joins
+`src/noise_pollution/regions/florida/sources/panel/assemble.py`'s `attach_traffic` left-joins
 `school_aadt_panel.parquet` onto `event_study_panel.parquet` via
 `pd.merge_asof(by="msid" (cast to plain `str` for the merge key — a
 parquet-read Arrow-string `msid` on one side and a plain-`object` one on the

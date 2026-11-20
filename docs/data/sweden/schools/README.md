@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-10-20
+summary: "Sweden schools: Skolenhetsregistret (API v2), the reorganisation lineage and the school-barrier tiers"
+---
+
 # `schools`
 
 Self-contained implementation brief for a fresh agent, mirroring the
@@ -72,8 +79,8 @@ Read them with `schools/assemble.py::load_barrier_pairs(kind)` /
 `load_barrier_rollup(kind)`. The old files (point and network versions
 per kind, the wide `schools_barrier_rollup`, and the four
 `schools_vanished_*`) are in `_archive_v1_2026-09-15/assembled/`, with
-the v1 raw and processed files. Experiment notebooks under
-`src/experiments/sweden/` still name the old files.
+the v1 raw and processed files. The data notebooks in
+`notebooks/sweden-schools/` still name the old files.
 
 **Vanished-school recovery removed.** All 306 schools Skolkoll recovered
 are in the v2 register at exactly the same point, and Skolkoll has
@@ -103,7 +110,7 @@ above for what changed.)
 
 ## Phase 1 — `Skolenhetsregistret` directory: implemented
 
-`src/regions/sweden/sources/schools/` — `shared.py` (paths, API URLs,
+`src/noise_pollution/regions/sweden/sources/schools/` — `shared.py` (paths, API URLs,
 `GRUNDSKOLA_GRADE_FIELDS`), `fetch.py` (`fetch_skolenhetsregistret`: always
 pulls the full lightweight list in one call, then one detail record per
 `Skolenhetskod`, idempotent — skips a code already on disk unless
@@ -189,7 +196,7 @@ Two live endpoints, REST, JSON or XML by `Accept` header, updated daily:
 
 ## `assemble` — school <-> barrier match: implemented 2026-09-15
 
-`src/regions/sweden/sources/schools/assemble.py` -- `match_barriers_point`
+`src/noise_pollution/regions/sweden/sources/schools/assemble.py` -- `match_barriers_point`
 (Florida's algorithms 1-2, `euclid_nearest` + `buffer_dose`: a dense school
 x barrier distance matrix, then a pair table + per-school rollup),
 `build_combined_rollup` (one row per school, `road_`/`rail_`-prefixed
@@ -226,7 +233,7 @@ fetched source's raw pull" lesson as
 2. **`save_processed_noise_barriers` had a broken import**
    (`from data.noise_barriers.shared import noise_barrier_paths` -- no such
    module exists; the real module is
-   `src.regions.sweden.sources.noise_barriers.shared`). This would crash
+   `noise_pollution.regions.sweden.sources.noise_barriers.shared`). This would crash
    any fresh `preprocess` run; caught only because regenerating the parquet
    files to apply fix (1) above actually exercised this code path. Fixed
    the import; both datasets now preprocess cleanly end-to-end.
@@ -297,7 +304,7 @@ resting on the full 1,251-school matched set.
 
 **Done 2026-09-16**: joining [`assessments`](../assessments/README.md)'
 achievement data through this match into one event-study panel -- see the
-new `panel` domain (`src/regions/sweden/sources/panel/`,
+new `panel` domain (`src/noise_pollution/regions/sweden/sources/panel/`,
 [top-level README row](../README.md)). Built without waiting on
 `assessments`' own cross-era stitching decision: the panel's grain is long
 (`skolenhetskod x year x era x outcome_name`), deferring which outcome to
@@ -316,7 +323,7 @@ rail's own manual download) -- see
 own brief. `match_barriers_network` in `schools/assemble.py` is now one
 generic function behind both `match_barriers_rail_network`/
 `match_barriers_road_network`, and the geometry helpers live in one shared
-`src/regions/sweden/sources/_linear_ref.py` (refactored out of
+`src/noise_pollution/regions/sweden/sources/_linear_ref.py` (refactored out of
 `network/linear_ref.py` when `road_network/linear_ref.py` was added, rather
 than duplicating ~150 lines of identical algorithm code) -- both region
 modules re-export it under their own naming (`nearest_track`/`nearest_road`
@@ -387,7 +394,7 @@ not verified.
 ### Algorithms 4+5 rebuilt on `_barrier_reference.py` (2026-09-23, supersedes the sections below)
 
 `match_barriers_network` now runs on the shared
-`src/regions/sweden/sources/_barrier_reference.py`, the same code the
+`src/noise_pollution/regions/sweden/sources/_barrier_reference.py`, the same code the
 `grid` output uses. Full rationale and validation:
 [`../barrier_matching.md`](../barrier_matching.md).
 
@@ -511,7 +518,7 @@ correlation**. Checked and ruled out digitizing-direction inconsistency
 ~100%/98.8% monotonic, so reversed segments aren't the explanation) and
 `side_code` (a redundant, sometimes-inconsistent duplicate of `side`, no
 extra signal). Full analysis in
-[`src/experiments/sweden/schools.ipynb`](../../../../src/experiments/sweden/schools.ipynb) §3.
+[`notebooks/sweden-schools/13_schools.ipynb`](../../../../notebooks/sweden-schools/13_schools.ipynb) §3.
 
 **Real fix, 2026-09-23: carriageway identity instead of a signed offset.**
 NVDB's own `Vägtrafiknät` spec states the reference line "follows the outer
@@ -600,7 +607,7 @@ from scratch also demoted 2 links that had only cleared 0.8 because raw
 `SequenceMatcher` gave partial credit for `"särskola"`/`"skola(n)"`
 sharing letters as substrings, not real equivalence). The remaining
 ambiguous or low-similarity churn is deliberately left unresolved — see
-`src/experiments/sweden/schools_lineage.ipynb` §1-2 for the full investigation,
+`notebooks/sweden-schools/14_schools_lineage.ipynb` §1-2 for the full investigation,
 including why guessing there does more harm than leaving it alone.
 
 `panel/assemble.py` applies this crosswalk with two different merge
@@ -669,7 +676,7 @@ a real pipeline stage:
 **Name+kommun matching against the current registry** (exploratory only,
 no pipeline stage — full derivation, including every sample inspected to
 justify each row below, in
-`src/experiments/sweden/schools_lineage.ipynb` §3-4) matches each vanished
+`notebooks/sweden-schools/14_schools_lineage.ipynb` §3-4) matches each vanished
 code's SIRIS-reported name and kommun against `norm_name`-normalized
 registry names within the same kommun:
 

@@ -1,4 +1,14 @@
+---
+type: design
+state: superseded
+updated: 2026-09-10
+summary: "The first application of the template (2026-09): scaffolding, the CLI package and the remaining delta"
+note: "superseded by 2026-11-template-port.md"
+---
+
 # 00 — Overview
+
+> **Superseded 2026-11-17** by [`2026-11-template-port.md`](2026-11-template-port.md). This record describes the first application of the template (September 2026); the paths and the open delta below are those of that time.
 
 This project follows the structural conventions of
 [research-project-template](https://github.com/felixschulz385/research-project-template).

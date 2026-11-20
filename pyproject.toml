@@ -1,16 +1,27 @@
+# Build metadata, package discovery, the console script and tool configuration only.
+# Dependencies live in environment.yml (docs/repository/environment.md in the template).
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "noise-pollution"
+name = "noise_pollution"
 version = "0.1.0"
+description = "Do noise barriers along roads and railways improve children's school achievement and later outcomes? Evidence from Sweden and Florida."
 requires-python = ">=3.11"
-description = "Noise pollution research project: rail-traffic data pipeline and analysis."
 
-# Dependencies are NOT listed here. environment.yml (conda) is the single
-# dependency source of truth. See docs/design/00-overview.md.
+[project.scripts]
+noise_pollution = "noise_pollution.cli.main:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["src", "src.*"]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+# pyflakes, syntax and import errors, import order
+select = ["E4", "E7", "E9", "F", "I"]

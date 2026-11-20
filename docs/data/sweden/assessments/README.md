@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-24
+summary: "Sweden assessments: Kvalitetssystem (2022/23-) and archived SIRIS grade-9 results (1998-2019)"
+---
+
 # `assessments`
 
 Self-contained implementation brief, mirroring the `road_network`/
@@ -24,7 +31,7 @@ sub-eras (pre-/post-2014/15 reform) are stitched into one continuous
 `meritvärde_z` outcome by z-scoring each side of the break separately —
 option (a) from §4, restricted to the two SIRIS sub-eras since
 `kvalitetssystem` isn't pooled in. Implemented in
-`src/regions/sweden/sources/panel/assemble.py`'s `stitch_meritvarde`.
+`src/noise_pollution/regions/sweden/sources/panel/assemble.py`'s `stitch_meritvarde`.
 
 **Key finding, the whole reason this needs a brief before building:** Sweden
 had a real ~2-year *legal* interruption of school-level statistics
@@ -35,7 +42,7 @@ needs a design decision, not just more fetch code.
 
 ## 1. `kvalitetssystem` — live PxWeb API, school-unit grain, **2022/23 → 2025/26 only**: implemented
 
-`src/regions/sweden/sources/assessments/kvalitetssystem.py` --
+`src/noise_pollution/regions/sweden/sources/assessments/kvalitetssystem.py` --
 `fetch_kvalitetssystem` (metadata -> full `level` codelist via the
 `top`-filter trick -> batched measure-value POSTs), `preprocess_kvalitetssystem`
 (flattens json-stat2's `id`/`size`/`value`/`status` arrays -- confirmed
@@ -158,7 +165,7 @@ GET https://statistikdatabasen.skolverket.se/PxWeb/api/v1/sv/Skolverkets_statist
 
 ## 2. `siris` — Skolverket's archived pre-2020 exports on S3, school-unit grain, 1998–2019: implemented
 
-`src/regions/sweden/sources/assessments/siris.py` --
+`src/noise_pollution/regions/sweden/sources/assessments/siris.py` --
 `fetch_siris_dataset` (downloads `datasets.csv`, resolves one confirmed
 school-grain series' per-year URLs, idempotent per year), `parse_siris_csv`
 (banner-skip + one/two-row header detection + Swedish-locale numeric
@@ -407,7 +414,7 @@ defer to a citable method.
 vintages here already use directly — no crosswalk needed, confirmed by
 spot-checking the same code across `schools`, `siris`, and
 `kvalitetssystem`. **The panel join is built** (2026-09-16, updated
-2026-09-17 for the stitching decision, `src/regions/sweden/sources/panel/
+2026-09-17 for the stitching decision, `src/noise_pollution/regions/sweden/sources/panel/
 assemble.py`, mirrors Florida's `panel/assemble.py`): `schools assemble`'s
 barrier-treatment timing (per `skolenhetskod`) × SIRIS's real observed
 outcome values (per `skolenhetskod` × year × era × outcome_name — still

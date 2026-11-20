@@ -1,0 +1,43 @@
+# Configuration for scripts/docs.py. The conventions are in docs/conventions.md.
+
+root = "docs"                 # every Markdown file under it carries front matter
+lines = "docs/lines"          # one folder per line of work
+templates = "docs/templates"  # skipped by the checks; copied by `new`
+
+# Markdown files outside `root` whose links are checked and which may hold generated blocks.
+extra = ["README.md", "AGENTS.md", "notebooks/README.md", ".githooks/README.md"]
+
+# Folders whose notebooks' Markdown-cell links are checked.
+notebooks = ["notebooks"]
+
+# Files under `root` that need no front matter.
+exempt = []
+
+# Doc types and the states each may be in, in life-cycle order. The order of the types is
+# the reading order of the generated tables. Profile: research.
+[types.charter]       # docs/lines/<slug>/README.md: the line's question, branch, state, next step
+states = ["proposed", "active", "complete", "stopped"]
+
+[types.results]       # the record of a line: every step's outcome, side by side
+states = ["current", "final"]
+
+[types.outline]       # the story told from the results; adds no estimate (depends_on results)
+states = ["current", "final"]
+
+[types.prespec]       # rules fixed before a step runs; outcomes recorded in it afterwards
+states = ["draft", "confirmed", "run", "recorded", "withdrawn"]
+
+[types.literature]    # what the literature says and where the results sit
+states = ["current", "final"]
+
+[types.note]          # dated notes: checks, plans, handoffs
+states = ["current", "record", "superseded"]
+
+[types.source]        # docs/data/<key>/README.md: one page per data source
+states = ["current", "superseded"]
+
+[types.design]        # docs/design/YYYY-MM-<topic>.md: infrastructure decisions, never renamed
+states = ["proposed", "current", "implemented", "historical", "superseded"]
+
+[types.index]         # navigation pages and conventions
+states = ["current"]

@@ -1,0 +1,6 @@
+# Restricted (licensed or confidential) data: one regular expression per line, matched
+# case-insensitively. Used by both hooks:
+#   - check-notebook-outputs.py blocks outputs in any notebook whose code matches;
+#   - check-restricted.py blocks figures and documents whose path matches.
+# Name the restricted sources, their id columns and the words their file names use.
+# Empty (only comments): nothing is restricted beyond restricted/ directories.

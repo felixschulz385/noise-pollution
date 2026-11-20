@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-10-20
+summary: "Sweden barrier_protection: every barrier's stretch, side and protected area, as a national protection layer"
+---
+
 # `barrier_protection`
 
 For every road and rail noise barrier in Sweden, this stage records:
@@ -8,9 +15,9 @@ For every road and rail noise barrier in Sweden, this stage records:
 It is computed once and saved. `schools`, `grid` and any other analysis
 load it rather than re-deriving it from the 2M-row road network. The method
 and its validation are in [`../barrier_matching.md`](../barrier_matching.md).
-Sweden's side inference is `src/regions/sweden/sources/_barrier_reference.py`.
+Sweden's side inference is `src/noise_pollution/regions/sweden/sources/_barrier_reference.py`.
 The protected-area model (`classify_points`, `protection_zones`) is the
-region-agnostic `src/core/barrier_geometry/protection.py`, shared with
+region-agnostic `src/noise_pollution/core/barrier_geometry/protection.py`, shared with
 Florida.
 
 **Status (2026-09-24): implemented and run on the real layers.** One build
@@ -21,7 +28,7 @@ network and drawing the zones; rail 57s. The whole downstream regeneration
 ## Command
 
 ```
-python -m src.cli sweden data barrier-protection build [--kind road|rail] [--budget-m 800] [--buffer-m 600]
+noise_pollution sweden data barrier-protection build [--kind road|rail] [--budget-m 800] [--buffer-m 600]
 ```
 
 Requires:
@@ -75,7 +82,7 @@ a barrier:
 Use it for any unit of analysis:
 
 ```python
-from src.regions.sweden.sources.barrier_protection.shared import load_protection_zones
+from noise_pollution.regions.sweden.sources.barrier_protection.shared import load_protection_zones
 zones = load_protection_zones()                  # or kind="road"
 hits = units.to_crs(3006).sjoin(zones, predicate="within")
 ```
@@ -175,7 +182,7 @@ barrier's side, with its nearest road point beside the stretch ±50m, and
   `control_band` / `control_band_unknown`. Without the argument, its
   output is unchanged.
 - **Explained with figures:**
-  [`shared_methodology.ipynb`](../../../src/experiments/shared_methodology.ipynb) §2.
+  [`shared_methodology.ipynb`](../../../../notebooks/sweden-schools/17_shared_methodology.ipynb) §2.
 
 | | road | rail |
 |---|---|---|

@@ -1,6 +1,11 @@
-# Data (regenerate via the pipeline; never commit bulk data)
-/data
+# Data (regenerate via the pipeline; never commit bulk data). The data root is data/ in this
+# repository unless noise_pollution.local.yaml sets another one.
+/data/
+/data_nobackup/
 scratch_nobackup/
+
+# Restricted data: figures and files that show restricted records
+restricted/
 
 # Logs
 /log
@@ -11,18 +16,33 @@ scratch_nobackup/
 *.local.yaml
 .env.local
 
-# Editor / agent artifacts
+# Editor / agent / OS artifacts (._* are macOS metadata files on network mounts)
 .vscode/
 .codex
 .claude/
 .DS_Store
+._*
 
 # Python build artifacts
 __pycache__/
 *.pyc
 *.egg-info/
 .pytest_cache/
+.ruff_cache/
 .venv/
+.ipynb_checkpoints/
 
-# Regeneratable analysis output (see docs/ from research-project-template)
-/output/analysis/
+# LaTeX build files (output/documents/: the .tex sources and .pdf are tracked)
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
+*-SAVE-ERROR

@@ -1,4 +1,14 @@
+---
+type: design
+state: implemented
+updated: 2026-11-17
+summary: "One repository, a region layer above the sources: core/ vs regions/<region>/, CLI shape <region> data ..."
+note: "paths now under src/noise_pollution/; the per-region registry is still open"
+---
+
 # 01 — Multi-region layout
+
+> **Updated 2026-11-17** ([`2026-11-template-port.md`](2026-11-template-port.md)): the package is now `src/noise_pollution/` (`core/`, `regions/`, `cli/`), the entry point the `noise_pollution` console script, notebooks are under `notebooks/<line>/`, and the per-region configs are one `orchestration/configs/noise_pollution.yaml`. The decision recorded here (a region layer) stands; the per-region registry and the `data <verb> --source` shape are still open.
 
 **Status:** decided 2026-09-09; layout implemented 2026-09-10. Sources still
 carry their pre-existing function-module shape (the `DataSource` /

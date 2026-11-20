@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-24
+summary: "Sweden neighbourhood (Cluster F): SCB DeSO income, education and employment matched to schools"
+---
+
 # `neighbourhood`
 
 SCB DeSO-grain small-area statistics — Covariate Cluster F
@@ -76,8 +83,8 @@ assumed**:
 ### Boundaries (WFS, no auth)
 
 ```bash
-python -m src.cli sweden data neighbourhood fetch-boundaries   # ~15-20 min, resumable
-python -m src.cli sweden data neighbourhood preprocess-boundaries
+noise_pollution sweden data neighbourhood fetch-boundaries   # ~15-20 min, resumable
+noise_pollution sweden data neighbourhood preprocess-boundaries
 ```
 
 **Genuinely slow, confirmed by direct timing**: ~90 seconds per 500
@@ -91,12 +98,12 @@ kvalitetssystem.py` — a page already on disk is skipped unless `--force`.
 ### Income / education / employment (SCB PxWebApi, no auth)
 
 ```bash
-python -m src.cli sweden data neighbourhood fetch-income        # ~80s for all DeSO2018 codes
-python -m src.cli sweden data neighbourhood preprocess-income
-python -m src.cli sweden data neighbourhood fetch-education      # ~60s
-python -m src.cli sweden data neighbourhood preprocess-education
-python -m src.cli sweden data neighbourhood fetch-employment     # ~75s
-python -m src.cli sweden data neighbourhood preprocess-employment
+noise_pollution sweden data neighbourhood fetch-income        # ~80s for all DeSO2018 codes
+noise_pollution sweden data neighbourhood preprocess-income
+noise_pollution sweden data neighbourhood fetch-education      # ~60s
+noise_pollution sweden data neighbourhood preprocess-education
+noise_pollution sweden data neighbourhood fetch-employment     # ~75s
+noise_pollution sweden data neighbourhood preprocess-employment
 ```
 
 All three share one batched-by-region PxWeb fetch helper
@@ -121,7 +128,7 @@ the whole country in ~60-80 seconds each, 12 batches.
 ### Assemble
 
 ```bash
-python -m src.cli sweden data neighbourhood assemble
+noise_pollution sweden data neighbourhood assemble
 ```
 
 ## Real schema, confirmed live 2026-09-17

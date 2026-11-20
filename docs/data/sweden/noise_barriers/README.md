@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-11-03
+summary: "Sweden noise_barriers: what Trafikverket's road and rail registers record, and their attribute coverage"
+---
+
 # `noise_barriers`
 
 Trafikverket's register of noise barriers along state roads and railways,
@@ -6,7 +13,7 @@ ordered from Lastkajen: `Bullerskydd - väg` (road, ordered 2026-07-06) and
 order receipts are next to the raw files in `data/sweden/noise_barriers/raw/`.
 
 `preprocess` writes `data/sweden/noise_barriers/processed/{road,rail}_noise_barriers.parquet`
-(`src/regions/sweden/sources/noise_barriers/`). Side matching and protected
+(`src/noise_pollution/regions/sweden/sources/noise_barriers/`). Side matching and protected
 areas are built from these files in [`../barrier_protection/README.md`](../barrier_protection/README.md);
 the method is in [`../barrier_matching.md`](../barrier_matching.md).
 

@@ -1,0 +1,89 @@
+"""Paths and constants for the Sweden `grid` source: a self-built 100m x
+100m analysis grid ("statistikrutor") covering the area around Sweden's
+road/rail noise barriers, matched to schools' `noise_barriers` layer to
+assign treated/untreated distance-band flags per cell -- a second output
+spec alongside `schools assemble` (which matches barriers to *schools*
+instead of grid cells), see docs/data/sweden/grid/README.md.
+
+**This is NOT SCB's real 100m register grid.** SCB's genuine
+individual-geocoded 100m population grid is restricted MONA microdata (a
+formal researcher application + remote-access session, confirmed live
+2026-09-22 -- SCB's only *open* grid geodata product, "Statistik på
+rutor", is 1km resolution, see
+https://www.scb.se/en/services/open-data-api/open-geodata/grid-statistics/).
+Since this output only needs cell *geometry* (to place treated/untreated
+distance bands), not real population counts, `preprocess.py` generates the
+100m tiling itself -- deterministically aligned to the same convention
+SCB's real grids use: the cell id is SCB's 13-digit code of the cell's
+lower-left corner in SWEREF99TM, snapped to multiples of `RESOLUTION_M`
+(see `cell_id`), so register residences join on it directly.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+from noise_pollution.core.barrier_geometry.protection import (
+    CONTROL_MAX_LATERAL_M,
+    PROTECTED_SPAN_MARGIN_M,
+)
+from noise_pollution.regions.sweden.sources._layout import (
+    METRIC_CRS,  # noqa: F401  (re-exported for grid modules)
+    domain_dirs,
+)
+
+RESOLUTION_M = 100
+# 100m increments out to 500m (mirrors Moretti & Wheeler's distance-bin
+# structure, Table 2/Figure 4), plus a single 500-1000m control band.
+BAND_RADII_M = (100, 200, 300, 400, 500, 1000)
+# The fishnet reaches as far as the protection rule's control band (since
+# 2026-10-22; it was the widest distance band, 1000m, before): a band point
+# lies up to 1500m from its barrier's road, beside the stretch +-50m, plus
+# the same 50m slack `side.CANDIDATE_RADIUS_M` gives barriers that sit a
+# little off their road. Cells past the widest distance band simply get
+# `ever_near_*m = False`.
+BUFFER_M = CONTROL_MAX_LATERAL_M + PROTECTED_SPAN_MARGIN_M + 50.0
+
+# Distance-decay index (`assemble.py::relative_loudness_reduction_pct`):
+# reproduces Moretti & Wheeler's Appendix Table A3 physics -- inverse-square-
+# law decibel decay (-6 dB per doubling of distance) from a reference noise
+# level, then a barrier's assumed attenuation, converted to a 0-100 perceived
+# loudness scale (a 10 dB drop halves perceived loudness). Neither Florida's
+# public FGDL barrier layer nor Sweden's Trafikverket layer records a real
+# per-barrier engineering dB reduction (the paper's FDOT-internal field), so
+# `ASSUMED_BARRIER_REDUCTION_DB` is a documented ASSUMPTION applied uniformly
+# to every barrier, not a measured value -- it is close to both the paper's
+# own Florida sample average (7.15 dB) and the national average it cites
+# (7.0 dB, Rochat 2016). The resulting index is a distance-only exposure
+# proxy for dose-response analysis, not a claim about any specific barrier's
+# real acoustic performance.
+ASSUMED_BARRIER_REDUCTION_DB = 7.0
+REFERENCE_DIST_M = 25.0
+REFERENCE_DB = 76.0
+
+# Where `grid export` writes the treatment CSV and its documentation: the
+# project's shared Dropbox, read by coauthors (override with --out-dir).
+SHARED_EXPORT_DIR = Path.home() / "Dropbox" / "Noise Pollution" / "data" / "grid"
+
+
+def grid_paths(root: Path | None = None) -> dict[str, Path]:
+    return domain_dirs("grid", root)
+
+
+def cell_id(easting: int, northing: int) -> str:
+    """SCB's 13-digit coordinate code: 6-digit easting then 7-digit
+    northing of the cell's lower-left (SW) corner in `METRIC_CRS`, e.g.
+    `3182006374200` -- the layout of both the open 1km grid's `rutid_scb`
+    and the 100m residence coordinate in SCB's register microdata, so
+    register residences join on it directly. SCB keys its grids on the
+    lower-left corner (checked against all 115,062 `rutid_scb` cells of the
+    2024 1km grid). The code doesn't carry the resolution; it is the run's
+    `resolution_m` (100m by default)."""
+    return f"{easting:06d}{northing:07d}"
+
+
+def processed_grid_cells_path(root: Path | None = None) -> Path:
+    return grid_paths(root)["processed"] / "grid_cells.parquet"
+
+
+def assembled_dir(root: Path | None = None) -> Path:
+    return grid_paths(root)["assembled"]

@@ -1,0 +1,15 @@
+# Changes here will be overwritten by Copier; do not edit by hand.
+_commit: ee56108
+_src_path: gh:felixschulz385/research-project-template
+author: Felix Schulz
+description: Do noise barriers along roads and railways improve children's school
+    achievement and later outcomes? Evidence from Sweden and Florida.
+doc_profile: research
+first_line: sweden-schools
+hpc: false
+license: MIT
+package: noise_pollution
+pipeline: true
+project_name: Noise pollution
+python_version: '3.11'
+restricted_data: false

@@ -1,60 +1,50 @@
 # Noise pollution
 
-Research project on traffic-noise pollution across geographical regions. Each
-region is a self-contained pipeline; shared machinery lives in `src/core/`. The
-first region, **Sweden**, assembles rail network geometry, station locations,
-timetable / train-announcement records, and noise-barrier data from Trafikverket
-into an analysis-ready dataset. See
-[`docs/design/01-multi-region-layout.md`](docs/design/01-multi-region-layout.md).
+Do noise barriers along roads and railways improve children's school achievement and later
+outcomes? Noise is a widespread externality whose effect on human capital is far less studied
+than that of air pollution or heat. Barriers are built at known dates on known stretches, which
+makes their construction a staggered natural experiment: we study it at the school level in
+Sweden and Florida, and for individual children on Swedish registers.
+
+## Lines of work
+
+Generated from each line's charter in [`docs/lines/`](docs/lines/):
+
+<!-- docs:begin lines -->
+| Line of work | State | Branch | Updated | Summary |
+|---|---|---|---|---|
+| [Florida: noise walls and school test scores](docs/lines/florida-schools/) | active | line/florida-schools | 2026-11-17 | Do FDOT noise walls raise test scores at the schools they protect? So far a clean null (CS ATT -0.051, RI p=0.456); post-wall cohorts at affluent-intake schools score lower |
+| [Sweden: growing up behind a noise barrier](docs/lines/sweden-residents/) | active | line/sweden-residents | 2026-11-17 | Does growing up behind a noise barrier change children's school achievement and later outcomes? A cohort-exposure design on the 100 m grid and Swedish registers; design written, no estimate yet |
+| [Sweden: noise barriers and school achievement](docs/lines/sweden-schools/) | active | line/sweden-schools | 2026-11-17 | Do Swedish road and rail noise barriers raise grade-9 achievement at the schools they protect? So far no effect beyond chance (RI p=0.186); a parental-education gradient survives |
+<!-- docs:end -->
 
 ## Quick start
 
 ```bash
-conda env create -f environment.yml
-conda activate noise-pollution
-pip install -e .
-./.githooks/install.sh          # opt-in git hooks (notebook-output check)
+conda-lock install -n noise_pollution conda-lock.yml   # or: conda env create -f environment.yml
+conda activate noise_pollution && pip install -e .
+./.githooks/install.sh                             # notebooks, restricted data, docs
+python scripts/docs.py check                       # documentation conventions
+noise_pollution sweden data panel assemble         # one stage of one region's pipeline
 ```
 
-Example commands (region-scoped: `python -m src.cli <region> …`):
+Data lands under `data/` (git-ignored; `orchestration/configs/noise_pollution.yaml`). Credentials
+for Trafikverket and Lastkajen go in `setup/secrets/` (git-ignored). The analysis notebooks
+(`notebooks/<line>/`) need Stata with `csdid` and `reghdfe`, called through `pystata`.
 
-```bash
-python -m src.cli sweden data stations fetch
-python -m src.cli sweden data stations preprocess
-python -m src.cli sweden data network preprocess
-```
-
-## Layout
-
-| Path | What |
-|---|---|
-| `src/cli/` | `python -m src.cli` entry-point shim |
-| `src/core/` | Region-agnostic framework: CLI plumbing, path layout, shared utilities |
-| `src/regions/<region>/` | One self-contained region: `sources/`, `analysis/`, its CLI subtree |
-| `src/experiments/<region>/` | Exploratory notebooks — unmaintained, not covered by tests |
-| `orchestration/configs/<region>.yaml` | Per-region configuration; plus HPC/Slurm scripts |
-| `data/<region>/` | Raw + processed pipeline data (gitignored; regenerate via the pipeline) |
-| `output/` | Deliverables — figures, documents, tables, presentations |
-| `docs/` | Design decision log + per-region reference docs |
-
-See [`docs/design/00-overview.md`](docs/design/00-overview.md) for architecture
-and the structural conventions this repo follows
-([research-project-template](https://github.com/felixschulz385/research-project-template)).
-
-## Secrets
-
-Trafikverket API credentials live under `setup/secrets/` (gitignored). See
-[`setup/secrets/`](setup/secrets/) for the expected file names.
+Everything else is in [`docs/`](docs/README.md). This project was ported to
+[research-project-template](https://github.com/felixschulz385/research-project-template) in
+November 2026 ([`docs/design/2026-11-template-port.md`](docs/design/2026-11-template-port.md));
+`copier update` brings in its later changes.
 
 ## License
 
 Two licenses, by content type:
 
-- **Source code** (the `src/` tree, configuration, pipeline scripts) — MIT.
-  See [`LICENSE`](LICENSE).
+- **Source code** (`src/`, `scripts/`, configuration) — MIT, see [`LICENSE`](LICENSE).
 - **Written research materials** (literature review, text, figures, tables under
-  `output/documents/`) — Creative Commons Attribution 4.0 International
-  (CC BY 4.0). See [`output/documents/LICENSE`](output/documents/LICENSE).
+  `output/documents/`) — Creative Commons Attribution 4.0 International (CC BY 4.0), see
+  [`output/documents/LICENSE`](output/documents/LICENSE).
 
-Bulk input data under `data/` is third-party (Trafikverket) and is not covered
-by either license; it is subject to the data provider's own terms.
+Input data under `data/` is third-party (Trafikverket, Skolverket, SCB, FDOT, FLDOE, NCES and
+others) and is covered by neither license; it is subject to each provider's terms.

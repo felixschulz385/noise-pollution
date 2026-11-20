@@ -1,3 +1,11 @@
+---
+type: source
+state: current
+updated: 2026-10-20
+summary: "Sweden skolkoll: a third-party Skolverket aggregator, used for closed schools' coordinates until 2026-10-20"
+note: "unused since schools reads API v2"
+---
+
 # `skolkoll`
 
 A third-party aggregation of Skolverket's own `api.skolverket.se`

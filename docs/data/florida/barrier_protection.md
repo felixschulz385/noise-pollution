@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-10-20
+summary: "Florida barrier_protection: each FDOT wall's reference road, side and protected area (Sweden's approach, transferred)"
+---
+
 # Florida barrier protection: Sweden's approach, transferred (implemented 2026-09-24)
 
 Sweden now models **the area each noise barrier protects**:
@@ -19,12 +26,12 @@ number was measured on 2026-09-24 against the current Florida outputs
 ## Status (2026-09-24): implemented and run
 
 **Code:**
-- **Shared geometry:** `src/core/barrier_geometry/linear_ref.py` (line
+- **Shared geometry:** `src/noise_pollution/core/barrier_geometry/linear_ref.py` (line
   primitives, formerly Sweden's `_linear_ref.py`) and
-  `src/core/barrier_geometry/protection.py` (`BarrierReferences`,
+  `src/noise_pollution/core/barrier_geometry/protection.py` (`BarrierReferences`,
   `classify_points`, `protection_zones`). The CRS travels on the references
   object.
-- **Florida:** `src/regions/florida/sources/barrier_protection/`:
+- **Florida:** `src/noise_pollution/regions/florida/sources/barrier_protection/`:
   - `reference.py`: reference-road choice, side, trimming
   - `shared.py`: references keyed by `gcid`, the zones layer, the
     stale-file check
@@ -140,11 +147,11 @@ reduction.
 No consumer reads the band yet. `schools assemble` still calls
 `classify_points` without it, so schools and panel outputs don't change.
 How the analysis will use the band, the distances and the dB column is
-planned in [`within_barrier_design.md`](within_barrier_design.md).
+planned in [`within_barrier_design.md`](../../lines/florida-schools/notes/within_barrier_design.md).
 
 The rule, the band, real cases from both regions and the zone-vs-point
 check are explained with figures in
-[`shared_methodology.ipynb`](../../../src/experiments/shared_methodology.ipynb)
+[`shared_methodology.ipynb`](../../../notebooks/sweden-schools/17_shared_methodology.ipynb)
 §2. The same day the zone code gained a Voronoi check. GEOS returns wrong,
 overlapping cells for long runs of exactly collinear samples, as on a
 straight synthetic segment. When a cell misses its own sample, the samples
@@ -214,7 +221,7 @@ Measured on the 1,282 `same_route` pairs:
 
 ## What carries over unchanged
 
-These parts of `src/regions/sweden/sources/_linear_ref.py` and
+These parts of `src/noise_pollution/regions/sweden/sources/_linear_ref.py` and
 `_barrier_reference.py` are pure geometry and need no Florida-specific
 logic:
 
@@ -245,7 +252,7 @@ logic:
 
 **One generalization is needed.** `METRIC_CRS = "EPSG:3006"` is hard-coded
 in `_linear_ref.py`, while Florida works in EPSG:3087. Move the
-region-agnostic parts into a shared module (e.g. `src/core/barrier_geometry.py`)
+region-agnostic parts into a shared module (e.g. `src/noise_pollution/core/barrier_geometry.py`)
 that takes the CRS as a parameter. Sweden's `_barrier_reference.py` then
 keeps only its Sweden-specific side inference, and Florida gets its own
 thin equivalent.

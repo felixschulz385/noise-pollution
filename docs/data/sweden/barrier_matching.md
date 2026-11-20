@@ -1,3 +1,10 @@
+---
+type: note
+state: current
+updated: 2026-10-20
+summary: "Barrier to road/track matching: review, consolidation and implementation of the side methods"
+---
+
 # Barrier ↔ road/track matching: review, consolidation and implementation (2026-09-23)
 
 Covers the code that decides, for each noise barrier, **which road or track
@@ -5,9 +12,9 @@ it belongs to, which stretch it covers, and which side of it the barrier
 stands on**. At the time of the review that code lived in three places
 (`_linear_ref.py`, `schools/assemble.py::match_barriers_network`,
 `grid/side.py::match_grid_side`). It now lives in:
-- **Sweden's side inference:** `src/regions/sweden/sources/_barrier_reference.py`
+- **Sweden's side inference:** `src/noise_pollution/regions/sweden/sources/_barrier_reference.py`
 - **Region-agnostic code shared with Florida** (since 2026-09-24):
-  `src/core/barrier_geometry/`, holding the line primitives
+  `src/noise_pollution/core/barrier_geometry/`, holding the line primitives
   (`linear_ref.py`, formerly `_linear_ref.py`) and the protected-area model
   (`protection.py`)
 
@@ -135,7 +142,7 @@ The refinements moved these numbers in both directions:
 - **§7.2-7.3** (`both_sides`, `track_offset`) then gave panel road 113 and
   rail 62.
 
-**Analysis:** `output/notebooks/sweden/analysis.ipynb` was re-run on
+**Analysis:** `notebooks/sweden-schools/20_analysis.ipynb` was re-run on
 2026-09-28 with `MATCH_TIER = "same_side"`, an interim until the audit has
 located every barrier: 104 treated schools, 45 of them built inside the
 1998–2019 window, ATT -0.060 (p=0.443), and every robustness check null.
@@ -271,7 +278,7 @@ Still open:
 
 ### `schools/assemble.py`: NOT fixed; feeds the shipped regression
 
-`output/notebooks/sweden/analysis.ipynb` uses `MATCH_TIER = "same_side"`.
+`notebooks/sweden-schools/20_analysis.ipynb` uses `MATCH_TIER = "same_side"`.
 
 **Road:**
 
@@ -656,7 +663,7 @@ See [`../florida/barrier_protection.md`](../florida/barrier_protection.md).
 Florida's walls are drawn where they stand, and FDOT's `BLOC_SIDE` agrees
 with their geometric side for 98.3% of walls, so the side comes straight
 from geometry. The geometry code (through-line, `classify_points`,
-`protection_zones`) moved to `src/core/barrier_geometry/` and is now shared.
+`protection_zones`) moved to `src/noise_pollution/core/barrier_geometry/` and is now shared.
 Florida's panel has a `_protected` tier: 116 treated schools.
 
 ### 7.6 Pilot findings: OSM matching, twin records, outer tracks (2026-09-24)
@@ -763,7 +770,7 @@ other 5 were `unknown`. Five answers were
 on the OSM wall's side, includes the two wrong practice matches described
 above.
 
-`output/notebooks/sweden/analysis.ipynb` was re-run on this rebuild on
+`notebooks/sweden-schools/20_analysis.ipynb` was re-run on this rebuild on
 2026-09-28, on `same_side` (see the Analysis note at the top).
 
 **Outer tracks, a closer look (2026-09-25).** Two of the checks available

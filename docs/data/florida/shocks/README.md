@@ -1,3 +1,10 @@
+---
+type: source
+state: current
+updated: 2026-09-14
+summary: "Florida shocks (Cluster G): OpenFEMA disaster declarations by county and assessment year"
+---
+
 # Florida — `shocks` source: requirements for implementation
 
 **Status: all three stages (`fetch`, `preprocess`, `assemble`) implemented
@@ -39,7 +46,7 @@ exports.
 
 1. `docs/data/florida/covariates.md`, Cluster G section — the seven planned
    variables and their `Role` tags.
-2. `src/regions/florida/sources/schools/shared.py` /
+2. `src/noise_pollution/regions/florida/sources/schools/shared.py` /
    `processed_cross_section_path` — `school_cross_section.parquet`'s
    `district`/`district_name` fields are this source's join key (see
    [The county join](#the-county-join-district-not-fips) below).
@@ -154,7 +161,7 @@ Program phases:
 ## Suggested layout (mirror `road_projects`)
 
 ```
-src/regions/florida/sources/shocks/
+src/noise_pollution/regions/florida/sources/shocks/
     __init__.py       # module docstring
     shared.py          # DOMAIN="shocks", paths, OpenFEMA endpoint constant,
                         #   the county-name normalization helper (incl. the
@@ -184,7 +191,7 @@ upper-cases to the same convention `shocks` normalizes to).
 ## Definition of done
 
 - ~~`fetch.py` pulls the full FL disaster-declaration history in one
-  request.~~ **done** (2026-09-14) — `src/regions/florida/sources/shocks/
+  request.~~ **done** (2026-09-14) — `src/noise_pollution/regions/florida/sources/shocks/
   {shared,fetch}.py`, real run: 2,794 rows in one request. CLI:
   `florida data shocks fetch`.
 - ~~`preprocess.py` normalizes `designatedArea` → `county_name` (with the
